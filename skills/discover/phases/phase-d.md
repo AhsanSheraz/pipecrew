@@ -120,7 +120,7 @@ Do NOT commit them automatically. The user decides when and how to commit.
 
 ### Step 7: Execution summary (per-phase + per-agent token accounting)
 
-Read `{workspace_root}/{slug}/runs/onboard/{run_id}/checkpoints.jsonl` and produce a two-table execution summary. This reads the event log emitted during the run (see the **OBSERVABILITY** section in `SKILL.md` and `{plugin_dir}/docs/observability.md` for the full schema).
+Read `{workspace_root}/{slug}/runs/discover/{run_id}/checkpoints.jsonl` and produce a two-table execution summary. This reads the event log emitted during the run (see the **OBSERVABILITY** section in `SKILL.md` and `{plugin_dir}/docs/observability.md` for the full schema).
 
 Run `node {plugin_dir}/scripts/validate-checkpoints.js {run_dir}/checkpoints.jsonl` first — on exit 1, surface the schema violation before building the summary; on exit 2, note the warnings in the summary but continue.
 
@@ -203,6 +203,6 @@ Re-run `/discover --resume --workspace={slug}` to fill the gaps.
 
 ---
 
-**Update scratchpad**: Set Phase D status to COMPLETED. Set top-level Status to COMPLETED. Emit a `run_end` event to `checkpoints.jsonl` with `status: "completed"` and `duration_ms` computed from the initial `run_start`. The entire `runs/onboard/{run_id}/` directory stays as the permanent record — scratchpad for humans, checkpoints.jsonl for the reporter and cross-workspace trending.
+**Update scratchpad**: Set Phase D status to COMPLETED. Set top-level Status to COMPLETED. Emit a `run_end` event to `checkpoints.jsonl` with `status: "completed"` and `duration_ms` computed from the initial `run_start`. The entire `runs/discover/{run_id}/` directory stays as the permanent record — scratchpad for humans, checkpoints.jsonl for the reporter and cross-workspace trending.
 
 ---

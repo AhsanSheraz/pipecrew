@@ -38,7 +38,7 @@ A local HTTP + SSE server at `{plugin_dir}/skills/site-view/server.js` that watc
 ```
 
 - `--workspace` auto-detects when exactly one workspace exists under `{workspace_root}/`.
-- `--run-id` picks a specific run. When omitted, the server locks onto the most recently modified run under `{workspace_root}/{slug}/runs/feature/`.
+- `--run-id` picks a specific run. When omitted, the server locks onto the most recently modified run under `{workspace_root}/{slug}/runs/deliver/`.
 - `--port` is the initial port. Auto-increments up to 10 times on `EADDRINUSE`.
 
 ### Via Node directly
@@ -57,7 +57,7 @@ Pre-flight Step 6 launches the server in the background with `run_in_background:
 
 ## Data sources
 
-The server reads **three files** per run and merges them into a single state JSON. All live under `{workspace_root}/{slug}/runs/feature/{run_id}/`.
+The server reads **three files** per run and merges them into a single state JSON. All live under `{workspace_root}/{slug}/runs/deliver/{run_id}/`.
 
 | File | Primary / Secondary | Role |
 |------|---------------------|------|
@@ -372,7 +372,7 @@ If you want the server to consume a new file (e.g. `agent-dispatch.jsonl`):
 
 ### Node complains about JSDoc / syntax errors
 
-- Check for `*/` inside JSDoc block content (e.g., in URL paths like `runs/feature/*/scratchpad.md`). The sequence closes the comment early. Escape with HTML entities (`&lt;`) or reword the path.
+- Check for `*/` inside JSDoc block content (e.g., in URL paths like `runs/deliver/*/scratchpad.md`). The sequence closes the comment early. Escape with HTML entities (`&lt;`) or reword the path.
 
 ---
 

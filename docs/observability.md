@@ -41,7 +41,7 @@ This is the **source of truth** for how every skill in the plugin records what i
 Format: `{YYYY-MM-DD-HHMMSS}-{slug}`
 
 - Slug = feature name for `/deliver`, workspace name for `/discover`, repo name for `/review` and `/assess`.
-- Sortable: `ls runs/feature/` is chronological.
+- Sortable: `ls runs/deliver/` is chronological.
 - Human-readable: a glance tells you what and when.
 - Collision policy: if two runs start in the same wall-clock second (rare), the second appends `-2`, `-3`, etc. at creation time.
 
@@ -60,7 +60,8 @@ Every line in `checkpoints.jsonl` is one JSON event on its own line. Append-only
 |---|---|---|---|
 | `ts` | ISO8601 UTC | always | Emission time (e.g., `"2026-04-15T14:27:44Z"`) |
 | `event` | enum | always | One of the 8 event types below |
-| `skill` | enum | always | `"onboard" \| "feature" \| "review" \| "assess" \| "context-refresh"` |
+| `skill` | enum | always | `"discover" \| "deliver" \| "review" \| "assess" \| "context-refresh"` |
+| | | | Legacy runs may carry the pre-rename values `"onboard"` / `"feature"`; the validator accepts both for backcompat. |
 | `run_id` | string | always | Matches the directory name |
 | `phase` | string | phase-scoped events | Skill-specific phase identifier (e.g., `"B2"`, `"5a"`) |
 | `stage` | string | phase-scoped events | Human-readable phase name (e.g., `"Architect Discovery"`) |
@@ -75,7 +76,7 @@ Fields that have no source data → **omit the key entirely**. Do not fabricate 
 {
   "ts": "2026-04-15T09:12:34Z",
   "event": "run_start",
-  "skill": "onboard",
+  "skill": "discover",
   "run_id": "2026-04-15-091234-dal",
   "workspace_slug": "dal",
   "args": "--workspace=dal --greenfield"
@@ -90,7 +91,7 @@ Extra fields: `workspace_slug` (always), `args` (CLI args passed), `claude_code_
 {
   "ts": "2026-04-15T09:28:47Z",
   "event": "run_end",
-  "skill": "onboard",
+  "skill": "discover",
   "run_id": "2026-04-15-091234-dal",
   "status": "completed",
   "duration_ms": 933412
@@ -105,7 +106,7 @@ Extra fields: `status` (`completed` | `failed` | `aborted` | `resumed_later`), `
 {
   "ts": "2026-04-15T09:14:02Z",
   "event": "phase_start",
-  "skill": "onboard",
+  "skill": "discover",
   "run_id": "2026-04-15-091234-dal",
   "phase": "B2",
   "stage": "Architect Discovery"
@@ -118,7 +119,7 @@ Extra fields: `status` (`completed` | `failed` | `aborted` | `resumed_later`), `
 {
   "ts": "2026-04-15T09:18:05Z",
   "event": "phase_end",
-  "skill": "onboard",
+  "skill": "discover",
   "run_id": "2026-04-15-091234-dal",
   "phase": "B2",
   "stage": "Architect Discovery",
@@ -134,7 +135,7 @@ Extra fields: `duration_ms` (computed from matching `phase_start`).
 {
   "ts": "2026-04-15T09:17:58Z",
   "event": "agent_end",
-  "skill": "onboard",
+  "skill": "discover",
   "run_id": "2026-04-15-091234-dal",
   "phase": "B2",
   "stage": "Architect Discovery",
@@ -164,7 +165,7 @@ Captures the tokens the **orchestrator itself** burned between agent dispatches 
 {
   "ts": "2026-04-15T09:18:10Z",
   "event": "orch_checkpoint",
-  "skill": "onboard",
+  "skill": "discover",
   "run_id": "2026-04-15-091234-dal",
   "phase": "B2",
   "stage": "Architect Discovery",
@@ -187,7 +188,7 @@ How to compute `orch_since_last`: read the session JSONL from `previous_offset` 
 {
   "ts": "2026-04-15T09:15:20Z",
   "event": "bash_slow",
-  "skill": "feature",
+  "skill": "deliver",
   "run_id": "2026-04-15-104502-book-upload",
   "phase": "5a",
   "stage": "Backend implementation",
@@ -204,7 +205,7 @@ Required: `duration_ms`, `cmd_summary` (first 60 chars of the command, trimmed).
 {
   "ts": "2026-04-15T09:16:01Z",
   "event": "retry",
-  "skill": "feature",
+  "skill": "deliver",
   "run_id": "2026-04-15-104502-book-upload",
   "phase": "5a",
   "stage": "Backend implementation",

@@ -115,7 +115,7 @@ All events go to `{run_dir}/checkpoints.jsonl` in the unified schema defined at 
    {
      "ts": "2026-04-15T14:27:44Z",
      "event": "orch_checkpoint",
-     "skill": "feature",
+     "skill": "deliver",
      "run_id": "2026-04-15-142744-book-upload",
      "phase": "2",
      "stage": "Architecture",

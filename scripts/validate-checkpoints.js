@@ -19,7 +19,8 @@ const ALLOWED_EVENTS = new Set([
 ]);
 
 const ALLOWED_SKILLS = new Set([
-  'onboard', 'feature', 'review', 'assess', 'context-refresh',
+  'discover', 'deliver', 'review', 'assess', 'context-refresh',
+  'onboard', 'feature', // 'onboard' and 'feature' kept for pre-rename checkpoints
 ]);
 
 const ALLOWED_AGENT_STATUS = new Set(['ok', 'retry', 'failed', 'deferred']);

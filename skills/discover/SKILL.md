@@ -49,7 +49,7 @@ After `/discover` completes, you have:
 4. **Agent-context is optional.** Recommend it for complex repos. Skip for simple ones.
 5. **Domain agents are templates.** The plugin ships template files; `/discover` fills in placeholders and writes finished agents to the workspace's `agents/` directory.
 6. **The solution-architect does the heavy lifting in Phase B2.** It reads actual code, not just filenames. This produces a high-quality platform.md that all coordinating agents rely on.
-7. **Track progress in a scratchpad.** Onboarding has 6 phases — any of them can fail (context limit, network error, user interruption). The scratchpad at `{workspace_root}/{slug}/runs/onboard/{run_id}/scratchpad.md` tracks which phases completed and stores intermediate results so `/discover --resume` can pick up where it left off.
+7. **Track progress in a scratchpad.** Onboarding has 6 phases — any of them can fail (context limit, network error, user interruption). The scratchpad at `{workspace_root}/{slug}/runs/discover/{run_id}/scratchpad.md` tracks which phases completed and stores intermediate results so `/discover --resume` can pick up where it left off.
 8. **Update the scratchpad after every phase completes** — before starting the next phase. Write the phase status AND any outputs produced (discovered repos, domain answers, etc.).
 9. **Emit a one-line phase-done status in chat** — immediately after updating the scratchpad at the end of each phase, print exactly one line to the user in the format:
 
@@ -78,7 +78,7 @@ After `/discover` completes, you have:
 **Run directory** — every onboarding run gets its own dir under the workspace:
 
 ```
-{workspace_root}/{slug}/runs/onboard/{run_id}/
+{workspace_root}/{slug}/runs/discover/{run_id}/
 ├── scratchpad.md          human-readable phase state (used by --resume)
 ├── checkpoints.jsonl      machine event log (this section)
 ├── outputs/               phase artifacts (platform-draft.md, divergences.md, etc.)
@@ -91,7 +91,7 @@ Stable workspace-level outputs (`config.json`, `context/platform.md`, `agents/`,
 
 **Event emission** — every event is one JSON object on its own line in `checkpoints.jsonl`. Append-only. Emit with `Write` (read + append) or shell `echo >> …`.
 
-**Common fields** (every event): `ts` (ISO8601 UTC), `event`, `skill: "onboard"`, `run_id`. Phase-scoped events also include `phase` and `stage`.
+**Common fields** (every event): `ts` (ISO8601 UTC), `event`, `skill: "discover"`, `run_id`. Phase-scoped events also include `phase` and `stage`.
 
 **Event types** — /discover emits the following (full schema in `docs/observability.md`):
 
@@ -143,11 +143,11 @@ Both are kept; neither replaces the other.
 
 ### SCRATCHPAD
 
-**Created at the very start of onboarding** (before Phase A, after asking the workspace name AND after computing `run_id`). Lives at `{workspace_root}/{slug}/runs/onboard/{run_id}/scratchpad.md`.
+**Created at the very start of onboarding** (before Phase A, after asking the workspace name AND after computing `run_id`). Lives at `{workspace_root}/{slug}/runs/discover/{run_id}/scratchpad.md`.
 
 **Before writing the scratchpad**, the orchestrator MUST:
-1. Compute `run_id` = `{YYYY-MM-DD-HHMMSS}-{slug}` from current UTC time. If `runs/onboard/{run_id}/` already exists, append `-2`, `-3`, etc.
-2. Create the directory: `mkdir -p {workspace_root}/{slug}/runs/onboard/{run_id}/outputs`
+1. Compute `run_id` = `{YYYY-MM-DD-HHMMSS}-{slug}` from current UTC time. If `runs/discover/{run_id}/` already exists, append `-2`, `-3`, etc.
+2. Create the directory: `mkdir -p {workspace_root}/{slug}/runs/discover/{run_id}/outputs`
 3. Emit the first `run_start` event to `checkpoints.jsonl` in that dir.
 4. Then write the scratchpad below.
 
@@ -155,7 +155,7 @@ Both are kept; neither replaces the other.
 # Onboarding Scratchpad
 
 ## Run Info
-- **Skill**: onboard
+- **Skill**: discover
 - **Run ID**: {run_id}
 - **Workspace**: {name} ({slug})
 - **Parent dirs**: {parent_dir list}
@@ -251,10 +251,10 @@ Behavior: **warn and continue.** Do not hard-block. The user decides. If `stats-
 **Step 0.3: Create the run directory.**
 
 ```bash
-mkdir -p {workspace_root}/{slug}/runs/onboard/{run_id}/outputs
+mkdir -p {workspace_root}/{slug}/runs/discover/{run_id}/outputs
 ```
 
-If `runs/onboard/{run_id}/` already exists (same-second collision), append `-2`, `-3`, … to `{run_id}` until unique.
+If `runs/discover/{run_id}/` already exists (same-second collision), append `-2`, `-3`, … to `{run_id}` until unique.
 
 Emit the first `run_start` event to `{run_dir}/checkpoints.jsonl` (see `docs/observability.md`). Then write the initial scratchpad from the template below. Then proceed to Phase A.
 

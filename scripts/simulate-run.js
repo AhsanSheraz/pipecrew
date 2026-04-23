@@ -3,7 +3,7 @@
  * simulate-run.js — dry-run harness for the pipeline-view UI.
  *
  * Creates a fake run directory under
- *   {workspace_root}/{slug}/runs/feature/{YYYY-MM-DD-HHMMSS}-simulated-demo/
+ *   {workspace_root}/{slug}/runs/deliver/{YYYY-MM-DD-HHMMSS}-simulated-demo/
  * where {workspace_root} is resolved via scripts/workspace-root.js
  * (default: ~/.claude/pipecrew/workspaces/).
  * and steps through a scripted feature-pipeline timeline, writing to
@@ -83,7 +83,7 @@ const now = new Date();
 const pad = n => String(n).padStart(2, '0');
 const ts = `${now.getUTCFullYear()}-${pad(now.getUTCMonth() + 1)}-${pad(now.getUTCDate())}-${pad(now.getUTCHours())}${pad(now.getUTCMinutes())}${pad(now.getUTCSeconds())}`;
 const runId = `${ts}-${featureName}`;
-const runDir = path.join(WORKSPACE_ROOT, workspace, 'runs', 'feature', runId);
+const runDir = path.join(WORKSPACE_ROOT, workspace, 'runs', 'deliver', runId);
 
 fs.mkdirSync(path.join(runDir, 'outputs'), { recursive: true });
 fs.mkdirSync(path.join(runDir, 'tasks'),   { recursive: true });
@@ -228,7 +228,7 @@ process.on('SIGTERM', () => teardown('SIGTERM'));
 
 // ─── Timeline ────────────────────────────────────────────────
 (async () => {
-  emit({ event: 'run_start', skill: 'feature', run_id: runId, workspace_slug: workspace,
+  emit({ event: 'run_start', skill: 'deliver', run_id: runId, workspace_slug: workspace,
          args: { feature: featureName, simulated: true } });
   render();
   await sleep(stepMs);
@@ -236,10 +236,10 @@ process.on('SIGTERM', () => teardown('SIGTERM'));
   // ─ Phase 1: Requirements ─
   currentPhase = 'Phase 1: Requirements';
   setPhase('1', 'status', 'IN_PROGRESS');
-  emit({ event: 'phase_start', skill: 'feature', run_id: runId, phase: '1', stage: 'requirements' });
+  emit({ event: 'phase_start', skill: 'deliver', run_id: runId, phase: '1', stage: 'requirements' });
   render();
   await sleep(stepMs);
-  emit({ event: 'agent_end', skill: 'feature', run_id: runId, phase: '1', stage: 'requirements',
+  emit({ event: 'agent_end', skill: 'deliver', run_id: runId, phase: '1', stage: 'requirements',
          agent_type: 'dal-product-owner', description: 'Phase 1 requirements',
          status: 'ok', total_tokens: 41200, tool_uses: 8, duration_ms: 145000 });
   addDispatch('1', 'dal-product-owner', '—', '2m 25s', '41K', 'COMPLETED');
@@ -260,10 +260,10 @@ process.on('SIGTERM', () => teardown('SIGTERM'));
   // ─ Phase 2: Architecture ─
   currentPhase = 'Phase 2: Architecture';
   setPhase('2', 'status', 'IN_PROGRESS');
-  emit({ event: 'phase_start', skill: 'feature', run_id: runId, phase: '2', stage: 'architecture' });
+  emit({ event: 'phase_start', skill: 'deliver', run_id: runId, phase: '2', stage: 'architecture' });
   render();
   await sleep(stepMs);
-  emit({ event: 'agent_end', skill: 'feature', run_id: runId, phase: '2', stage: 'architecture',
+  emit({ event: 'agent_end', skill: 'deliver', run_id: runId, phase: '2', stage: 'architecture',
          agent_type: 'solution-architect', description: 'technical design',
          status: 'ok', total_tokens: 86000, tool_uses: 21, duration_ms: 240000 });
   addDispatch('2', 'solution-architect', '—', '4m 00s', '86K', 'COMPLETED');
@@ -274,10 +274,10 @@ process.on('SIGTERM', () => teardown('SIGTERM'));
   // ─ Phase 3: Spec Edit ─
   currentPhase = 'Phase 3: Spec Edit';
   setPhase('3', 'status', 'IN_PROGRESS');
-  emit({ event: 'phase_start', skill: 'feature', run_id: runId, phase: '3', stage: 'spec-edit' });
+  emit({ event: 'phase_start', skill: 'deliver', run_id: runId, phase: '3', stage: 'spec-edit' });
   render();
   await sleep(stepMs);
-  emit({ event: 'agent_end', skill: 'feature', run_id: runId, phase: '3', stage: 'spec-edit',
+  emit({ event: 'agent_end', skill: 'deliver', run_id: runId, phase: '3', stage: 'spec-edit',
          agent_type: 'openapi-spec-editor', description: 'apply spec changes',
          status: 'ok', total_tokens: 52000, tool_uses: 17, duration_ms: 510000 });
   addDispatch('3', 'openapi-spec-editor', '—', '8m 30s', '52K', 'COMPLETED');
@@ -293,7 +293,7 @@ process.on('SIGTERM', () => teardown('SIGTERM'));
   // ─ Phase 5: Parallel implementation (4 tasks concurrently) ─
   currentPhase = 'Phase 5: Implementation';
   setPhase('5', 'status', 'IN_PROGRESS');
-  emit({ event: 'phase_start', skill: 'feature', run_id: runId, phase: '5', stage: 'implementation' });
+  emit({ event: 'phase_start', skill: 'deliver', run_id: runId, phase: '5', stage: 'implementation' });
 
   const tasks = [
     { n: 1, taskId: `${featureName}-a1`, repo: 'abvi-publisher-service',  agent: 'spring-boot-api-implementer' },
@@ -308,7 +308,7 @@ process.on('SIGTERM', () => teardown('SIGTERM'));
   await sleep(stepMs * 2);
 
   // ─ Retry on task 2 to exercise the retry indicator ─
-  emit({ event: 'retry', skill: 'feature', run_id: runId, phase: '5',
+  emit({ event: 'retry', skill: 'deliver', run_id: runId, phase: '5',
          agent_type: 'spring-boot-api-implementer', description: 'backoffice retry',
          retry_reason: '529 overloaded' });
   render();
@@ -324,7 +324,7 @@ process.on('SIGTERM', () => teardown('SIGTERM'));
   for (const { task, duration, tokens } of completeOrder) {
     const row = implTasks.find(r => r.taskId === task.taskId);
     if (row) { row.status = 'COMPLETED'; row.duration = duration; row.tokens = tokens; }
-    emit({ event: 'agent_end', skill: 'feature', run_id: runId, phase: '5',
+    emit({ event: 'agent_end', skill: 'deliver', run_id: runId, phase: '5',
            agent_type: task.agent.split(' + ')[0], description: task.repo,
            status: 'ok', total_tokens: parseInt(tokens) * 1000, tool_uses: 40, duration_ms: 0 });
     addDispatch('5', task.agent.split(' + ')[0], task.taskId, duration, tokens, 'COMPLETED');
@@ -334,7 +334,7 @@ process.on('SIGTERM', () => teardown('SIGTERM'));
   setPhase('5', 'status', 'COMPLETED');
   setPhase('5', 'duration', '8m 30s');
   setPhase('5', 'tokens', '546K');
-  emit({ event: 'phase_end', skill: 'feature', run_id: runId, phase: '5',
+  emit({ event: 'phase_end', skill: 'deliver', run_id: runId, phase: '5',
          stage: 'implementation', duration_ms: 510000 });
   render();
   await sleep(stepMs);
@@ -401,7 +401,7 @@ process.on('SIGTERM', () => teardown('SIGTERM'));
 
   overallStatus = 'COMPLETED';
   render();
-  emit({ event: 'run_end', skill: 'feature', run_id: runId, status: 'completed', duration_ms: 1200000 });
+  emit({ event: 'run_end', skill: 'deliver', run_id: runId, status: 'completed', duration_ms: 1200000 });
 
   console.log(`\n[sim] timeline complete — scratchpad + checkpoints finalised at ${runDir}`);
   if (launchUi) {

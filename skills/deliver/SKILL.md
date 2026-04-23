@@ -73,7 +73,7 @@ End-to-end feature pipeline. Orchestrates work across API service repos, fronten
 3. **Pre-flight check** — verify all repo paths from the config exist on disk. Report missing repos and stop.
 4. **Per-run isolation.** Each feature run has its own directory under the workspace:
    ```
-   {workspace_root}/{slug}/runs/feature/
+   {workspace_root}/{slug}/runs/deliver/
    └── {run_id}/                    ← THIS run's {run_dir}  (run_id = {YYYY-MM-DD-HHMMSS}-{feature-slug})
        ├── scratchpad.md            lean phase index
        ├── checkpoints.jsonl        unified event log (see docs/observability.md)
@@ -85,7 +85,7 @@ End-to-end feature pipeline. Orchestrates work across API service repos, fronten
        ├── fix-rounds/              (optional — per fix-round artifacts)
        └── report.md                Phase 7 final report
    ```
-   The timestamp prefix of `{run_id}` makes sibling dirs chronologically sortable — no separate `active/` or `completed/` split. In all phase files, `{run_dir}` resolves to `{workspace_root}/{slug}/runs/feature/{run_id}/`. See `phases/pre-flight.md` for run_id computation + directory creation. Update the scratchpad immediately after every phase completes.
+   The timestamp prefix of `{run_id}` makes sibling dirs chronologically sortable — no separate `active/` or `completed/` split. In all phase files, `{run_dir}` resolves to `{workspace_root}/{slug}/runs/deliver/{run_id}/`. See `phases/pre-flight.md` for run_id computation + directory creation. Update the scratchpad immediately after every phase completes.
 5. **User approval gates** — pause after Phase 1 (requirements), Phase 2 (architecture), Phase 3 (spec changes), Phase 4.5 (implementation plan), **Phase 5b UX consultant** (before launching feature-implementer), and **Phase 5.5 code review** (only if the reviewer found critical issues — the gate asks whether to dispatch a fix round).
 
     **At EVERY gate, surface the wait to the UI**: before asking the user, run `node {plugin_dir}/scripts/gate.js open --run-dir={run_dir} --phase={N} --gate=approval --question="..." [--context="..."]`. After receiving the user's answer, run `node {plugin_dir}/scripts/gate.js close --run-dir={run_dir}`. This drives the yellow "waiting for input" banner in the pipeline-view UI and the `⏸` prefix in the browser tab title — essential when the user has the UI open in a second monitor and is working elsewhere. Forgetting to `close` leaves the banner stuck; treat open/close as mandatory bracketing around every gate. Full gate contract + label catalog in `{plugin_dir}/docs/site-view.md`.

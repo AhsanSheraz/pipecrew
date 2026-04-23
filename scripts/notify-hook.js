@@ -17,7 +17,7 @@
  *   { tool_name, tool_input, message, ... }. We only use fields for the
  *   banner preview; missing fields fall back to generic text.
  *
- * An "active" run dir = any run dir under {workspace_root}/<slug>/runs/feature/
+ * An "active" run dir = any run dir under {workspace_root}/<slug>/runs/deliver/
  *   ({workspace_root} resolved via scripts/workspace-root.js —
  *    default ~/.claude/pipecrew/workspaces/)
  * whose scratchpad.md was modified in the last 60 minutes. This matches the
@@ -115,12 +115,12 @@ function activeRunDirs() {
   let workspaces;
   try { workspaces = fs.readdirSync(WS_DIR); } catch (_) { return out; }
   for (const slug of workspaces) {
-    const featureDir = path.join(WS_DIR, slug, 'runs', 'feature');
-    if (!fs.existsSync(featureDir)) continue;
+    const deliverDir = path.join(WS_DIR, slug, 'runs', 'deliver');
+    if (!fs.existsSync(deliverDir)) continue;
     let runs;
-    try { runs = fs.readdirSync(featureDir); } catch (_) { continue; }
+    try { runs = fs.readdirSync(deliverDir); } catch (_) { continue; }
     for (const runId of runs) {
-      const runDir = path.join(featureDir, runId);
+      const runDir = path.join(deliverDir, runId);
       const scratchpad = path.join(runDir, 'scratchpad.md');
       if (!fs.existsSync(scratchpad)) continue;
       try {

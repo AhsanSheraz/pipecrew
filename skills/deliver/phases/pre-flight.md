@@ -1,12 +1,12 @@
 ### Scratchpad Template
 
-The scratchpad lives at `{run_dir}/scratchpad.md` where `{run_dir}` = `{workspace_root}/{slug}/runs/feature/{run_id}/`. Per-run isolation — each feature gets its own directory so two features can run in parallel on the same workspace without token accounting bleeding.
+The scratchpad lives at `{run_dir}/scratchpad.md` where `{run_dir}` = `{workspace_root}/{slug}/runs/deliver/{run_id}/`. Per-run isolation — each feature gets its own directory so two features can run in parallel on the same workspace without token accounting bleeding.
 
 `{run_id}` format: `{YYYY-MM-DD-HHMMSS}-{feature-slug}` (see `{plugin_dir}/docs/observability.md`). The timestamp provides uniqueness; the feature slug provides readability. On same-second collision, append `-2`, `-3`, …
 
 #### Directory Structure
 ```
-{workspace_root}/{slug}/runs/feature/
+{workspace_root}/{slug}/runs/deliver/
 └── {run_id}/                          <- THIS run's {run_dir}
     ├── scratchpad.md                  <- lean phase index
     ├── checkpoints.jsonl              <- unified event log (see observability.md)
@@ -25,7 +25,7 @@ The scratchpad lives at `{run_dir}/scratchpad.md` where `{run_dir}` = `{workspac
     └── report.md                      <- Phase 7 final report (from reporter)
 ```
 
-`{run_id}` is the enduring identity of a feature run — used in checkpoints, surfaced in the reporter, and what `--resume` targets. Archival is implicit: old run dirs sort by name (chronological), so listing `runs/feature/` gives history for free. No separate `active/`, `completed/`, or `history/` subdirs.
+`{run_id}` is the enduring identity of a feature run — used in checkpoints, surfaced in the reporter, and what `--resume` targets. Archival is implicit: old run dirs sort by name (chronological), so listing `runs/deliver/` gives history for free. No separate `active/`, `completed/`, or `history/` subdirs.
 
 #### scratchpad.md Template
 
@@ -33,7 +33,7 @@ The scratchpad lives at `{run_dir}/scratchpad.md` where `{run_dir}` = `{workspac
 # Run Scratchpad
 
 ## Run Info
-- **Skill**: feature
+- **Skill**: deliver
 - **Run ID**: {run_id}
 - **Feature**: {feature description}
 - **Workspace**: {workspace.name} ({slug})
@@ -164,7 +164,7 @@ node {plugin_dir}/scripts/validate-config.js {workspace_root}/{workspace}/config
 If validation fails (exit code 1), print the errors and stop. If warnings exist, print them and continue.
 
 Extract key references from the config into short aliases used throughout the rest of the pipeline:
-- `{runs_dir}` = `{workspace_root}/{slug}/runs/feature/` — base for all feature runs (replaces the old `config.workspace.pipeline_dir`)
+- `{runs_dir}` = `{workspace_root}/{slug}/runs/deliver/` — base for all feature runs (replaces the old `config.workspace.pipeline_dir`)
 - `{run_dir}` = `{runs_dir}/{run_id}/` — this specific run (computed once in Step 2)
 - `{repos.*}` = `config.repos` — iterate for path validation
 - `{services.*}` = `config.services` — iterate for service→repo→spec lookups
@@ -201,7 +201,7 @@ Proceed on "yes" — multiple runs can execute simultaneously. Each has isolated
 **Step 4: Create the per-run directory.**
 
 1. `mkdir -p {run_dir}/outputs {run_dir}/tasks {run_dir}/review {run_dir}/fix-rounds`
-2. Emit the first `run_start` event to `{run_dir}/checkpoints.jsonl` with `skill: "feature"`, `workspace_slug`, `args`, and ISO8601 `ts`.
+2. Emit the first `run_start` event to `{run_dir}/checkpoints.jsonl` with `skill: "deliver"`, `workspace_slug`, `args`, and ISO8601 `ts`.
 3. Write `{run_dir}/scratchpad.md` from the template in this phase file.
 4. Set: Feature, Run ID, Workspace, Flags, Started date, Current Phase: "Phase 1: Requirements", Status: IN_PROGRESS.
 

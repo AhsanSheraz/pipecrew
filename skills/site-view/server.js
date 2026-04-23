@@ -4,8 +4,8 @@
  *
  * Watches ONE feature run's scratchpad.md and streams state to the browser.
  *
- * Layout:   {workspace_root}/{slug}/runs/feature/{run_id}/scratchpad.md
- *           {workspace_root}/{slug}/runs/feature/{run_id}/checkpoints.jsonl
+ * Layout:   {workspace_root}/{slug}/runs/deliver/{run_id}/scratchpad.md
+ *           {workspace_root}/{slug}/runs/deliver/{run_id}/checkpoints.jsonl
  *
  *   - scratchpad.md is the primary source — phase table, task table, dispatch log
  *   - checkpoints.jsonl is enrichment — orchestrator-overhead tokens + retry markers
@@ -18,7 +18,7 @@
  *   --workspace: single workspace under {workspace_root}/ → use it.
  *                Multiple → exit with list.
  *   --run-id:    most recently-modified scratchpad.md under
- *                {workspace_root}/{slug}/runs/feature/&lt;run-id&gt;/
+ *                {workspace_root}/{slug}/runs/deliver/&lt;run-id&gt;/
  *
  * Zero dependencies — pure Node stdlib.
  */
@@ -70,7 +70,7 @@ workspace = resolveWorkspace();
 
 // ─── Run-id resolution ───────────────────────────────────────
 function runsDir() {
-  return path.join(WORKSPACE_ROOT, workspace, 'runs', 'feature');
+  return path.join(WORKSPACE_ROOT, workspace, 'runs', 'deliver');
 }
 
 let lastAnnouncedRunId = null;
