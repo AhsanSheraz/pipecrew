@@ -1,0 +1,11 @@
+{
+  "name": "pipecrew",
+  "owner": { "name": "Ramy Hassan" },
+  "plugins": [
+    {
+      "name": "pipecrew",
+      "source": "./",
+      "description": "Multi-repo agent crew for Claude Code — /discover, /deliver, /review, /assess, /context-refresh."
+    }
+  ]
+}
