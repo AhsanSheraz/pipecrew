@@ -40,7 +40,7 @@ Plus `CLAUDE.md` in each repo and optional `agent-context/` for complex repos.
 ```
 Phase 1: Requirements ──── product-owner analyzes + produces FR/EC list
 Phase 2: Architecture ──── architect designs endpoints, schemas, boundaries
-Phase 3: Spec Edit ─────── OpenAPI spec updated
+Phase 3: Spec Edit ─────── 3a: contract schemas (Avro/JSON Schema/Protobuf); 3b: OpenAPI specs
 Phase 4: Plan ──────────── implementation tasks as tracked files
 Phase 5: Build ─────────── parallel: backend + frontend + mock + infra
 Phase 5.5: Review ──────── per-repo code review with findings
@@ -60,15 +60,20 @@ Live dashboard at `http://localhost:5173` shows the crew in real time.
 
 ## Supported tech stacks
 
-| Stack | Implementer | Reviewer |
-|-------|------------|---------|
-| Spring Boot | `spring-boot-implementer` | `spring-boot-reviewer` |
-| React | `react-implementer` | `react-reviewer` |
-| Next.js | `nextjs-implementer` | `nextjs-reviewer` |
-| NestJS | `nestjs-implementer` | `nestjs-reviewer` |
-| FastAPI | `fastapi-implementer` | — |
-| AWS CDK | `cdk-implementer` | — |
-| Node mock | `node-mock-implementer` | — |
+| Stack | Implementer | Reviewer | spec_policy |
+|-------|------------|---------|-------------|
+| Spring Boot | `spring-boot-api-implementer` | `spring-boot-code-reviewer` | `api-first` |
+| React | `react-feature-implementer` | `react-code-reviewer` | — (frontend) |
+| Next.js | `nextjs-implementer` | `nextjs-reviewer` | — (frontend) |
+| NestJS | `nestjs-implementer` | `nestjs-reviewer` | `api-first` |
+| FastAPI | `fastapi-implementer` | — | `api-first` |
+| Flask | `flask-implementer` | — | `api-first` or `code-first` |
+| Django / DRF | `django-implementer` | — | `api-first` or `code-first` |
+| Python worker | `python-worker-implementer` | — | `no-api` (event-driven) |
+| AWS CDK | `cdk-stack-implementer` | — (verified by `cdk synth`) | — (infra) |
+| Terraform | `terraform-implementer` | — (plan is the review artifact) | — (infra) |
+| Node mock | `mock-endpoint-implementer` | — (reviewed via frontend tests) | — (mock) |
+| Schemas | `schema-implementer` | — | — (contract repos, Phase 3a) |
 
 ## Skills
 
@@ -142,9 +147,11 @@ Token usage monitoring during a run:
 
 1. Create `agents/{stack}-implementer.md` following existing patterns
 2. Optionally create `agents/{stack}-reviewer.md`
-3. Add type → agent mapping to SKILL.md rule #9
-4. Add sentinel file detection to `/discover` Phase A
-5. Add a `docs/pitfalls/{stack}.md` file listing predictable anti-patterns (Phase 4.5 injects a subset into every task file for that stack)
+3. Add `type` to `VALID_TYPES` in `scripts/validate-config.js`
+4. Add type → agent mapping row to `skills/deliver/phases/dispatch-rules.md` (the `TYPE_TO_AGENT` table)
+5. Add sentinel file detection to `/discover` Phase A (`skills/discover/phases/phase-a.md`)
+6. Add a `docs/pitfalls/{stack}.md` file — Phase 4.5 injects a subset into every task file for that stack, and Phase 5.5 reviewers use it as a checklist
+7. Update the "Supported tech stacks" table in this README
 
 ## Workspace agents vs plugin agents
 
