@@ -40,24 +40,15 @@ Do not propose new architecture, refactors, or technical solutions in discovery 
 
 ### Discovery-mode outputs
 
-Discovery mode produces two files (the orchestrator splits your output and saves them):
+Discovery mode produces three files (the orchestrator splits your output and saves them):
 
-1. **`{workspace_root}/{slug}/context/platform.md`** — prose context document (Domain, Entities & Ownership, Service Map, Integration Patterns, etc.). Contains a short `## Architecture Diagram` section that POINTS to the `.mmd` file; it does NOT embed the Mermaid source.
+1. **`{workspace_root}/{slug}/context/platform.md`** — prose context document (Domain, Entities & Ownership, Service Map, Integration Patterns, etc.) with a short `## Architecture Diagram` section that POINTS to the `.mmd` files (does NOT embed the Mermaid source).
+2. **`{workspace_root}/{slug}/context/architecture-overview.mmd`** — high-level C4-style block diagram for new team members.
+3. **`{workspace_root}/{slug}/context/architecture.mmd`** — detailed topology.
 
-2. **`{workspace_root}/{slug}/context/architecture.mmd`** — Mermaid source for the architecture diagram. Site-view renders this live in the "Project" drawer via `mermaid.js`.
+**Diagramming rules**: the complete Mermaid conventions, taxonomy, classDef palette, self-check checklist, and lexical-safety rules for both diagrams live in `{plugin_dir}/docs/discovery-diagram-rules.md`. **Read that file at the start of any discovery-mode invocation before producing the diagrams.** Do NOT read it in design mode — it's not relevant there, and loading it wastes context.
 
-**Mermaid conventions for `architecture.mmd`:**
-- Use `graph LR` unless the topology is clearly top-down (then `graph TB`).
-- Group related nodes in `subgraph` blocks: Frontends, Services, Workers, Databases, Infrastructure, External.
-- Edge conventions:
-  - `-->` for **synchronous REST/RPC** calls (label with endpoint prefix or Feign client name).
-  - `-.->` for **async events** (label with queue/topic name).
-  - `==>` for **shared-resource writes** (DB write, S3 upload).
-- `classDef` styling: `infra` (blue tones), `frontend` (green tones), `worker` (purple tones), `external` (orange tones), `orphan` (red dashed — for resources that exist but have no current owner).
-- One node per service. Use the service key as node id, service name + stack as the label.
-- Draw only edges you confirmed in code or configuration. If an integration is ambiguous, leave it out and flag it under `## Open Questions` in platform.md.
-
-Full phase-specific instructions (exact section list, skeleton, post-processing) live in `skills/discover/phases/phase-b-domain-and-architect.md` — the orchestrator will inline the relevant parts in the prompt.
+The phase prompt from `skills/discover/phases/phase-b-domain-and-architect.md` will point you at the file and tell you what to produce in this specific run.
 
 ### Design-mode outputs
 

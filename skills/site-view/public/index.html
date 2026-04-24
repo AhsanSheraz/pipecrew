@@ -1041,6 +1041,90 @@
     color: var(--muted, #a88a50);
   }
   .arch-diagram-source a { color: var(--accent, #f5a623); }
+
+  /* Rendered markdown (platform.md + design-systems) */
+  .md-rendered {
+    background: #0f0b08;
+    border: 1px solid rgba(122, 90, 32, 0.4);
+    padding: 14px 18px;
+    margin-top: 4px;
+    max-height: 520px;
+    overflow-y: auto;
+    font-size: 12px;
+    line-height: 1.55;
+    color: var(--text, #d9c3a0);
+  }
+  .md-rendered h1, .md-rendered h2, .md-rendered h3, .md-rendered h4 {
+    color: var(--accent, #f5a623);
+    letter-spacing: 0.5px;
+    margin: 14px 0 6px 0;
+    border: none;
+    padding: 0;
+  }
+  .md-rendered h1 { font-size: 15px; text-transform: uppercase; }
+  .md-rendered h2 { font-size: 13px; text-transform: uppercase; border-bottom: 1px dashed rgba(122, 90, 32, 0.5); padding-bottom: 3px; }
+  .md-rendered h3 { font-size: 12px; color: #d9c3a0; font-weight: 700; }
+  .md-rendered h4 { font-size: 11px; color: #a88a50; }
+  .md-rendered h1:first-child, .md-rendered h2:first-child, .md-rendered h3:first-child { margin-top: 0; }
+  .md-rendered p { margin: 6px 0; }
+  .md-rendered ul, .md-rendered ol { margin: 6px 0; padding-left: 22px; }
+  .md-rendered li { margin: 2px 0; }
+  .md-rendered code {
+    background: rgba(245, 166, 35, 0.12);
+    color: #f5a623;
+    padding: 1px 4px;
+    border-radius: 2px;
+    font-size: 11px;
+    font-family: 'Consolas', 'Monaco', monospace;
+  }
+  .md-rendered pre {
+    background: rgba(0, 0, 0, 0.45);
+    border: 1px solid rgba(122, 90, 32, 0.4);
+    padding: 8px 10px;
+    font-size: 11px;
+    overflow-x: auto;
+    margin: 8px 0;
+    max-height: none;
+  }
+  .md-rendered pre code {
+    background: transparent;
+    color: var(--text, #d9c3a0);
+    padding: 0;
+    font-size: 11px;
+  }
+  .md-rendered blockquote {
+    border-left: 3px solid var(--accent, #f5a623);
+    margin: 8px 0;
+    padding: 4px 12px;
+    color: var(--muted, #a88a50);
+    background: rgba(245, 166, 35, 0.04);
+  }
+  .md-rendered table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 10px 0;
+    font-size: 11px;
+  }
+  .md-rendered th, .md-rendered td {
+    border: 1px solid rgba(122, 90, 32, 0.5);
+    padding: 5px 8px;
+    text-align: left;
+    vertical-align: top;
+  }
+  .md-rendered th {
+    background: rgba(245, 166, 35, 0.1);
+    color: var(--accent, #f5a623);
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 10px;
+    letter-spacing: 0.8px;
+  }
+  .md-rendered tr:nth-child(even) td { background: rgba(255, 255, 255, 0.02); }
+  .md-rendered a { color: var(--accent, #f5a623); text-decoration: none; }
+  .md-rendered a:hover { text-decoration: underline; }
+  .md-rendered strong { color: #e9d3b0; font-weight: 700; }
+  .md-rendered em { font-style: italic; color: #c9b38a; }
+  .md-rendered hr { border: 0; border-top: 1px dashed rgba(122, 90, 32, 0.5); margin: 12px 0; }
 </style>
 </head>
 <body>
@@ -2252,6 +2336,38 @@ function loadMermaid() {
   return mermaidLoadPromise;
 }
 
+// Lazy-load marked.js on first drawer open.
+let markedLoadPromise = null;
+function loadMarked() {
+  if (window.marked) return Promise.resolve(window.marked);
+  if (markedLoadPromise) return markedLoadPromise;
+  markedLoadPromise = new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = '/vendor/marked.min.js';
+    s.onload = () => {
+      try {
+        window.marked.setOptions({ gfm: true, breaks: false, headerIds: false, mangle: false });
+        resolve(window.marked);
+      } catch (e) { reject(e); }
+    };
+    s.onerror = () => reject(new Error('Failed to load marked.min.js'));
+    document.head.appendChild(s);
+  });
+  return markedLoadPromise;
+}
+
+// Render markdown source into an element (using marked.js). Safe-ish because
+// the input comes from the workspace's own platform.md / design-system.md,
+// not from user-supplied input.
+async function renderMarkdownInto(container, source) {
+  try {
+    const marked = await loadMarked();
+    container.innerHTML = marked.parse(source);
+  } catch (e) {
+    container.textContent = source;  // fallback: raw text, not HTML
+  }
+}
+
 // Render a single Mermaid source into an element. Handles Mermaid's async API.
 async function renderMermaidInto(container, source) {
   try {
@@ -2270,11 +2386,16 @@ function renderWorkspaceOverview(data) {
 
   const parts = [];
 
-  // Architecture diagram — rendered first for visual impact
+  // Architecture diagrams — overview (high-level blocks) first, detailed second
+  if (data.architecture_overview_mermaid) {
+    parts.push('<h3>Architecture — high-level blocks</h3>');
+    parts.push('<div class="arch-diagram" id="arch-overview-container">Loading diagram…</div>');
+    parts.push('<div class="arch-diagram-source">Source: <code>context/architecture-overview.mmd</code> — capability-shaped view (5-8 blocks, sync vs async only)</div>');
+  }
   if (data.architecture_mermaid) {
-    parts.push('<h3>Architecture</h3>');
+    parts.push('<h3>Architecture — detailed topology</h3>');
     parts.push('<div class="arch-diagram" id="arch-diagram-container">Loading diagram…</div>');
-    parts.push('<div class="arch-diagram-source">Source: <code>context/architecture.mmd</code> — edit the file to update the diagram</div>');
+    parts.push('<div class="arch-diagram-source">Source: <code>context/architecture.mmd</code> — every service, DB, queue, Lambda, with specific edge labels</div>');
   }
 
   // Domain block
@@ -2324,38 +2445,73 @@ function renderWorkspaceOverview(data) {
     parts.push('<p style="color:var(--muted); font-size:10px; margin-top:6px;">See <code>context/audit-findings.md</code> for full list with file:line references.</p>');
   }
 
-  // Last discover run
+  // Last discover run + per-phase token breakdown
   if (data.last_discover_run) {
+    const run = data.last_discover_run;
     parts.push('<h3>Last discover run</h3>');
     parts.push('<table>');
-    parts.push(`<tr><th>Run ID</th><td>${escapeHtml(data.last_discover_run.run_id)}</td></tr>`);
-    parts.push(`<tr><th>Updated</th><td>${escapeHtml(data.last_discover_run.updated_at)}</td></tr>`);
+    parts.push(`<tr><th>Run ID</th><td>${escapeHtml(run.run_id)}</td></tr>`);
+    parts.push(`<tr><th>Updated</th><td>${escapeHtml(run.updated_at)}</td></tr>`);
+    if (run.total_tokens) {
+      const fmt = n => n >= 1000 ? (n / 1000).toFixed(1) + 'K' : String(n);
+      parts.push(`<tr><th>Total</th><td>${fmt(run.total_tokens)} tokens across ${run.total_agents} agent dispatches</td></tr>`);
+    }
     parts.push('</table>');
+
+    if (run.phase_breakdown && run.phase_breakdown.length) {
+      parts.push('<table style="margin-top:8px;">');
+      parts.push('<tr><th>Phase</th><th>Stage</th><th>Agents</th><th>Duration</th><th>Tokens</th></tr>');
+      const fmtMs = ms => {
+        if (ms < 1000) return ms + 'ms';
+        const s = Math.round(ms / 1000);
+        if (s < 60) return s + 's';
+        const m = Math.floor(s / 60); const rs = s % 60;
+        return m + 'm' + (rs ? ' ' + rs + 's' : '');
+      };
+      const fmtTok = n => n >= 1000 ? (n / 1000).toFixed(1) + 'K' : String(n);
+      run.phase_breakdown.forEach(p => {
+        parts.push(`<tr><td><b>${escapeHtml(p.phase)}</b></td><td>${escapeHtml(p.stage || '—')}</td><td>${p.agent_count}</td><td>${fmtMs(p.duration_ms)}</td><td>${fmtTok(p.tokens)}</td></tr>`);
+      });
+      parts.push('</table>');
+      parts.push('<p style="color:var(--muted); font-size:10px; margin-top:4px;">Tokens aggregated from <code>checkpoints.jsonl</code> — sums <code>agent_end.total_tokens</code> per phase. Orchestrator overhead not included.</p>');
+    }
   }
 
-  // Design systems per frontend
+  // Design systems per frontend (rendered as markdown)
   if (data.design_systems && data.design_systems.length) {
     parts.push(`<h3>Design systems (${data.design_systems.length})</h3>`);
-    data.design_systems.forEach(ds => {
-      parts.push(`<div style="margin-bottom:12px;"><b>${escapeHtml(ds.repo)}</b><pre>${escapeHtml(ds.excerpt)}</pre></div>`);
+    data.design_systems.forEach((ds, i) => {
+      parts.push(`<div style="margin-bottom:12px;"><b>${escapeHtml(ds.repo)}</b><div class="md-rendered" id="ds-md-${i}">Loading…</div></div>`);
     });
   }
 
-  // Platform.md excerpt
+  // Platform.md (rendered as markdown with GFM tables)
   if (data.platform_md_excerpt) {
-    parts.push('<h3>Platform context (excerpt)</h3>');
-    parts.push(`<pre>${escapeHtml(data.platform_md_excerpt)}</pre>`);
-    if (data.platform_md_truncated) {
-      parts.push(`<p style="color:var(--muted); font-size:10px;">Showing first 150 of ${data.platform_md_total_lines} lines. Full file: <code>context/platform.md</code></p>`);
-    }
+    parts.push('<h3>Platform context</h3>');
+    parts.push('<div class="md-rendered" id="platform-md-container">Loading…</div>');
+    parts.push(`<p style="color:var(--muted); font-size:10px; margin-top:4px;">Source: <code>context/platform.md</code> (${data.platform_md_total_lines} lines) — rendered with GFM tables</p>`);
   }
 
   body.innerHTML = parts.join('\n');
 
-  // After the HTML is in the DOM, render the Mermaid diagram into its container.
+  // After the HTML is in the DOM, render each Mermaid diagram + markdown block.
+  if (data.architecture_overview_mermaid) {
+    const c = document.getElementById('arch-overview-container');
+    if (c) renderMermaidInto(c, data.architecture_overview_mermaid);
+  }
   if (data.architecture_mermaid) {
-    const container = document.getElementById('arch-diagram-container');
-    if (container) renderMermaidInto(container, data.architecture_mermaid);
+    const c = document.getElementById('arch-diagram-container');
+    if (c) renderMermaidInto(c, data.architecture_mermaid);
+  }
+  if (data.platform_md_excerpt) {
+    const c = document.getElementById('platform-md-container');
+    if (c) renderMarkdownInto(c, data.platform_md_excerpt);
+  }
+  if (data.design_systems && data.design_systems.length) {
+    data.design_systems.forEach((ds, i) => {
+      const c = document.getElementById('ds-md-' + i);
+      if (c) renderMarkdownInto(c, ds.excerpt);
+    });
   }
 }
 function openProjectDrawer() {

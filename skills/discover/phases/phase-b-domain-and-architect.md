@@ -107,21 +107,72 @@ TEMPLATE SECTIONS:
 
 For the `## Architecture Diagram` section in platform.md, write EXACTLY this pointer content:
 
-    The high-level architecture diagram lives in a sibling file as Mermaid source:
-    [`architecture.mmd`](./architecture.mmd)
+    The architecture is captured as two complementary diagrams in sibling Mermaid files:
 
-    It is rendered live in the site-view "Project" drawer. Edit the `.mmd` file
-    directly to update the diagram — re-running `/discover` will merge rather
-    than overwrite if the file already exists.
+    - [`architecture-overview.mmd`](./architecture-overview.mmd) — **high-level** C4-style
+      block diagram for a new team member. ~10 nodes grouped into 4 categories
+      (Frontends / Backend services / Queues / Data sources). Read this first.
+    - [`architecture.mmd`](./architecture.mmd) — **detailed** topology with every
+      service, DB, queue, Lambda, and specific edge labels. Read this when you
+      need to know which endpoint / Feign client / bucket is involved.
 
-The **actual diagram** is written to a SEPARATE file at `{workspace_root}/{slug}/context/architecture.mmd`. Follow the Mermaid conventions defined in your system prompt (edge semantics, `classDef` palette, observation-only discipline). What to put into this particular diagram:
+    Both are rendered live in the site-view "Project" drawer. Edit the `.mmd`
+    files directly to update; re-running `/discover` will prompt before
+    overwriting a hand-edited file.
+
+You produce **two diagrams** in this phase, with DIFFERENT rules per diagram.
+
+**Read the full rules file FIRST**, before producing either diagram:
+
+```
+{plugin_dir}/docs/discovery-diagram-rules.md
+```
+
+This file contains: the 4-block taxonomy for the overview, the node shape conventions per category, the classDef palette with exact hex codes, the init directive, the 12-item self-check checklist, the lexical-safety rules, and the detailed-diagram conventions. It is the single source of truth for diagramming. Do not rely on memory or reconstruct from examples — read the file at the start of this phase.
+
+### Diagram 1: `architecture-overview.mmd` (high-level, new-joiner friendly)
+
+Apply the "Mermaid conventions for `architecture-overview.mmd` (high-level)" section of the rules file. Key specifics for this workspace:
+
+- The 4 subgraphs (Frontends / Backend services / Queues / Data sources) — no others.
+- Short logical labels (`auth_db` not the full `abvi_auth_db`; `books S3` not the full bucket name).
+- Cylinder `[(...)]` for ALL data sources including S3, even if the label is long.
+- `-->` sync with one-word label, `-.->` async with one-word label. Every edge labeled.
+- Target ~10 nodes, 12-15 edges.
+- Start with the init directive line from the rules file.
+- **Before returning this file, walk the 12-item Self-check at the end of the rules file.** Every item must pass.
+
+### Diagram 2: `architecture.mmd` (detailed topology)
+
+Apply the "Mermaid conventions for `architecture.mmd` (detailed)" section of the rules file. Specifics:
 
 - **Every service** from the Service Map as a node, grouped in `subgraph` blocks by role (Frontends, Services, Workers, Databases, Infrastructure, External).
 - **External actors** (user roles, third-party services) as nodes outside the service subgraphs, drawn at the top.
 - **Every edge** comes from the Integration Patterns you captured — label each edge with the endpoint prefix, queue/topic name, or resource name so a reader can audit it against the code.
 - Choose `graph LR` by default; switch to `graph TB` only if the topology is clearly top-down.
 
-Example skeleton (illustrates the conventions — do NOT copy literally; produce the real topology from the workspace):
+### Output shape expected from you
+
+Produce BOTH diagrams in your reply, clearly labeled, in this order:
+
+```
+<!-- BEGIN architecture-overview.mmd -->
+```mermaid
+%%{init: ...}%%
+graph LR
+  ... high-level diagram per overview rules ...
+```
+<!-- END architecture-overview.mmd -->
+
+<!-- BEGIN architecture.mmd -->
+```mermaid
+graph LR
+  ... detailed diagram per detailed rules ...
+```
+<!-- END architecture.mmd -->
+```
+
+Example skeleton for the **detailed** diagram (illustrates the conventions — do NOT copy literally; produce the real topology from the workspace):
 
 ```mermaid
 graph LR
@@ -184,11 +235,14 @@ For the `## Architect Guidance` section, write EXACTLY this stub content (replac
 ```
 
 **After the architect returns**:
-1. Save the platform.md output (everything except the mermaid block) to `{workspace_root}/{slug}/context/platform.md`.
-2. Extract the ```` ```mermaid ... ``` ```` block the architect produced and save its inner content (without the fence) to `{workspace_root}/{slug}/context/architecture.mmd`.
-3. Verify the `## Architecture Diagram` section in platform.md contains the pointer stub described above, not the full mermaid source.
+1. Save the platform.md output (everything except the two mermaid blocks) to `{workspace_root}/{slug}/context/platform.md`.
+2. Extract the block delimited by `<!-- BEGIN architecture-overview.mmd -->` / `<!-- END architecture-overview.mmd -->`. Strip the inner ```` ```mermaid ... ``` ```` fence and save the Mermaid source to `{workspace_root}/{slug}/context/architecture-overview.mmd`.
+3. Extract the block delimited by `<!-- BEGIN architecture.mmd -->` / `<!-- END architecture.mmd -->`. Strip the inner ```` ```mermaid ... ``` ```` fence and save to `{workspace_root}/{slug}/context/architecture.mmd`.
+4. Verify the `## Architecture Diagram` section in platform.md contains the pointer stub pointing to BOTH files, not the full mermaid source for either.
 
-**If `architecture.mmd` already exists** (re-run or hand-edited): show a diff and ask the user whether to overwrite, merge, or keep. Default is **keep** — a hand-edited diagram is load-bearing and should not be silently clobbered.
+**If either `.mmd` file already exists** (re-run or hand-edited): show a diff for that specific file and ask the user whether to overwrite, merge, or keep. Default is **keep** for each — a hand-edited diagram is load-bearing and must not be silently clobbered. The two files are treated independently: the user may choose to regenerate the overview but keep the detailed, or vice versa.
+
+**Render check**: before marking Phase B2 complete, validate both Mermaid files parse cleanly. Run a lightweight syntax check (or defer to the site-view render error) and surface any lexical errors to the user — most common cause is a period inside a dotted-edge label (`-.LABEL.->`) which the parser swallows.
 
 Present a summary to the user:
 
