@@ -23,11 +23,27 @@ All implementer work is launched via the `Agent` tool in the current session. **
 | `terraform` | `terraform-implementer` | *(skip — plan is the review artifact)* |
 | `schemas` | `schema-implementer` (dispatched in Phase 3a, not Phase 5) | — |
 | `api-collections` | *(not dispatched — detect-only)* | — |
-| `other` | *(not dispatched — manual)* | — |
+| `other` | *(resolve via fallback chain below)* | — |
+
+### Implementer resolution — fallback chain for unsupported types
+
+When the table above does NOT list a plugin-shipped implementer for a type (e.g., `type: rails`, `type: phoenix`, `type: go`, `type: other`, or any future stack the user declares in their config), resolve the implementer via this chain, in order:
+
+1. **Workspace-local implementer** — check `~/.claude/agents/{workspace_slug}-{type}-implementer.md`. If it exists, dispatch with `subagent_type: {workspace_slug}-{type}-implementer`. These are generated during `/discover` Phase C Step 3.25 by filling `templates/agents/generic-implementer.md.template` with the repo's actual conventions, and they're tailored to the workspace.
+2. **Plugin-shipped implementer** — already resolved via the table above. This step exists in the chain only for completeness.
+3. **Generic fallback** — dispatch `subagent_type: general-purpose` with a preamble that points the agent at:
+   - the task file
+   - the repo's `CLAUDE.md`
+   - 2-3 existing features to match conventions
+   - the Known Pitfalls section in the task body
+
+   This is a last resort — quality is lower than a workspace-local agent. Log a warning to the scratchpad and suggest the user run `/discover --resume --workspace={slug}` to publish a per-workspace agent for this type.
+
+**When a workspace-local agent exists for a type that ALSO has a plugin agent** (e.g., the user generated `dal-spring-boot-implementer` to override some default behavior): prefer the workspace-local one. Workspace customization wins over plugin defaults. Log the override so the user can audit.
 
 The orchestrator:
 1. **Creates the worktree itself** with `Bash` before dispatching: `cd {repo_path} && git worktree add ../{repo-name}-{feature-slug} -b feature/{feature-slug}`.
-2. **Launches the agent** via `Agent` tool with `subagent_type` set to the appropriate agent and a prompt pointing at the task file + worktree path.
+2. **Launches the agent** via `Agent` tool with `subagent_type` set to the resolved agent (per the fallback chain above) and a prompt pointing at the task file + worktree path.
 3. **Runs multiple agents in parallel** by issuing multiple `Agent` tool calls in a single message (only for tasks targeting different repos — same-repo tasks run sequentially).
 4. **All changes MUST land in the feature worktree**, never on the main branch.
 

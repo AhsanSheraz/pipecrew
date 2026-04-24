@@ -312,6 +312,85 @@ Every file must report `0`. If any file reports ≥1, halt, run `grep -n '{{' <f
 
 ---
 
+### Step 3.25: Auto-generate per-workspace stack implementers (hybrid fallback)
+
+For every repo in the workspace config whose `type` does NOT have a plugin-shipped implementer (see the `TYPE_TO_AGENT` table in `{plugin_dir}/skills/deliver/phases/dispatch-rules.md`), generate a workspace-local implementer by filling the generic-implementer template with the repo's actual conventions. This makes `/deliver` work even for stacks the plugin doesn't ship a dedicated agent for (Rails, Phoenix, Laravel, Go/Gin, .NET, Kotlin/Ktor, etc.).
+
+**Selection rule** — iterate `config.repos` and build the generation list:
+
+```
+for each repo where config.repos[{repo}].role in ("api-service", "worker", "frontend", "mock-server", "infrastructure"):
+  type = config.repos[{repo}].type
+  if TYPE_TO_AGENT[type].implementer is present:
+    skip  # plugin ships an agent for this type
+  else:
+    add {type} to the generation list (deduplicate — one agent per distinct type, not per repo)
+```
+
+Skip the whole step if the generation list is empty — every type in the workspace already has a plugin agent.
+
+**For each type in the generation list**, dispatch an onboarding agent to fill the template:
+
+**Tool**: `Agent`
+**subagent_type**: `general-purpose` (this is context-reading + template-filling, not deep architectural reasoning)
+**description**: `"Generate workspace-local implementer for {type} (reading {example_repo_name})"`
+**prompt**:
+
+```
+MODE: generate workspace-local implementer agent
+
+You are generating a NEW implementer-agent file for the {type} stack, specific to the {workspace_name} workspace. A workspace repo using this stack exists at:
+
+  {example_repo_path}
+
+(Pick any repo of this type if multiple exist — their conventions should match.)
+
+Read these files to understand the house style:
+1. {example_repo_path}/CLAUDE.md (and any files it points to)
+2. Build config — pyproject.toml / Gemfile / Cargo.toml / go.mod / pom.xml / build.sbt / composer.json / package.json / etc. (whichever exists)
+3. 2-3 existing features end-to-end (controllers/handlers + services + tests) so you can name the actual testing framework, migration tool, ORM, DI pattern, routing pattern used here.
+4. {workspace_root}/{slug}/context/platform.md — workspace context (architecture, integration patterns)
+5. {workspace_root}/{slug}/context/audit-findings.md (if it exists) — real bugs spotted during onboarding, filtered to this repo
+
+Then read the template at:
+
+  {plugin_dir}/templates/agents/generic-implementer.md.template
+
+Fill every placeholder in the template:
+
+- `{{WORKSPACE_SLUG}}` = {workspace_slug}
+- `{{WORKSPACE_NAME}}` = {workspace_name}
+- `{{STACK_KEY}}` = {type} (the config.repos[*].type value — becomes part of the agent filename)
+- `{{STACK_NAME}}` = human-friendly name (e.g., "Ruby on Rails", "Phoenix/Elixir", "Laravel/PHP", "Go/Gin") — pick based on what you saw in the repo
+- `{{ORIENT_GUIDANCE}}` = a 3-5 bullet list describing what files the implementer should read to orient itself in this specific stack (e.g., for Rails: "the controller + its service + its model + its RSpec file for a similar feature; config/routes.rb; the migration under db/migrate/ for a similar entity"). Reference REAL file paths observed in this repo.
+- `{{IMPLEMENT_GUIDANCE}}` = numbered sub-steps describing the implementation order specific to this stack. Name the REAL commands and file locations (e.g., "a. Generate the migration: `bundle exec rails generate migration ...`  b. Define the model in `app/models/`  c. Add the controller action in `app/controllers/`  d. Register the route in `config/routes.rb`").
+- `{{TEST_GUIDANCE}}` = the actual test framework + runner this repo uses. Name the real commands (`bundle exec rspec spec/`, `bundle exec rails test`, `go test ./...`, `./mvnw test`, `npm test`, etc.). Describe what coverage to add (unit + integration/e2e).
+- `{{KNOWN_PITFALLS}}` = 4-8 bullets of real pitfalls you observed. Draw from: (a) gotchas visible in CLAUDE.md or the repo's conventions docs, (b) patterns you saw implemented one way consistently (imply the wrong way is an error), (c) audit-findings.md entries for this repo, (d) common stack-specific traps you know from training (Rails strong params, Phoenix Ecto changesets, Laravel Eloquent N+1, Go context cancellation, etc. — but only for stacks where you have high confidence). Each bullet MUST be concrete and actionable.
+- `{{COMPLETION_CHECKS}}` = 2-4 additional "you are not done until" lines specific to this stack (e.g., for Rails: "- `bundle exec rubocop` passes  - Migration runs cleanly on a fresh DB"). These supplement the default completion checks already in the template.
+
+Return the COMPLETE filled agent file content — nothing else, no preamble, no commentary. The orchestrator will write your output verbatim to `{workspace_root}/{slug}/agents/{type}-implementer.md`.
+
+Self-check before returning:
+- Zero `{{` remaining anywhere in the file (grep your own output)
+- The `name:` frontmatter value matches `{workspace_slug}-{type}-implementer` exactly
+- Every file path referenced is a real path in {example_repo_path} (not a placeholder)
+- Every command referenced is runnable (syntax verified from the build config you read)
+```
+
+**On agent return**:
+1. Write the returned content to `{workspace_root}/{slug}/agents/{type}-implementer.md`
+2. Verify zero `{{` remain: `grep -c '{{' {workspace_root}/{slug}/agents/{type}-implementer.md` must print `0`. If not, surface the offending lines and re-dispatch.
+3. Publish to `~/.claude/agents/{workspace_slug}-{type}-implementer.md` (same conflict-check pattern as the workspace product-owner/assessor/ux-consultant publish in Step 3 above — if a file with that name already exists under a different `name:` frontmatter value, stop and ask the user before overwriting).
+4. Log one line: `Generated workspace implementer: {workspace_slug}-{type}-implementer (for {repo_list})`.
+
+**Idempotency**: if `{workspace_root}/{slug}/agents/{type}-implementer.md` already exists (re-run or hand-edited), show a diff after regeneration and ask the user to keep/overwrite/merge. Default to KEEP — a hand-edited agent is load-bearing and must not be silently clobbered.
+
+**Parallel dispatch**: if the generation list has 2+ distinct types, dispatch all agents in ONE orchestrator message so they run concurrently. Apply the same transient-failure rules as Step 2.
+
+**Update scratchpad**: add a `Per-workspace stack implementers` row to `## Generation Status` listing each generated agent (or `none needed` if every type had a plugin agent). Set Phase C status unchanged — this step is additive.
+
+---
+
 ### Step 3.5: Offer to write a `settings.local.json` for approval-free operation (C1 / C2 / C3)
 
 The `/deliver` pipeline triggers many Edit / Write / Bash calls scoped to paths under `{workspace_root}/{slug}/**` and the repos in `config.repos`. Without pre-allow rules, every one prompts for approval, slowing the run and fragmenting flow.

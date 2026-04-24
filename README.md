@@ -145,6 +145,10 @@ Token usage monitoring during a run:
 
 ## Adding a tech stack
 
+Two options depending on who should benefit:
+
+### Option A — Plugin-shipped (for popular stacks you want every user to get)
+
 1. Create `agents/{stack}-implementer.md` following existing patterns
 2. Optionally create `agents/{stack}-reviewer.md`
 3. Add `type` to `VALID_TYPES` in `scripts/validate-config.js`
@@ -152,6 +156,20 @@ Token usage monitoring during a run:
 5. Add sentinel file detection to `/discover` Phase A (`skills/discover/phases/phase-a-repo-discovery.md`)
 6. Add a `docs/pitfalls/{stack}.md` file — Phase 4.5 injects a subset into every task file for that stack, and Phase 5.5 reviewers use it as a checklist
 7. Update the "Supported tech stacks" table in this README
+8. Open a PR
+
+### Option B — Let `/discover` auto-generate per workspace (for in-house or unusual stacks)
+
+For stacks not in the plugin's catalog (Rails, Phoenix, Laravel, Go, .NET, Kotlin, etc.), you don't need to change the plugin. Just run `/discover` against your repos:
+
+1. `/discover` Phase A detects the sentinel files and flags the type — if unknown, you can correct the detected type in the Step 6 confirmation prompt (e.g., "repo 3 is type `rails`")
+2. Phase C Step 3.25 reads the template at `templates/agents/generic-implementer.md.template`, reads the repo's `CLAUDE.md` + 2-3 existing features + build config, and writes `{workspace}/agents/{type}-implementer.md` tailored to that repo's conventions
+3. The agent is published to `~/.claude/agents/{workspace-slug}-{type}-implementer.md` so `Agent` tool can resolve it
+4. `/deliver` dispatch-rules fallback chain prefers workspace-local agents over plugin defaults — your workspace uses the generated agent automatically
+
+The generated agent ships with the same structure as plugin agents (Invariants / Process / Things that will bite you / You are not done until) but the content reflects YOUR repo's actual conventions, test framework, migration tool, and spotted gotchas. Hand-edit `{workspace}/agents/{type}-implementer.md` whenever you want; re-running `/discover` prompts before overwriting.
+
+**When to pick which**: Option A if you're contributing back and expect multiple projects to share the stack. Option B if the stack is unique to your workspace, OR as a quick bootstrap before you harden the rules enough for Option A.
 
 ## Workspace agents vs plugin agents
 
