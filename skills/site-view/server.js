@@ -132,6 +132,177 @@ function hookErrorPath() {
 
 const GLOBAL_HOOK_ERROR_LOG = path.join(HOME, '.claude', 'logs', 'pipeline-view-hook-errors.log');
 
+// ─── Workspace overview (/discover outputs — static across /deliver runs) ────
+//
+// Reads the workspace-level artifacts produced by /discover so the UI can
+// show a read-only "Project" panel. These files are stable between deliver
+// runs, so we cache and only re-read on mtime change.
+let workspaceOverviewCache = null;  // { data, mtimes }
+function readWorkspaceOverview() {
+  const wsDir = path.join(WORKSPACE_ROOT, workspace);
+  const configPath = path.join(wsDir, 'config.json');
+  const platformPath = path.join(wsDir, 'context', 'platform.md');
+  const auditPath = path.join(wsDir, 'context', 'audit-findings.md');
+  const architectureMmdPath = path.join(wsDir, 'context', 'architecture.mmd');
+  const architectureOverviewMmdPath = path.join(wsDir, 'context', 'architecture-overview.mmd');
+  const discoverRunsDir = path.join(wsDir, 'runs', 'discover');
+
+  // Check mtimes — if nothing changed, serve from cache.
+  const mtimes = {};
+  for (const p of [configPath, platformPath, auditPath, architectureMmdPath, architectureOverviewMmdPath]) {
+    mtimes[p] = fs.existsSync(p) ? fs.statSync(p).mtimeMs : 0;
+  }
+  if (workspaceOverviewCache &&
+      Object.keys(mtimes).every(k => mtimes[k] === workspaceOverviewCache.mtimes[k])) {
+    return workspaceOverviewCache.data;
+  }
+
+  const data = {
+    workspace_slug: workspace,
+    workspace_name: null,
+    domain: null,
+    repos: [],
+    services: [],
+    platform_md_excerpt: null,
+    audit_summary: null,
+    last_discover_run: null,
+    design_systems: [],
+    architecture_mermaid: null,
+    architecture_overview_mermaid: null,
+  };
+
+  // 1. Parse config.json
+  if (fs.existsSync(configPath)) {
+    try {
+      const cfg = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+      data.workspace_name = cfg.workspace?.name || workspace;
+      data.domain = cfg.domain || null;
+      data.repos = Object.entries(cfg.repos || {}).map(([key, r]) => ({
+        key,
+        path: r.path,
+        type: r.type,
+        role: r.role,
+        description: r.description || '',
+        spec_file: r.spec_file || null,
+      }));
+      data.services = Object.entries(cfg.services || {}).map(([key, s]) => ({
+        key,
+        repo: s.repo,
+        spec_policy: s.spec_policy || 'api-first',
+        spec_file: s.spec_file || null,
+        description: s.description || '',
+      }));
+    } catch (e) {
+      data.config_error = e.message;
+    }
+  }
+
+  // 2. Read platform.md (full content — drawer renders it as markdown and scrolls)
+  if (fs.existsSync(platformPath)) {
+    try {
+      const txt = fs.readFileSync(platformPath, 'utf8');
+      data.platform_md_excerpt = txt;
+      data.platform_md_total_lines = txt.split(/\r?\n/).length;
+      data.platform_md_truncated = false;
+    } catch (_) {}
+  }
+
+  // 3. Parse audit-findings.md summary table
+  if (fs.existsSync(auditPath)) {
+    try {
+      const txt = fs.readFileSync(auditPath, 'utf8');
+      const summary = { critical: 0, high: 0, medium: 0, low: 0 };
+      for (const sev of ['critical', 'high', 'medium', 'low']) {
+        const m = txt.match(new RegExp(`\\|\\s*${sev}\\s*\\|\\s*(\\d+)\\s*\\|`, 'i'));
+        if (m) summary[sev] = parseInt(m[1], 10);
+      }
+      data.audit_summary = summary;
+    } catch (_) {}
+  }
+
+  // 4. Last discover run metadata + per-phase token breakdown
+  if (fs.existsSync(discoverRunsDir)) {
+    try {
+      const runs = fs.readdirSync(discoverRunsDir)
+        .filter(d => fs.existsSync(path.join(discoverRunsDir, d, 'scratchpad.md')))
+        .map(d => ({ id: d, mtime: fs.statSync(path.join(discoverRunsDir, d, 'scratchpad.md')).mtimeMs }))
+        .sort((a, b) => b.mtime - a.mtime);
+      if (runs.length > 0) {
+        const lastRun = runs[0];
+        data.last_discover_run = {
+          run_id: lastRun.id,
+          updated_at: new Date(lastRun.mtime).toISOString(),
+          phase_breakdown: [],
+          total_tokens: 0,
+          total_agents: 0,
+        };
+
+        // Parse checkpoints.jsonl to aggregate tokens per phase.
+        const cpPath = path.join(discoverRunsDir, lastRun.id, 'checkpoints.jsonl');
+        if (fs.existsSync(cpPath)) {
+          const byPhase = new Map();  // phase -> { tokens, duration_ms, agent_count, stage }
+          const phaseOrder = [];       // preserve first-seen phase order
+          const raw = fs.readFileSync(cpPath, 'utf8');
+          for (const line of raw.split(/\r?\n/)) {
+            if (!line.trim()) continue;
+            let ev;
+            try { ev = JSON.parse(line); } catch (_) { continue; }
+            if (ev.event !== 'agent_end') continue;
+            if (ev.status && ev.status !== 'ok') continue;  // skip failed/deferred
+            const phase = ev.phase || 'unknown';
+            if (!byPhase.has(phase)) {
+              byPhase.set(phase, { tokens: 0, duration_ms: 0, agent_count: 0, stage: ev.stage || null });
+              phaseOrder.push(phase);
+            }
+            const row = byPhase.get(phase);
+            row.tokens += ev.total_tokens || 0;
+            row.duration_ms += ev.duration_ms || 0;
+            row.agent_count += 1;
+          }
+          data.last_discover_run.phase_breakdown = phaseOrder.map(p => ({
+            phase: p,
+            stage: byPhase.get(p).stage,
+            tokens: byPhase.get(p).tokens,
+            duration_ms: byPhase.get(p).duration_ms,
+            agent_count: byPhase.get(p).agent_count,
+          }));
+          data.last_discover_run.total_tokens = data.last_discover_run.phase_breakdown.reduce((a, r) => a + r.tokens, 0);
+          data.last_discover_run.total_agents = data.last_discover_run.phase_breakdown.reduce((a, r) => a + r.agent_count, 0);
+        }
+      }
+    } catch (_) {}
+  }
+
+  // 5. Architecture diagrams (Mermaid source from /discover Phase B2)
+  //    - architecture-overview.mmd: C4-style high-level block diagram (5-8 capability blocks)
+  //    - architecture.mmd: detailed topology (every service, DB, queue, Lambda)
+  if (fs.existsSync(architectureOverviewMmdPath)) {
+    try {
+      data.architecture_overview_mermaid = fs.readFileSync(architectureOverviewMmdPath, 'utf8').trim();
+    } catch (_) {}
+  }
+  if (fs.existsSync(architectureMmdPath)) {
+    try {
+      data.architecture_mermaid = fs.readFileSync(architectureMmdPath, 'utf8').trim();
+    } catch (_) {}
+  }
+
+  // 6. Per-repo design-system.md files (Phase B3 writes these per frontend repo)
+  //    Full content — the drawer renders markdown and scrolls.
+  for (const r of data.repos) {
+    if (r.role !== 'frontend') continue;
+    const ds = path.join(r.path, 'agent-context', 'design-system.md');
+    if (fs.existsSync(ds)) {
+      try {
+        data.design_systems.push({ repo: r.key, excerpt: fs.readFileSync(ds, 'utf8') });
+      } catch (_) {}
+    }
+  }
+
+  workspaceOverviewCache = { data, mtimes };
+  return data;
+}
+
 // If `awaiting_input.json` exists in the run dir, the orchestrator is paused
 // waiting for a user answer. The file shape is:
 //   { since: "ISO8601", phase: "3", gate: "approval", question: "...", context_summary?: "..." }
@@ -1035,6 +1206,22 @@ const server = http.createServer((req, res) => {
   } else if (req.url === '/state' || req.url === '/state.json') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(getState(), null, 2));
+  } else if (req.url === '/workspace-overview' || req.url === '/workspace-overview.json') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(readWorkspaceOverview(), null, 2));
+  } else if (req.url === '/vendor/mermaid.min.js' || req.url === '/vendor/marked.min.js') {
+    const fname = req.url.slice('/vendor/'.length);
+    try {
+      const js = fs.readFileSync(path.join(PUBLIC_DIR, 'vendor', fname));
+      res.writeHead(200, {
+        'Content-Type': 'application/javascript; charset=utf-8',
+        'Cache-Control': 'public, max-age=86400',
+      });
+      res.end(js);
+    } catch (e) {
+      res.writeHead(404);
+      res.end(fname + ' not found — re-run the plugin install to vendor it.');
+    }
   } else if (req.url === '/hook-errors') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ errors: readHookErrors() || [] }, null, 2));

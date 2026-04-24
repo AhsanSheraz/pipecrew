@@ -40,7 +40,7 @@ Plus `CLAUDE.md` in each repo and optional `agent-context/` for complex repos.
 ```
 Phase 1: Requirements ──── product-owner analyzes + produces FR/EC list
 Phase 2: Architecture ──── architect designs endpoints, schemas, boundaries
-Phase 3: Spec Edit ─────── OpenAPI spec updated
+Phase 3: Spec Edit ─────── 3a: contract schemas (Avro/JSON Schema/Protobuf); 3b: OpenAPI specs
 Phase 4: Plan ──────────── implementation tasks as tracked files
 Phase 5: Build ─────────── parallel: backend + frontend + mock + infra
 Phase 5.5: Review ──────── per-repo code review with findings
@@ -60,15 +60,20 @@ Live dashboard at `http://localhost:5173` shows the crew in real time.
 
 ## Supported tech stacks
 
-| Stack | Implementer | Reviewer |
-|-------|------------|---------|
-| Spring Boot | `spring-boot-implementer` | `spring-boot-reviewer` |
-| React | `react-implementer` | `react-reviewer` |
-| Next.js | `nextjs-implementer` | `nextjs-reviewer` |
-| NestJS | `nestjs-implementer` | `nestjs-reviewer` |
-| FastAPI | `fastapi-implementer` | — |
-| AWS CDK | `cdk-implementer` | — |
-| Node mock | `node-mock-implementer` | — |
+| Stack | Implementer | Reviewer | spec_policy |
+|-------|------------|---------|-------------|
+| Spring Boot | `spring-boot-api-implementer` | `spring-boot-code-reviewer` | `api-first` |
+| React | `react-feature-implementer` | `react-code-reviewer` | — (frontend) |
+| Next.js | `nextjs-implementer` | `nextjs-reviewer` | — (frontend) |
+| NestJS | `nestjs-implementer` | `nestjs-reviewer` | `api-first` |
+| FastAPI | `fastapi-implementer` | — | `api-first` |
+| Flask | `flask-implementer` | — | `api-first` or `code-first` |
+| Django / DRF | `django-implementer` | — | `api-first` or `code-first` |
+| Python worker | `python-worker-implementer` | — | `no-api` (event-driven) |
+| AWS CDK | `cdk-stack-implementer` | — (verified by `cdk synth`) | — (infra) |
+| Terraform | `terraform-implementer` | — (plan is the review artifact) | — (infra) |
+| Node mock | `mock-endpoint-implementer` | — (reviewed via frontend tests) | — (mock) |
+| Schemas | `schema-implementer` | — | — (contract repos, Phase 3a) |
 
 ## Skills
 
@@ -140,11 +145,31 @@ Token usage monitoring during a run:
 
 ## Adding a tech stack
 
+Two options depending on who should benefit:
+
+### Option A — Plugin-shipped (for popular stacks you want every user to get)
+
 1. Create `agents/{stack}-implementer.md` following existing patterns
 2. Optionally create `agents/{stack}-reviewer.md`
-3. Add type → agent mapping to SKILL.md rule #9
-4. Add sentinel file detection to `/discover` Phase A
-5. Add a `docs/pitfalls/{stack}.md` file listing predictable anti-patterns (Phase 4.5 injects a subset into every task file for that stack)
+3. Add `type` to `VALID_TYPES` in `scripts/validate-config.js`
+4. Add type → agent mapping row to `skills/deliver/phases/dispatch-rules.md` (the `TYPE_TO_AGENT` table)
+5. Add sentinel file detection to `/discover` Phase A (`skills/discover/phases/phase-a-repo-discovery.md`)
+6. Add a `docs/pitfalls/{stack}.md` file — Phase 4.5 injects a subset into every task file for that stack, and Phase 5.5 reviewers use it as a checklist
+7. Update the "Supported tech stacks" table in this README
+8. Open a PR
+
+### Option B — Let `/discover` auto-generate per workspace (for in-house or unusual stacks)
+
+For stacks not in the plugin's catalog (Rails, Phoenix, Laravel, Go, .NET, Kotlin, etc.), you don't need to change the plugin. Just run `/discover` against your repos:
+
+1. `/discover` Phase A detects the sentinel files and flags the type — if unknown, you can correct the detected type in the Step 6 confirmation prompt (e.g., "repo 3 is type `rails`")
+2. Phase C Step 3.25 reads the template at `templates/agents/generic-implementer.md.template`, reads the repo's `CLAUDE.md` + 2-3 existing features + build config, and writes `{workspace}/agents/{type}-implementer.md` tailored to that repo's conventions
+3. The agent is published to `~/.claude/agents/{workspace-slug}-{type}-implementer.md` so `Agent` tool can resolve it
+4. `/deliver` dispatch-rules fallback chain prefers workspace-local agents over plugin defaults — your workspace uses the generated agent automatically
+
+The generated agent ships with the same structure as plugin agents (Invariants / Process / Things that will bite you / You are not done until) but the content reflects YOUR repo's actual conventions, test framework, migration tool, and spotted gotchas. Hand-edit `{workspace}/agents/{type}-implementer.md` whenever you want; re-running `/discover` prompts before overwriting.
+
+**When to pick which**: Option A if you're contributing back and expect multiple projects to share the stack. Option B if the stack is unique to your workspace, OR as a quick bootstrap before you harden the rules enough for Option A.
 
 ## Workspace agents vs plugin agents
 

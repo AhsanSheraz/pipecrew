@@ -51,13 +51,54 @@ End-to-end feature pipeline. Orchestrates work across API service repos, fronten
 
 1. **Read the workspace config first.** Resolve the config path:
    - If `--workspace=<slug>` was passed: use `{workspace_root}/{slug}/config.json`
-   - If not passed: scan `~/.claude/` for files matching `*-config.json`. If exactly one exists, use it. If multiple exist, list them and ask the user to pick. If none exist, report: "No workspace config found. Run `/discover` first."
+   - If not passed: resolve `{workspace_root}` via `node {plugin}/scripts/workspace-root.js --get` and scan `{workspace_root}/*/config.json`. If exactly one exists, use it. If multiple exist, list them and ask the user to pick.
+   - If none exist, print the detailed "missing config" block below and stop — do NOT proceed to Phase 1.
+
    Parse the JSON. Validate with `node {plugin}/scripts/validate-config.js {config-path}`. If validation fails, report errors and stop. All repo paths, service mappings, spec file locations, and domain context come from this config — nothing is hardcoded.
+
+   **Missing-config stop message** (print verbatim, adapted to the user's scan results):
+
+   ```
+   ✗ No workspace config found.
+
+   /deliver requires a workspace configuration file at
+     {workspace_root}/{slug}/config.json
+
+   I scanned {workspace_root}/ and found none. The workspace config is
+   produced by /discover, which also generates several other artifacts
+   that /deliver depends on.
+
+   Recommended: run /discover first
+
+     /discover /path/to/your/repos
+
+   /discover takes about 5-15 minutes and produces:
+     • config.json           — this file (hard requirement)
+     • context/platform.md   — architecture context for Phase 2 (hard requirement)
+     • CLAUDE.md per repo    — implementer orientation (soft; skip → 3-5× token cost per dispatch)
+     • agent-context/ per repo — deep architecture docs (soft; skip → implementer re-reads code each run)
+     • context/audit-findings.md — real bugs spotted during onboarding (soft; skip → Phase 4.5 has fewer pitfalls to inject)
+     • Workspace agents ({slug}-product-owner, assessor, ux-consultant) — tailored to your domain
+
+   You can hand-write config.json + context/platform.md and run /deliver
+   against them directly, but the other artifacts are soft-optional and
+   each one degrades /deliver quality in a specific way:
+
+     - No CLAUDE.md → implementers guess conventions per dispatch; PRs become less consistent
+     - No agent-context → no "similar feature" catalog; implementers re-derive architecture
+     - No audit-findings.md → Phase 4.5 `## Known Pitfalls` uses plugin stack catalog only, not your workspace's observed bugs
+     - No workspace agents → falls back to generic agents with a preamble; product-owner loses domain context
+
+   If your workspace has zero existing repos (greenfield): run
+     /discover --greenfield
+   which brainstorms + scaffolds + discovers in one pass.
+   ```
 2. **Config-driven phase auto-detection.** After loading the config, derive which phases to run based on what repos exist — NOT based on assumptions about the workspace shape. Flags override auto-detection, not the other way around.
 
     | Phase | Auto-runs if | Override flag |
     |-------|-------------|---------------|
-    | 3 (Spec Edit) | any service has a `spec_file` AND architect found spec changes | `--skip-spec-edit` skips |
+    | 3a (Contract Edit) | architect's `AFFECTED_CONTRACTS` is non-empty | `--skip-spec-edit` skips |
+    | 3b (Spec Edit) | architect found spec changes AND at least one affected service has `spec_policy: api-first` | `--skip-spec-edit` skips |
     | 4 (Spec Sync) | any repo has `spec_copies` in config | skipped if no `spec_copies` |
     | 5a (Backend) | config has repos with `role: "api-service"` | `--frontend-only` skips |
     | 5b (Frontend) | config has repos with `role: "frontend"` | `--backend-only` skips |
@@ -130,7 +171,8 @@ End-to-end feature pipeline. Orchestrates work across API service repos, fronten
 Pre-flight: Validate repos + create scratchpad ── automatic
 Phase 1: Requirements (dal-product-owner) ──────── WHAT                    <- user gate
 Phase 2: Architecture (solution-architect) ─────── HOW + WHICH SERVICES    <- user gate
-Phase 3: Spec Edit (openapi-spec-editor) ────────── API CONTRACT            <- user gate
+Phase 3a: Contract Edit (schema-implementer) ────── SHARED SCHEMAS          ┐
+Phase 3b: Spec Edit (openapi-spec-editor) ────────── API CONTRACT             ┴─<- single user gate (both diffs)
 Phase 4: Sync Specs ────────────────────────────── automatic
 Phase 4.5: Implementation Plan + Context Budget ─── full task list          <- user gate
 Phase 5: Parallel ──────┬── 5a: Backend (spring-boot-api-implementer — one per service)
@@ -163,16 +205,16 @@ Each pipeline phase lives in its own file under `phases/`. The orchestrator load
 | Phase | File | ~Lines |
 |-------|------|--------|
 | Pre-flight + Resume + Scratchpad template | `phases/pre-flight.md` | 181 |
-| 1. Requirements | `phases/phase-1.md` | 38 |
-| 2. Architecture | `phases/phase-2.md` | 53 |
-| 3. Spec Edit | `phases/phase-3.md` | 71 |
-| 4. Sync + 4.5 Plan | `phases/phase-4.md` | 231 |
+| 1. Requirements | `phases/phase-1-requirements.md` | 38 |
+| 2. Architecture | `phases/phase-2-architecture.md` | 53 |
+| 3. Contract + Spec Edit (3a + 3b) | `phases/phase-3-spec-edit.md` | 209 |
+| 4. Sync + 4.5 Plan | `phases/phase-4-plan.md` | 231 |
 | Dispatch rules + task contract | `phases/dispatch-rules.md` | 83 |
-| 5. Implementation | `phases/phase-5.md` | 141 |
-| 5.5. Code Review | `phases/phase-5.5.md` | 126 |
-| 5.75. Security Review | `phases/phase-5.75.md` | 78 |
-| 6. Assessment | `phases/phase-6.md` | 101 |
-| 7. Summary + Archive | `phases/phase-7.md` | 216 |
+| 5. Implementation | `phases/phase-5-build.md` | 141 |
+| 5.5. Code Review | `phases/phase-5.5-code-review.md` | 126 |
+| 5.75. Security Review | `phases/phase-5.75-security-review.md` | 78 |
+| 6. Assessment | `phases/phase-6-assess.md` | 101 |
+| 7. Summary + Archive | `phases/phase-7-report.md` | 216 |
 
 **When entering a phase**: `Read {plugin_dir}/skills/deliver/phases/{phase-file}` — follow the instructions in that file for the phase.
 

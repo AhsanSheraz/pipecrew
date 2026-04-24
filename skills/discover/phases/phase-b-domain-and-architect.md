@@ -92,6 +92,7 @@ The `## Architect Guidance` section is a STUB — leave it with the exact placeh
 
 TEMPLATE SECTIONS:
 ## Domain
+## Architecture Diagram
 ## Entities & Ownership (table: Entity | Owning Service | Key States)
 ## User Roles & Permissions (table: Role | Description | Key Permissions)
 ## Status Lifecycles
@@ -103,6 +104,116 @@ TEMPLATE SECTIONS:
 ## Known Constraints
 ## Open Questions / Evolving Decisions
 ## Architect Guidance
+
+For the `## Architecture Diagram` section in platform.md, write EXACTLY this pointer content:
+
+    The architecture is captured as two complementary diagrams in sibling Mermaid files:
+
+    - [`architecture-overview.mmd`](./architecture-overview.mmd) — **high-level** C4-style
+      block diagram for a new team member. ~10 nodes grouped into 4 categories
+      (Frontends / Backend services / Queues / Data sources). Read this first.
+    - [`architecture.mmd`](./architecture.mmd) — **detailed** topology with every
+      service, DB, queue, Lambda, and specific edge labels. Read this when you
+      need to know which endpoint / Feign client / bucket is involved.
+
+    Both are rendered live in the site-view "Project" drawer. Edit the `.mmd`
+    files directly to update; re-running `/discover` will prompt before
+    overwriting a hand-edited file.
+
+You produce **two diagrams** in this phase, with DIFFERENT rules per diagram.
+
+**Read the full rules file FIRST**, before producing either diagram:
+
+```
+{plugin_dir}/docs/discovery-diagram-rules.md
+```
+
+This file contains: the 4-block taxonomy for the overview, the node shape conventions per category, the classDef palette with exact hex codes, the init directive, the 12-item self-check checklist, the lexical-safety rules, and the detailed-diagram conventions. It is the single source of truth for diagramming. Do not rely on memory or reconstruct from examples — read the file at the start of this phase.
+
+### Diagram 1: `architecture-overview.mmd` (high-level, new-joiner friendly)
+
+Apply the "Mermaid conventions for `architecture-overview.mmd` (high-level)" section of the rules file. Key specifics for this workspace:
+
+- The 4 subgraphs (Frontends / Backend services / Queues / Data sources) — no others.
+- Short logical labels (`auth_db` not the full `abvi_auth_db`; `books S3` not the full bucket name).
+- Cylinder `[(...)]` for ALL data sources including S3, even if the label is long.
+- `-->` sync with one-word label, `-.->` async with one-word label. Every edge labeled.
+- Target ~10 nodes, 12-15 edges.
+- Start with the init directive line from the rules file.
+- **Before returning this file, walk the 12-item Self-check at the end of the rules file.** Every item must pass.
+
+### Diagram 2: `architecture.mmd` (detailed topology)
+
+Apply the "Mermaid conventions for `architecture.mmd` (detailed)" section of the rules file. Specifics:
+
+- **Every service** from the Service Map as a node, grouped in `subgraph` blocks by role (Frontends, Services, Workers, Databases, Infrastructure, External).
+- **External actors** (user roles, third-party services) as nodes outside the service subgraphs, drawn at the top.
+- **Every edge** comes from the Integration Patterns you captured — label each edge with the endpoint prefix, queue/topic name, or resource name so a reader can audit it against the code.
+- Choose `graph LR` by default; switch to `graph TB` only if the topology is clearly top-down.
+
+### Output shape expected from you
+
+Produce BOTH diagrams in your reply, clearly labeled, in this order:
+
+```
+<!-- BEGIN architecture-overview.mmd -->
+```mermaid
+%%{init: ...}%%
+graph LR
+  ... high-level diagram per overview rules ...
+```
+<!-- END architecture-overview.mmd -->
+
+<!-- BEGIN architecture.mmd -->
+```mermaid
+graph LR
+  ... detailed diagram per detailed rules ...
+```
+<!-- END architecture.mmd -->
+```
+
+Example skeleton for the **detailed** diagram (illustrates the conventions — do NOT copy literally; produce the real topology from the workspace):
+
+```mermaid
+graph LR
+    User((End User))
+    Admin((Admin))
+
+    subgraph Frontends
+        pub_fe[publisher-frontend<br/>react]:::frontend
+        admin_fe[admin-portal<br/>nextjs]:::frontend
+    end
+
+    subgraph Services
+        pub[publisher-service<br/>spring-boot]
+        user_mgmt[user-management<br/>spring-boot]
+        backoffice[backoffice-service<br/>spring-boot]
+    end
+
+    subgraph Workers
+        event_worker[order-event-worker<br/>python-worker]:::worker
+    end
+
+    subgraph Infrastructure
+        s3[(S3: book-content)]:::infra
+        sqs[/SQS: order-events/]:::infra
+        db[(Postgres)]:::infra
+    end
+
+    User --> pub_fe
+    Admin --> admin_fe
+    pub_fe -->|REST /v1/books/*| pub
+    admin_fe -->|REST /v1/backoffice/*| backoffice
+    pub -->|JWT validate| user_mgmt
+    pub ==>|uploads| s3
+    s3 -.->|ObjectCreated event| sqs
+    sqs -.->|poll| event_worker
+    event_worker ==>|write history| db
+
+    classDef infra fill:#2a3a50,stroke:#5577aa,color:#ccddff;
+    classDef worker fill:#3a2a50,stroke:#8855aa,color:#eeccff;
+    classDef frontend fill:#2a5030,stroke:#55aa66,color:#ccffdd;
+```
 
 For the `## Architect Guidance` section, write EXACTLY this stub content (replace {workspace.name} with the actual name):
 
@@ -123,7 +234,17 @@ For the `## Architect Guidance` section, write EXACTLY this stub content (replac
     (Empty by default. Fill in during or after onboarding.)
 ```
 
-**After the architect returns**: save the output as `{workspace_root}/{slug}/context/platform.md`. Present a summary to the user:
+**After the architect returns**:
+1. Save the platform.md output (everything except the two mermaid blocks) to `{workspace_root}/{slug}/context/platform.md`.
+2. Extract the block delimited by `<!-- BEGIN architecture-overview.mmd -->` / `<!-- END architecture-overview.mmd -->`. Strip the inner ```` ```mermaid ... ``` ```` fence and save the Mermaid source to `{workspace_root}/{slug}/context/architecture-overview.mmd`.
+3. Extract the block delimited by `<!-- BEGIN architecture.mmd -->` / `<!-- END architecture.mmd -->`. Strip the inner ```` ```mermaid ... ``` ```` fence and save to `{workspace_root}/{slug}/context/architecture.mmd`.
+4. Verify the `## Architecture Diagram` section in platform.md contains the pointer stub pointing to BOTH files, not the full mermaid source for either.
+
+**If either `.mmd` file already exists** (re-run or hand-edited): show a diff for that specific file and ask the user whether to overwrite, merge, or keep. Default is **keep** for each — a hand-edited diagram is load-bearing and must not be silently clobbered. The two files are treated independently: the user may choose to regenerate the overview but keep the detailed, or vice versa.
+
+**Render check**: before marking Phase B2 complete, validate both Mermaid files parse cleanly. Run a lightweight syntax check (or defer to the site-view render error) and surface any lexical errors to the user — most common cause is a period inside a dotted-edge label (`-.LABEL.->`) which the parser swallows.
+
+Present a summary to the user:
 
 ```
 ## Platform Context Generated
@@ -270,9 +391,11 @@ Review it? (yes / continue)
 
 **Skip if**: no repo in the config has `role: "frontend"`. Proceed directly to Phase C.
 
+**Design-system output location — per-repo, not workspace-wide.** Each frontend repo gets its own `{repo_path}/agent-context/design-system.md` because different frontend repos often use different component libraries (e.g., publisher-frontend on MUI, admin-portal on Ant Design). Storing at the workspace level would overwrite when the second frontend is processed. If a repo already has `agent-context/design-system.md` (hand-written by the team), the discovery agent uses refresh semantics — read + merge, never destroy-and-rewrite.
+
 **Step 1: Detect design system presence**
 
-For each frontend repo, check for signals:
+Run the following for each frontend repo (all signals at once per repo):
 
 ```bash
 cd {frontend.path} && (
@@ -357,7 +480,21 @@ Output format — structured, not narrative:
 - Wrapper directory: {path or "none"}
 ```
 
-**After the agent returns**: save the report to `{workspace_root}/{slug}/context/design-system.md`. This file will be used to fill `{{DESIGN_SYSTEM_CONTEXT}}` in Phase C.
+**After the agent returns**: save the report to `{repo_path}/agent-context/design-system.md`.
+
+**Write semantics:**
+- If `{repo_path}/agent-context/` does not exist yet, create it first (`mkdir -p`).
+- If `{repo_path}/agent-context/design-system.md` does not exist, write the agent's output verbatim.
+- If the file already exists (hand-curated by the team), show a diff and ask:
+  ```
+  {repo-name}/agent-context/design-system.md already exists.
+  (o) Overwrite — replace with what B3 discovered
+  (m) Merge — dispatch a refresh pass that merges new findings into the existing file
+  (s) Skip — keep the existing file untouched
+  ```
+  Default is **(s) Skip** if the user doesn't answer — hand-curated content is load-bearing, never silently clobber it.
+
+**Why repo level**: each frontend uses its own component library / tokens. The UX consultant agent called during `/deliver` Phase 5b receives `repo_path: {frontend.path}` and reads the design system from that repo, so the file must live with the repo it describes.
 
 **Step 3: If NO design system signals found** → ask the user:
 
@@ -374,8 +511,8 @@ Options:
 Choose (a) or (b):
 ```
 
-- **(a)**: set `{{DESIGN_SYSTEM_CONTEXT}}` to: "No design system detected. Recommend components based on what exists in the codebase. Do not assume any component library is available — check before recommending."
-- **(b)**: same as (a), plus append to `{workspace_root}/{slug}/context/platform.md` under `## Known Constraints`: "No established design system in the frontend. Components are ad-hoc. Consider establishing a component library + Storybook before scaling the frontend."
+- **(a)**: write a minimal `{repo_path}/agent-context/design-system.md` stating: "No design system detected. Recommend components based on what exists in the codebase. Do not assume any component library is available — check before recommending." This ensures the UX consultant always has a file to read at `{repo_path}/agent-context/design-system.md`.
+- **(b)**: same as (a), plus append to `{workspace_root}/{slug}/context/platform.md` under `## Known Constraints`: "No established design system in {repo-name}. Components are ad-hoc. Consider establishing a component library + Storybook before scaling the frontend."
 
 **Update scratchpad**: Set Phase B3 status to COMPLETED. Set Current Phase to "C. Generation".
 
