@@ -42,7 +42,13 @@ Verify each worktree was created before dispatching agents against it: run `git 
 
 **Use the lean task-ID dispatch template from Phase 4.5.** The backend task file created in Phase 4.5 already contains the full feature summary, sub-task checklist, FR/EC list, data model, API design (or inline endpoint contract for code-first services), event schemas (for no-api worker services), endpoint list, and worktree path. The implementer reads the task file once and operates from it — nothing needs to be forwarded from the orchestrator's context.
 
-For each service in the architect's `AFFECTED_SERVICES` list, pick the implementer dynamically from the repo's `type` via the `TYPE_TO_AGENT` mapping in `phases/dispatch-rules.md`. Do **NOT** hardcode `spring-boot-api-implementer` — services may be any of spring-boot / fastapi / nestjs / flask / django / python-worker (or future additions).
+Pull the structured services list from the architect's output (do NOT LLM-parse the prose Notes):
+
+```bash
+node {plugin_dir}/scripts/extract-block.js outputs/phase-2-architecture.md AFFECTED_SERVICES
+```
+
+For each entry in `services[]`, pick the implementer dynamically from the repo's `type` via the `TYPE_TO_AGENT` mapping in `phases/dispatch-rules.md`. Do **NOT** hardcode `spring-boot-api-implementer` — services may be any of spring-boot / fastapi / nestjs / flask / django / python-worker (or future additions).
 
 Lookup rule, per service:
 1. Resolve `config.repos[config.services[svc].repo].type`
@@ -123,7 +129,7 @@ Your recommendations must use actual tokens, primitives, and patterns from what 
 Then use the lean task-ID dispatch template from Phase 4.5:
 
 **Tool**: `Agent`
-**subagent_type**: `react-feature-implementer`
+**subagent_type**: looked up by the frontend repo's `type` via the `TYPE_TO_AGENT` table in `dispatch-rules.md` (`react` → `react-feature-implementer`, `nextjs` → `nextjs-implementer`). Resolve via `config.repos` where `role === "frontend"`. Do **NOT** hardcode `react-feature-implementer` — workspaces with a Next.js frontend must dispatch `nextjs-implementer`.
 **description**: `"Frontend implement — {feature-slug}"`
 **prompt**: the canonical task-ID dispatch template (see Phase 4.5) with the frontend task file path and worktree path substituted. Do **NOT** inline requirements, frontend architecture, endpoints, or the IMPLEMENTATION_SPEC — all of it is in the task file the agent will read first.
 

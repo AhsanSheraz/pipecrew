@@ -8,7 +8,7 @@ Reviewers **raise issues only** — they do not fix anything. If fixes are neede
 
 This phase runs for:
 - **Backend + Workers**: one reviewer per affected service whose repo type has a matching reviewer agent (see `TYPE_TO_AGENT` table in `dispatch-rules.md`). The reviewer prompt is shaped by the service's `spec_policy` (see Step 1).
-- **Frontend**: one `react-code-reviewer` for the frontend worktree if Phase 5b ran
+- **Frontend**: one reviewer for the frontend worktree if Phase 5b ran. Type-aware via `TYPE_TO_AGENT` (`react` → `react-code-reviewer`, `nextjs` → `nextjs-reviewer`) — resolved from the frontend repo's `type` in config.
 
 This phase is SKIPPED for:
 - **Mock server** — mocks are transient and reviewed implicitly by the frontend tests consuming them
@@ -24,9 +24,15 @@ All applicable reviewers go in a single assistant message so they run concurrent
 
 **Backend / Worker reviewer — one per affected service (spec_policy-aware)**
 
-For each service in `AFFECTED_SERVICES`:
+Pull the structured services list from the architect's output (do NOT LLM-parse the prose Notes):
 
-1. Resolve `type = config.repos[config.services[svc].repo].type` and `policy = config.services[svc].spec_policy` (default `api-first`).
+```bash
+node {plugin_dir}/scripts/extract-block.js outputs/phase-2-architecture.md AFFECTED_SERVICES
+```
+
+For each entry in `services[]` (the `spec_policy` field is already there — no config lookup needed for that):
+
+1. Resolve `type = config.repos[config.services[svc.name].repo].type`. The `policy` is `svc.spec_policy` from the JSON above.
 2. Look up the reviewer `subagent_type` via the `TYPE_TO_AGENT` table in `dispatch-rules.md`. If the reviewer column is `—` for this type (no reviewer ships today), SKIP this service with the reason logged in the scratchpad and move on — do NOT dispatch spring-boot-code-reviewer as a fallback (it misreads non-Spring code).
 3. Dispatch using the template below, but substitute the `## Contract inputs` block per the service's `spec_policy`.
 
@@ -85,8 +91,8 @@ INSTRUCTIONS:
 4. Walk each FR/EC and identify its enforcement point; flag any that are not enforced as Critical.
 5. Run the craft, security, and test passes described in your system prompt.
 6. **Verify each bullet in the task file's `## Known Pitfalls` section was actively avoided.** Treat the section as a checklist: for each pitfall, either cite the file:line where the implementation handled it, or flag the bullet as a Critical or Non-critical finding depending on severity. If the section is missing, flag that itself as a process issue.
-7. **Scope-drift check** — per your system prompt (step 7): emit `## Scope findings` and add `scope` rows to the FINDINGS block.
-8. **Classify every Critical finding** as `mechanical` or `architectural` — per your system prompt (step 8): add `**Classification**:` to each Critical prose entry and a 5th pipe field on every `critical` FINDINGS row.
+7. **Scope-drift check** — per your system prompt's scope-drift step: emit `## Scope findings` and add `scope` rows to the FINDINGS block.
+8. **Classify every Critical finding** as `mechanical` or `architectural` — per your system prompt's classification step: add `**Classification**:` to each Critical prose entry and a 5th pipe field on every `critical` FINDINGS row.
 9. Produce the report in the Output Format from your system prompt. Every finding must have file:line and a citation.
 
 Do not fix anything. Your output is a report the orchestrator will pass to an implementer for fix dispatch if needed.
@@ -94,13 +100,15 @@ Do not fix anything. Your output is a report the orchestrator will pass to an im
 
 **Frontend reviewer — one for the frontend**
 
+Look up the reviewer via `TYPE_TO_AGENT`: resolve the frontend repo (`config.repos` where `role === "frontend"`), then map its `type` to the reviewer (`react` → `react-code-reviewer`, `nextjs` → `nextjs-reviewer`). Do NOT hardcode `react-code-reviewer`.
+
 **Tool**: `Agent`
-**subagent_type**: `react-code-reviewer`
+**subagent_type**: {looked up per the frontend repo's type}
 **description**: `"Frontend review — {feature-slug}"`
 **prompt template**:
 
 ```
-You are reviewing the React frontend implementation in the worktree at {frontend_worktree_path} (branch: feature/{feature-slug}). Work read-only.
+You are reviewing the frontend implementation in the worktree at {frontend_worktree_path} (branch: feature/{feature-slug}). Work read-only.
 
 FEATURE: {feature_summary}
 
@@ -111,9 +119,7 @@ ENDPOINTS INTEGRATED:
 {list of endpoints with their EXACT spec field names — this is the most important context for the reviewer}
 
 SPEC FILES TO VALIDATE TYPES AGAINST:
-- {frontend_worktree_path}/src/api/publisher-api-specs.YAML
-- {frontend_worktree_path}/src/api/backoffice-api-specs.yaml
-(and any other specs the feature touches)
+{absolute paths to every OpenAPI spec the feature touches inside this worktree}
 
 UX SPEC (to verify what was built matches what was designed):
 {<!-- BEGIN IMPLEMENTATION_SPEC --> from the Phase 5b ux-consultant output}
@@ -122,11 +128,11 @@ INSTRUCTIONS:
 1. Read {frontend_worktree_path}/CLAUDE.md and the design-system + conventions + feature docs it points to.
 2. Read the OpenAPI specs for every endpoint listed above — note the exact request/response field names, nullability, and enum values.
 3. Get the diff: cd into the worktree and run git diff against the appropriate base.
-4. Walk every new type in src/api/types/ field-by-field against its spec schema. Flag any drift as Critical.
+4. Walk every new typed model field-by-field against its spec schema. Flag any drift as Critical.
 5. Walk each FR/EC and identify its implementation point; flag any that are missing as Critical.
-6. Run the React Query, TypeScript, i18n/RTL, accessibility, and test passes described in your system prompt.
-7. **Scope-drift check** — per your system prompt (step 12): emit `## Scope findings` and add `scope` rows to the FINDINGS block.
-8. **Classify every Critical finding** as `mechanical` or `architectural` — per your system prompt (step 13): add `**Classification**:` to each Critical prose entry and a 5th pipe field on every `critical` FINDINGS row.
+6. Run the framework-specific passes (typing, data fetching, routing, i18n/RTL, accessibility, tests) described in your system prompt.
+7. **Scope-drift check** — per your system prompt's scope-drift step: emit `## Scope findings` and add `scope` rows to the FINDINGS block.
+8. **Classify every Critical finding** as `mechanical` or `architectural` — per your system prompt's classification step: add `**Classification**:` to each Critical prose entry and a 5th pipe field on every `critical` FINDINGS row.
 9. Produce the report in the Output Format from your system prompt. Every finding must have file:line and a citation.
 
 Do not fix anything. Your output is a report the orchestrator will pass to an implementer for fix dispatch if needed.
@@ -144,7 +150,7 @@ non-critical | {short-title} | {file}:{line} | {one-line-problem}
 scope | {short-title} | {file}:{line} | {one-line-problem}
 ```
 
-Critical rows have a 5th pipe-field with `mechanical` or `architectural` (set by the reviewer in Step 8 of the dispatch prompt). Non-critical and scope rows have only 4 fields. The 5th field on criticals drives the gate decision in Step 2 below — store it in the task file's frontmatter so Step 2 can read it without re-parsing the FINDINGS blocks.
+Critical rows have a 5th pipe-field with `mechanical` or `architectural` (set by the reviewer per its system prompt's classification step — see the reviewer agent definition for the exact rules). Non-critical and scope rows have only 4 fields. The 5th field on criticals drives the gate decision in Step 2 below — store it in the task file's frontmatter so Step 2 can read it without re-parsing the FINDINGS blocks.
 
 Write one task file per row to `{run_dir}/tasks/{feature-slug}-review-{severity}-{slug-of-title}.md`:
 
@@ -178,13 +184,22 @@ If a `critical` row arrives without a 5th field, treat the missing classificatio
 
 #### Step 2: Gate decision
 
-Once Step 1.5 has persisted every finding as a task file, count across all reviewer reports:
+Once Step 1.5 has persisted every finding as a task file, pull the pre-computed counts from each reviewer's FINDINGS_SUMMARY block — do NOT re-count rows in the FINDINGS block:
 
-- `critical_total` — every `critical` row in every reviewer's FINDINGS block
-- `critical_mechanical` — subset where the 5th field is `mechanical` (or the task file's frontmatter `classification: "mechanical"`)
+```bash
+# For each reviewer report saved at outputs/phase-5-5-code-review.md (or per-repo file):
+node {plugin_dir}/scripts/extract-block.js {report_path} FINDINGS_SUMMARY
+```
+
+This returns `{critical_total, critical_mechanical, critical_architectural, non_critical_total, scope_total}` per report. Sum them across reports to get the totals:
+
+- `critical_total` — sum of every report's `critical_total`
+- `critical_mechanical` — sum of every report's `critical_mechanical`
 - `critical_architectural` — `critical_total - critical_mechanical`
-- `non_critical_total` — every `non-critical` row
-- `scope_total` — every `scope` row
+- `non_critical_total` — sum of `non_critical_total`
+- `scope_total` — sum of `scope_total`
+
+If a reviewer's report is missing the FINDINGS_SUMMARY block (e.g., older agent), fall back to counting rows in its FINDINGS block and log a warning so the agent can be tightened later. Schema in `{plugin_dir}/docs/file-formats.md`.
 
 Branch on the counts:
 
