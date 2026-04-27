@@ -278,6 +278,71 @@ Populate the `## Observability` section of `platform.md` with the OBSERVABILITY 
 
 **Skip if**: the workspace has no repo with `role: "infrastructure"` AND no `mock-server` repo with a `docker-compose.yml`. In that case write an empty block (`{"log_destinations": [], "trace": {}, "dashboards": [], "runbooks": {}}`) and proceed to B3 — the troubleshooter still works (it'll ask the user to paste logs) but its routing table is empty.
 
+---
+
+#### Refresh mode (`--refresh-observability`)
+
+This phase is normally entered after B2.5 in a fresh `/discover` run. It can also be entered standalone via `/discover --refresh-observability --workspace=<slug>` to:
+
+- **First-time backfill** — populate the OBSERVABILITY block for a workspace that was discovered before this phase existed (the block is missing from `platform.md`).
+- **Drift refresh** — re-extract from current IaC and reconcile against the existing OBSERVABILITY block (additions / removals / renames after IaC has evolved).
+
+The phase logic below (Steps 1–5) is identical in either entry path — only the entry conditions and Step 4's write strategy differ.
+
+**Refresh entry checklist** (only when `--refresh-observability` is the entry point — otherwise skip and use the normal phase entry from B2.5):
+
+1. Resolve `{workspace_root}` via `node {plugin_dir}/scripts/workspace-root.js --get`. Halt if unset.
+2. Resolve the workspace slug:
+   - If `--workspace=<slug>` was passed, use it.
+   - Otherwise scan `{workspace_root}/*/config.json` — if exactly one workspace exists, use it; if multiple, ask the user.
+3. Validate `{workspace_root}/{slug}/config.json` with `node {plugin_dir}/scripts/validate-config.js {config-path}`. Halt on errors.
+4. Detect current state of the OBSERVABILITY block in `platform.md`:
+   ```bash
+   node {plugin_dir}/scripts/extract-block.js {workspace_root}/{slug}/context/platform.md OBSERVABILITY
+   ```
+   - Exit code 0 → block exists. **Mode: drift refresh.** Save the parsed JSON for diffing in Step 4.
+   - Exit code 2 (block markers absent) → block missing. **Mode: first-time backfill.**
+   - Exit code 3/4 → malformed block. Surface the parse error to the user and halt — they should hand-fix or `rm` the block before re-running.
+5. Confirm with the user before proceeding.
+
+   **Drift refresh confirmation:**
+   ```
+   Refresh OBSERVABILITY block for workspace "{slug}"?
+   Current block has {N} log destinations. The IaC extractor will re-scan
+   your CDK / Terraform / k8s / docker-compose / Ansible files; you'll see
+   the diff (additions / removals / renames) and approve before any write.
+
+   Continue? (yes / no)
+   ```
+
+   **First-time backfill confirmation:**
+   ```
+   Workspace "{slug}" was discovered before the OBSERVABILITY block existed.
+   This will run the IaC extractor and add the block to platform.md, then
+   prompt you for the operational fields the extractor can't infer
+   (trace correlation header, dashboards, runbooks).
+
+   Continue? (yes / no)
+   ```
+
+6. Create a refresh run dir: `{workspace_root}/{slug}/runs/discover/{run_id}/` with `run_id = {YYYY-MM-DD-HHMMSS}-refresh-obs-{slug}`. Emit `run_start` to `checkpoints.jsonl` with `event_subtype: "refresh-observability"` so reporter agents can distinguish refresh runs from full discoveries. Skip the rest of Phase A/B1/B2/B2.5/B3/C/D.
+7. Proceed to Step 1 below.
+8. After Step 4 (block written and validated), emit `run_end` to `checkpoints.jsonl` and skip Phase D's full verification (the workspace is already verified).
+
+**End-of-run summary line:**
+
+For first-time backfill:
+```
+[backfill obs ✔] OBSERVABILITY block written to {workspace_root}/{slug}/context/platform.md ({N} destinations, {mm:ss}, {Xk} tokens)
+```
+
+For drift refresh:
+```
+[refresh obs ✔] OBSERVABILITY block updated in {workspace_root}/{slug}/context/platform.md (+{A} -{R} ~{M} rows, {mm:ss}, {Xk} tokens)
+```
+
+---
+
 **Step 1: Run the extractor (deterministic IaC parse)**
 
 ```bash
@@ -322,26 +387,75 @@ If the validator exits non-zero, the error list will name `log_destinations[N]: 
 
 **Step 4: Write the block into platform.md**
 
-The architect already wrote the rest of platform.md in B2 with `{{OBSERVABILITY_BLOCK}}` and `{{OBSERVABILITY_PROSE}}` placeholders unfilled. Substitute now:
+`platform.md` can be in one of three states. Detect which, then apply the matching write strategy:
 
-- `{{OBSERVABILITY_BLOCK}}` → the curated JSON, pretty-printed (2-space indent)
-- `{{OBSERVABILITY_PROSE}}` → a 1-2 sentence human note describing anything the table can't say (e.g., "All services log to CloudWatch under `/aws/ecs/{service}-{env}`. Trace IDs propagate via `X-Request-Id`. The Datadog dashboards above are the on-call entry points.")
-
-After substitution, run the validator (Step 3). On success, clean up the draft:
+**State (a) — placeholder present** (fresh `/discover` run; the architect generated `platform.md` from the current template). Detect with:
 
 ```bash
+grep -n '{{OBSERVABILITY_BLOCK}}' {workspace_root}/{slug}/context/platform.md
+```
+
+If a match is found, substitute placeholders globally (use `Edit` with `replace_all: true`):
+
+- `{{OBSERVABILITY_BLOCK}}` → the curated JSON, pretty-printed (2-space indent)
+- `{{OBSERVABILITY_PROSE}}` → a 1–2 sentence human note describing anything the table can't say (e.g., "All services log to CloudWatch under `/aws/ecs/{service}-{env}`. Trace IDs propagate via `X-Request-Id`. The Datadog dashboards above are the on-call entry points.")
+
+**State (b) — block already exists** (drift refresh path; OBSERVABILITY block was extractable in the refresh entry checklist). The block is bracketed by `<!-- BEGIN OBSERVABILITY --> ... <!-- END OBSERVABILITY -->`. Compute the diff between the existing parsed JSON and the curated draft:
+
+- `+ added` rows (in draft, not in existing)
+- `- removed` rows (in existing, not in draft, and `source` did NOT start with `user-supplied`)
+- `~ renamed/changed` rows (same `service`+`env` key, different `log_group` / `selector` / `container` / `unit` / `query`)
+
+Present the diff to the user:
+```
+Observability drift detected:
+
+  + payments-api / staging / cloudwatch /aws/ecs/payments-staging
+      from infra/cdk/lib/payments-stack.ts:198
+  - edge-gateway / prod / journalctl edge-gateway.service
+      was at infra/ansible/roles/edge-gateway/tasks/main.yml:22 (file no longer exists)
+  ~ bulk-uploader / prod / kubectl
+      selector changed: app=bulk → app=bulk-uploader
+      from infra/k8s/bulk-uploader/deployment.yaml:8
+
+Apply all? (yes / review-each / no)
+```
+
+On `yes` (or after `review-each` resolves): replace the block contents between the BEGIN/END markers with the curated draft. Keep `user-supplied` rows from the existing block intact (do not let the extractor remove them). Keep the `trace`, `dashboards`, and `runbooks` sections from the existing block UNLESS the user updated them in Step 2 — those are LLM-curated, not extractor-derived, and should not be wiped on a refresh just because the extractor doesn't fill them.
+
+**State (c) — no placeholder, no block** (first-time backfill path; workspace was discovered before B2.6 existed). Insert the entire `## Observability` section just before `## Established Patterns (all agents must know these)`:
+
+```markdown
+## Observability
+
+> Log destinations, trace propagation, dashboards, and runbook pointers. The JSON block below is the source of truth (machine-readable); the prose under it is human commentary. Producer: `scripts/extract-observability.js` during `/discover` Phase B, curated with the user. Consumer: `{slug}-troubleshooter` agent. Schema: see [`docs/file-formats.md`](.../docs/file-formats.md#observability) and [`templates/blocks/observability.example.json`](.../templates/blocks/observability.example.json).
+
+<!-- BEGIN OBSERVABILITY -->
+```json
+{curated draft, pretty-printed}
+```
+{1-2 sentence prose note}
+<!-- END OBSERVABILITY -->
+
+```
+
+After the write (any state), run the validator (Step 3) and clean up the draft:
+
+```bash
+node {plugin_dir}/scripts/validate-observability.js {workspace_root}/{slug}/context/platform.md
 rm {workspace_root}/{slug}/.observability-draft.json
 ```
 
-**Step 5: Cleanup placeholders**
+**Step 5: Cleanup placeholders + verify markers**
 
 ```bash
 grep -n '{{OBSERVABILITY' {workspace_root}/{slug}/context/platform.md
+grep -cE '<!-- (BEGIN|END) OBSERVABILITY -->' {workspace_root}/{slug}/context/platform.md
 ```
 
-Must report no matches. If it does, the substitution missed a placeholder — fix before continuing.
+The first command must report no matches (no unsubstituted placeholders). The second must report exactly `2` (one BEGIN, one END). If either fails, fix before continuing.
 
-**Update scratchpad**: write a `## Observability Extraction` summary to `scratchpad.md` listing the count of rows extracted automatically vs. user-supplied. Set Phase B2.6 status to COMPLETED. Set Current Phase to "B3. Design System Discovery".
+**Update scratchpad**: write a `## Observability Extraction` summary to `scratchpad.md` listing the count of rows extracted automatically vs. user-supplied (or for refresh runs: `+A -R ~M` row counts). Set Phase B2.6 status to COMPLETED. Set Current Phase to "B3. Design System Discovery" — UNLESS this was a `--refresh-observability` standalone run, in which case proceed directly to `run_end` per the refresh-mode checklist above.
 
 ---
 
