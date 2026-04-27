@@ -1,7 +1,38 @@
 ---
 name: troubleshoot
-description: "Cross-repo incident triage. Takes a one-line symptom + optional flags, runs a hypothesis-driven investigation against the workspace's logs and recent diffs (using the OBSERVABILITY routing table from platform.md), and writes a structured report. Read-only — never modifies code."
+description: "Cross-repo incident triage. Takes a one-line symptom + optional flags, runs a hypothesis-driven investigation against the workspace's logs and recent diffs (using the OBSERVABILITY routing table from platform.md), and writes a structured report. READ-ONLY by hard rule — the troubleshooter agent's system prompt forbids mutating commands, and an optional `PreToolUse` hook backed by `scripts/troubleshooter-bash-guard.js` enforces the same allowlist at tool-dispatch time."
 ---
+
+## Read-only guarantee — the hard rule
+
+The troubleshooter agent operates strictly **read-only**. This is enforced in three layers:
+
+1. **Agent system prompt** — `templates/agents/troubleshooter.md.template` opens with a HARD RULES block (R1: Bash allowlist, R2: blocklist, R3: pre-flight self-check, R4: escape valve for would-be mutations, R5: bash-guard awareness, R6: report.md is the only permitted write). The agent reads these on every invocation.
+2. **Bash guard script** — `scripts/troubleshooter-bash-guard.js` is a deny-by-pattern classifier (98 unit tests). Pipe any candidate command in and it exits 0 (allow) or 1 with a reason (deny). Catches AWS / kubectl / docker / git / filesystem / package-manager / HTTP / DB mutations, shell-access escapes (`kubectl exec`, `aws ssm start-session`), evasion (`$(...)`, backticks, `eval`, `nohup`, base64-pipe-bash, output redirects), and long-running flags (`-f`, `--watch`). Unknown commands are denied conservatively — the allowlist is what the troubleshooter actually needs, nothing more.
+3. **Optional `PreToolUse` hook** — install the snippet below in `~/.claude/settings.json` (or `.claude/settings.json` in the workspace) to make the guard a hard intercept at the tool-dispatch layer. With the hook installed, the agent literally cannot execute a mutation even if its prompt fails — Claude Code blocks the Bash call before it runs.
+
+### Recommended hook config
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "agentMatcher": ".*-troubleshooter$",
+        "command": "node {plugin_dir}/scripts/troubleshooter-bash-guard.js \"$BASH_COMMAND\""
+      }
+    ]
+  }
+}
+```
+
+The `agentMatcher` regex scopes the guard to any agent whose name ends in `-troubleshooter` (e.g. `dal-troubleshooter`, `payments-troubleshooter`) — other agents are unaffected. If the guard exits non-zero, the Bash tool call is rejected with the guard's reason on stderr; the agent reads that reason and reformulates (or, per HARD RULE R4, writes the would-be mutation into `report.md` for a human to execute).
+
+If you don't install the hook, layers 1 + 2 still hold — but layer 1 is prompt-driven (model compliance), and layer 2 only fires if the agent or orchestrator chooses to call the guard. The hook makes layer 2 unconditional.
+
+---
+
 
 ## Usage
 
