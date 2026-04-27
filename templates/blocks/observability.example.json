@@ -1,0 +1,65 @@
+{
+  "_comment": "Canonical example for the OBSERVABILITY block emitted inside `<!-- BEGIN OBSERVABILITY --> ... <!-- END OBSERVABILITY -->` under the `## Observability` section of `{workspace_root}/{slug}/context/platform.md`. Producer: `scripts/extract-observability.js` during `/discover` Phase B (script extracts what it can from CDK / Terraform / k8s manifests / docker-compose; the LLM curates with the user to fill trace headers, dashboards, and runbook pointers). Consumers: `{slug}-troubleshooter` agent (selects a row by `service` + `env`, formats `query` with `since` / `filter` flags, runs via Bash), `scripts/validate-observability.js` (asserts required fields), and any future site-view renderer. Field reference and the full consumer list live in `docs/file-formats.md`. Producers must match this structure; consumers extract via `scripts/extract-block.js`. The `_comment` field is illustrative only — strip it from real output.",
+  "log_destinations": [
+    {
+      "service": "publisher-api",
+      "env": "prod",
+      "type": "cloudwatch",
+      "log_group": "/aws/ecs/publisher-prod",
+      "query": "aws logs tail {log_group} --since {since} --filter-pattern '{filter}'",
+      "source": "infra/cdk/lib/publisher-stack.ts:142"
+    },
+    {
+      "service": "publisher-api",
+      "env": "dev",
+      "type": "cloudwatch",
+      "log_group": "/aws/ecs/publisher-dev",
+      "query": "aws logs tail {log_group} --since {since} --filter-pattern '{filter}'",
+      "source": "infra/cdk/lib/publisher-stack.ts:142"
+    },
+    {
+      "service": "notification-worker",
+      "env": "prod",
+      "type": "cloudwatch",
+      "log_group": "/aws/lambda/notification-worker-prod",
+      "query": "aws logs tail {log_group} --since {since}",
+      "source": "infra/cdk/lib/worker-stack.ts:38"
+    },
+    {
+      "service": "bulk-uploader",
+      "env": "prod",
+      "type": "kubectl",
+      "namespace": "data",
+      "selector": "app=bulk-uploader",
+      "query": "kubectl logs -n {namespace} -l {selector} --since={since}",
+      "source": "infra/k8s/bulk-uploader/deployment.yaml:8"
+    },
+    {
+      "service": "publisher-api",
+      "env": "local",
+      "type": "docker",
+      "container": "publisher-api",
+      "query": "docker logs {container} --since {since}",
+      "source": "docker-compose.yml:14"
+    },
+    {
+      "service": "edge-gateway",
+      "env": "prod",
+      "type": "journalctl",
+      "unit": "edge-gateway.service",
+      "query": "journalctl -u {unit} --since '{since}'",
+      "source": "infra/ansible/roles/edge-gateway/tasks/main.yml:22"
+    }
+  ],
+  "trace": {
+    "correlation_header": "X-Request-Id",
+    "propagated_through": ["api-gateway", "publisher-api", "notification-worker", "web-frontend"]
+  },
+  "dashboards": [
+    { "name": "Publisher SLOs", "url": "https://app.datadoghq.com/dashboard/publisher-slos", "scope": "publisher-api" },
+    { "name": "Worker Throughput", "url": "https://app.datadoghq.com/dashboard/worker-throughput", "scope": "notification-worker" }
+  ],
+  "runbooks": {
+    "index": "docs/runbooks/README.md"
+  }
+}

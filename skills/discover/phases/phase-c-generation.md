@@ -239,6 +239,7 @@ Read the template files from the plugin:
 - `{plugin_dir}/templates/agents/product-owner.md.template`
 - `{plugin_dir}/templates/agents/assessor.md.template`
 - `{plugin_dir}/templates/agents/ux-consultant.md.template`
+- `{plugin_dir}/templates/agents/troubleshooter.md.template`
 
 Replace placeholders using data from B1 + B2:
 
@@ -260,6 +261,7 @@ Write:
 - `{workspace_root}/{slug}/agents/product-owner.md`
 - `{workspace_root}/{slug}/agents/assessor.md`
 - `{workspace_root}/{slug}/agents/ux-consultant.md`
+- `{workspace_root}/{slug}/agents/troubleshooter.md`
 
 #### Publish to user-level agents directory (B1)
 
@@ -271,7 +273,7 @@ After writing the three workspace-local files, also publish them to `~/.claude/a
 mkdir -p ~/.claude/agents
 ```
 
-For each of (`product-owner`, `assessor`, `ux-consultant`):
+For each of (`product-owner`, `assessor`, `ux-consultant`, `troubleshooter`):
 
 1. **Conflict check (B2)**: before copying, check whether `~/.claude/agents/{slug}-{role}.md` already exists.
    - If it does **and** the `name:` frontmatter value already matches `{slug}-{role}`, it's our own file from a prior onboarding — overwrite silently.
@@ -286,12 +288,12 @@ For each of (`product-owner`, `assessor`, `ux-consultant`):
    cp {workspace_root}/{slug}/agents/{role}.md ~/.claude/agents/{slug}-{role}.md
    ```
 
-After all three publish, verify Claude Code can see them:
+After all four publish, verify Claude Code can see them:
 ```bash
-ls ~/.claude/agents/{slug}-{product-owner,assessor,ux-consultant}.md
+ls ~/.claude/agents/{slug}-{product-owner,assessor,ux-consultant,troubleshooter}.md
 ```
 
-Print a one-liner to the user: `Workspace agents published: {slug}-product-owner, {slug}-assessor, {slug}-ux-consultant — downstream pipeline phases will dispatch them by name.`
+Print a one-liner to the user: `Workspace agents published: {slug}-product-owner, {slug}-assessor, {slug}-ux-consultant, {slug}-troubleshooter — downstream pipeline phases will dispatch them by name.`
 
 #### Placeholder substitution discipline
 
@@ -303,7 +305,7 @@ Placeholders may appear more than once in a template (e.g., a shared slug refere
 After writing each agent file, verify zero placeholders remain:
 
 ```bash
-grep -c '{{' {workspace_root}/{slug}/agents/{product-owner,assessor,ux-consultant}.md
+grep -c '{{' {workspace_root}/{slug}/agents/{product-owner,assessor,ux-consultant,troubleshooter}.md
 ```
 
 Every file must report `0`. If any file reports ≥1, halt, run `grep -n '{{' <file>` to list remaining placeholders by line, and fix before continuing. Do **not** ship an agent file with an unfilled placeholder — it will produce confusing behavior at runtime when the agent reads its own system prompt.

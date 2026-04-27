@@ -268,7 +268,80 @@ If the user says "yes", show the platform.md content.
 
 ### B2.5: Stack Discovery + Per-Service Divergence
 
-This phase lives in its own file: `phases/phase-b25-stack-discovery.md`. Load it when you reach B2.5; it produces both `stacks/{type}.md` (engineering conventions per stack) and the `### Per-Service Divergences` subsection in `platform.md` from a single per-stack code scan. Return here for B3.
+This phase lives in its own file: `phases/phase-b25-stack-discovery.md`. Load it when you reach B2.5; it produces both `stacks/{type}.md` (engineering conventions per stack) and the `### Per-Service Divergences` subsection in `platform.md` from a single per-stack code scan. Return here for B2.6.
+
+---
+
+### B2.6: Observability Extraction
+
+Populate the `## Observability` section of `platform.md` with the OBSERVABILITY block. The block is the routing table the future `{slug}-troubleshooter` agent reads to know which log destination to query for a given `(service, env)` pair, plus operator dashboards and runbook pointers. Schema lives at [`docs/file-formats.md#observability`](../../../docs/file-formats.md) and the canonical example at [`templates/blocks/observability.example.json`](../../../templates/blocks/observability.example.json).
+
+**Skip if**: the workspace has no repo with `role: "infrastructure"` AND no `mock-server` repo with a `docker-compose.yml`. In that case write an empty block (`{"log_destinations": [], "trace": {}, "dashboards": [], "runbooks": {}}`) and proceed to B3 — the troubleshooter still works (it'll ask the user to paste logs) but its routing table is empty.
+
+**Step 1: Run the extractor (deterministic IaC parse)**
+
+```bash
+node {plugin_dir}/scripts/extract-observability.js {workspace_root}/{slug}/config.json > {workspace_root}/{slug}/.observability-draft.json
+```
+
+Recognized IaC shapes: AWS CDK TypeScript (`new logs.LogGroup`, `new lambda.Function`, `new ecs.FargateService` with `serviceName`), Terraform (`aws_cloudwatch_log_group`, `aws_lambda_function`), Kubernetes manifests (Deployment / StatefulSet / Job / CronJob / DaemonSet), `docker-compose.yml` top-level services, Ansible `ansible.builtin.systemd` units. The script emits a JSON draft matching the OBSERVABILITY block contract. The `trace`, `dashboards`, and `runbooks` sections come back empty — they need LLM curation in Step 2.
+
+**Step 2: Curate with the user**
+
+Present the extractor's draft to the user one section at a time. The script will not have filled the operational-knowledge fields, so prompt for each:
+
+```
+Extracted {N} log destinations from your IaC. Here they are:
+
+{render log_destinations[] as a table: service | env | type | destination}
+
+Three follow-ups so the troubleshooter has the full picture:
+
+1. **Trace correlation header** — which header propagates a request ID across
+   services? (e.g., `X-Request-Id`, `traceparent`, or `none — we don't propagate`)
+
+2. **Operator dashboards** — list any dashboards the on-call would open first.
+   Format: `name | url | scope (service or 'platform')`. Or `none`.
+
+3. **Runbooks** — is there a runbook directory or index file? (e.g.,
+   `docs/runbooks/README.md`). Or `none`.
+
+Anything wrong in the extracted log_destinations table I should fix or remove?
+```
+
+Apply the user's answers to the draft JSON. The user may also flag missing rows ("we have a Kafka consumer in `infra/kafka/` you didn't pick up") — add those manually, marking `source: "user-supplied"` for the `source` field so a future `/discover --refresh` doesn't try to drift-check them.
+
+**Step 3: Validate**
+
+```bash
+# Render the draft into platform.md first (Step 4), then validate the rendered file
+node {plugin_dir}/scripts/validate-observability.js {workspace_root}/{slug}/context/platform.md
+```
+
+If the validator exits non-zero, the error list will name `log_destinations[N]: missing X`. Fix and re-validate. Do NOT proceed to B3 until the validator returns 0.
+
+**Step 4: Write the block into platform.md**
+
+The architect already wrote the rest of platform.md in B2 with `{{OBSERVABILITY_BLOCK}}` and `{{OBSERVABILITY_PROSE}}` placeholders unfilled. Substitute now:
+
+- `{{OBSERVABILITY_BLOCK}}` → the curated JSON, pretty-printed (2-space indent)
+- `{{OBSERVABILITY_PROSE}}` → a 1-2 sentence human note describing anything the table can't say (e.g., "All services log to CloudWatch under `/aws/ecs/{service}-{env}`. Trace IDs propagate via `X-Request-Id`. The Datadog dashboards above are the on-call entry points.")
+
+After substitution, run the validator (Step 3). On success, clean up the draft:
+
+```bash
+rm {workspace_root}/{slug}/.observability-draft.json
+```
+
+**Step 5: Cleanup placeholders**
+
+```bash
+grep -n '{{OBSERVABILITY' {workspace_root}/{slug}/context/platform.md
+```
+
+Must report no matches. If it does, the substitution missed a placeholder — fix before continuing.
+
+**Update scratchpad**: write a `## Observability Extraction` summary to `scratchpad.md` listing the count of rows extracted automatically vs. user-supplied. Set Phase B2.6 status to COMPLETED. Set Current Phase to "B3. Design System Discovery".
 
 ---
 
