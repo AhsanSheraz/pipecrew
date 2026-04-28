@@ -27,10 +27,11 @@ After `/discover` completes, you have:
 | Flag | Effect |
 |------|--------|
 | `--resume` | Resume an interrupted onboarding from the scratchpad |
-| `--workspace=<slug>` | Required with `--resume` and `--refresh-stacks` if multiple workspaces exist |
+| `--workspace=<slug>` | Required with `--resume`, `--refresh-stacks`, and `--refresh-observability` if multiple workspaces exist |
 | `--greenfield` | Skip repo scan, start with brainstorm + scaffold (see Phase Greenfield) |
 | `--skip-divergences` | Phase B2.5 still produces `stacks/{type}.md`, but skips the platform.md divergence write. Useful for fast iteration or when divergences are hand-curated. |
 | `--refresh-stacks` | Run only Phase B2.5 against an existing workspace — refreshes both `stacks/{type}.md` docs and the platform.md divergence subsection from a fresh code scan. Combine with `--skip-divergences` to refresh stacks only. Requires `--workspace=<slug>` if more than one workspace exists. Skips Phase A/B1/B2/B3/C/D. |
+| `--refresh-observability` | Run only Phase B2.6 against an existing workspace — refreshes (or first-time backfills) the OBSERVABILITY block in `platform.md`. Re-runs the IaC extractor across CDK / Terraform / k8s / docker-compose / Ansible, presents the draft for user curation (trace correlation header, dashboards, runbooks), validates, and writes the result. If the workspace was discovered before B2.6 existed (no OBSERVABILITY block in platform.md), this flag performs a first-time backfill — inserts the section before `## Established Patterns`. Requires `--workspace=<slug>` if more than one workspace exists. Skips Phase A/B1/B2/B2.5/B3/C/D. |
 
 ### Examples
 ```
@@ -40,6 +41,7 @@ After `/discover` completes, you have:
 /discover --resume --workspace=my-saas
 /discover --refresh-stacks --workspace=my-saas
 /discover --refresh-stacks --workspace=my-saas --skip-divergences
+/discover --refresh-observability --workspace=my-saas
 ```
 
 ## Instructions

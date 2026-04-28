@@ -198,6 +198,40 @@ The summary is pre-computed by the reviewer so the orchestrator's gate decision 
 
 ---
 
+### `OBSERVABILITY`
+
+**Producer**: `scripts/extract-observability.js` during `/discover` Phase B (deterministic IaC parse), curated by the LLM with the user to fill the parts no parser can extract (trace correlation header, dashboard URLs, runbook pointers).
+**Consumers**: `{slug}-troubleshooter` agent (selects a row by `service` + `env`, formats `query` with `{since}` / `{filter}` placeholders, runs via Bash), `scripts/validate-observability.js` (required-fields check at end of Phase B and start of `/troubleshoot`)
+**File**: `{workspace_root}/{slug}/context/platform.md` under the `## Observability` H2 section
+**Canonical example**: [`templates/blocks/observability.example.json`](../templates/blocks/observability.example.json) — single source of truth for the structure. Update that file when the schema changes; this doc only carries the field reference table below.
+
+**Field reference:**
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `log_destinations[]` | array | One row per (service, env) pair. A service running in three envs produces three rows. |
+| `log_destinations[].service` | string | Must match a key in `config.services`. |
+| `log_destinations[].env` | string | Env label — `prod` / `staging` / `dev` / `local` or any name the workspace uses. |
+| `log_destinations[].type` | enum | `cloudwatch` / `kubectl` / `docker` / `journalctl` (extensible — add new types in the example file + extractor + validator together). |
+| `log_destinations[].log_group` | string | Required when `type` = `cloudwatch`. Full log group path (e.g., `/aws/ecs/payments-prod`). |
+| `log_destinations[].namespace` | string | Required when `type` = `kubectl`. Kubernetes namespace. |
+| `log_destinations[].selector` | string | Required when `type` = `kubectl`. Label selector (e.g., `app=foo`). |
+| `log_destinations[].container` | string | Required when `type` = `docker`. Container name (matches `docker-compose.yml` service key). |
+| `log_destinations[].unit` | string | Required when `type` = `journalctl`. systemd unit name. |
+| `log_destinations[].query` | string | Shell command template. Supports placeholders the troubleshooter formats at query time: `{since}`, `{filter}`, `{log_group}`, `{namespace}`, `{selector}`, `{container}`, `{unit}`. |
+| `log_destinations[].source` | string | IaC `file:line` the row was extracted from — used by `/discover --refresh` for drift detection and by the troubleshooter when a query returns nothing (so the user can re-check the IaC). |
+| `trace.correlation_header` | string | Header that propagates a request ID across services (e.g., `X-Request-Id`, `traceparent`). Filled by LLM curation, not the extractor. |
+| `trace.propagated_through` | array of strings | Service names known to read AND forward the header. Useful for the troubleshooter to know which logs to query when chasing a cross-service trace. |
+| `dashboards[]` | array | Operator dashboards relevant to this platform. Filled by LLM curation. |
+| `dashboards[].name` | string | Display name. |
+| `dashboards[].url` | string | Direct link. |
+| `dashboards[].scope` | string | Service name or `platform`. |
+| `runbooks.index` | string | Repo-relative path to the runbook index file (e.g., `docs/runbooks/README.md`). |
+
+If the workspace has no observability stack (toy or local-only), the producer emits `{"log_destinations": [], "trace": {}, "dashboards": [], "runbooks": {}}` rather than omitting the block — empty arrays preserve the contract for downstream consumers.
+
+---
+
 ## Adding a new structured block
 
 1. Define the schema here under "Defined block schemas".
