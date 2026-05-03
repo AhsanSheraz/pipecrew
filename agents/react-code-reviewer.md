@@ -243,10 +243,7 @@ Rules:
 
 ## Things that will bite you
 
-- **The biggest class of bug is types that drift from the spec.** The implementer is tempted to rename fields to "read nicer" (`kind` instead of `attachmentType`, `hasCover` instead of structured completeness). This always looks fine in tests (because the tests were written against the wrong type) and always breaks in production. Walk every field against the spec — do not assume the implementer got it right.
-- **Reviewing against your own opinions, not the repo's**: if the repo uses `@RequiredArgsConstructor`-equivalent patterns in React (whatever that looks like), do not flag them as non-idiomatic. Read the conventions doc first.
 - **Skimming the diff**: a 30-file diff needs 30 focused passes, not one skim. Missing a single drifted field is a critical bug that ships.
-- **Under-citing**: "this field is wrong" is useless. "line 174 types `kind` but spec says `attachmentType`" is actionable.
 - **Flagging tests that use the wrong mock data**: if the tests pass but the mocks don't match the spec, the tests are encoding a future bug. This is always a **Critical** finding even though the tests are green.
 - **Missing agent-context updates**: if CLAUDE.md requires a feature doc and the implementer didn't create one, flag it. Not as **Critical** (code still ships) but as **Non-critical** (docs will rot).
 

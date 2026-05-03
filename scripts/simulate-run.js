@@ -392,81 +392,165 @@ ${s.refs.map(r => `- ${r}`).join('\n')}
 }
 
 function writeArchitectureDiagrams() {
-  // High-level capability view — sync vs async only, no infra detail.
-  // Mirrors the platform.md service table: 3 backends + 1 worker + frontend.
-  const overview = `flowchart LR
-  user["User<br/>(Browser)"]
-  fe["Frontend<br/>React + TanStack Query"]
-  pub["publisher-svc<br/>Spring Boot"]
-  search["search-svc<br/>NestJS"]
-  billing["billing-svc<br/>FastAPI"]
-  worker["notifications-worker<br/>Python (SQS)"]
-  data[("Postgres + OpenSearch + S3")]
-  bus[("Event bus — SQS")]
-
-  user --> fe
-  fe -->|REST + JWT| pub
-  fe -->|REST + JWT| search
-  fe -->|REST + JWT| billing
-  pub --> data
-  search --> data
-  billing --> data
-  pub -.->|book.* events| bus
-  billing -.->|invoice.created| bus
-  bus -->|consume| search
-  bus -->|consume| worker
-`;
-  // Detailed topology — every service, DB, queue, Lambda, with edge labels.
-  // Mock shown as local-dev sidecar; CDK + Terraform infra outlined.
-  const detailed = `flowchart TB
-  subgraph client[Client tier]
-    fe[Frontend - React]
-    mock[Mock Server - Express]
+  // Overview — follows docs/discovery-diagram-rules.md exactly:
+  // 4 mandatory subgraphs (Frontends, Backend services, Queues / Topics, Data sources),
+  // init directive on line 1, exact classDef palette, subroutine shape for queues.
+  const overview = `%%{init: {"flowchart": {"nodeSpacing": 55, "rankSpacing": 70, "curve": "basis", "padding": 15, "htmlLabels": true}}}%%
+flowchart LR
+  subgraph Frontends
+    fe[Frontend]
   end
 
-  subgraph services[Service tier — 3 backends + 1 worker]
-    pub[publisher-svc - Spring Boot]
-    search[search-svc - NestJS]
-    billing[billing-svc - FastAPI]
-    worker[notifications-worker - Python]
+  subgraph "Backend services"
+    pub[publisher-svc]
+    search[search-svc]
+    billing[billing-svc]
+    worker[notifications-worker]
   end
 
-  subgraph data[Data — Terraform-owned]
-    pubdb[(RDS Postgres - publisher)]
-    billdb[(RDS Postgres - billing)]
-    os[(OpenSearch - search)]
-    idem[(DynamoDB - notification idempotency)]
+  subgraph "Queues / Topics"
+    bookq[[book-events]]
+    invq[[invoice-events]]
+    notifq[[notification-queue]]
   end
 
-  subgraph infra[Per-service AWS — CDK-owned]
-    s3[(S3 demo-books-dev)]
-    sqs[(SQS book-events)]
-    invq[(SQS invoice-events)]
-    notifq[(SQS notification-queue)]
-    cf[CloudFront - frontend CDN]
+  subgraph "Data sources"
+    pubdb[(publisher_db)]
+    billdb[(billing_db)]
+    os[(search index)]
+    idem[(idempotency)]
+    s3[(books S3)]
   end
 
   fe -->|REST| pub
   fe -->|REST| search
   fe -->|REST| billing
-  fe -.->|local dev| mock
-  cf -.-> fe
+  pub -->|access| pubdb
+  pub -->|access| s3
+  billing -->|access| billdb
+  search -->|access| os
+  worker -->|access| idem
+  pub -.->|publish| bookq
+  billing -.->|publish| invq
+  bookq -.->|consume| search
+  bookq -.->|consume| notifq
+  invq -.->|consume| worker
+  notifq -.->|consume| worker
 
-  pub --> pubdb
-  pub --> s3
-  pub -->|book.published| sqs
+  classDef frontend fill:#E6F4EA,stroke:#1E8E3E,stroke-width:1.5px,color:#0D5223,font-size:14px
+  classDef service  fill:#FFF4E5,stroke:#E67C00,stroke-width:2px,color:#5A3A00,font-size:17px,font-weight:600
+  classDef queue    fill:#FDECEA,stroke:#C5221F,stroke-width:1.5px,color:#7A0D0D,font-size:13px
+  classDef data     fill:#E8F0FE,stroke:#1A73E8,stroke-width:1.5px,color:#0B3D91,font-size:14px
 
-  search --> os
-  sqs -->|consume + reindex| search
+  class fe frontend
+  class pub,search,billing,worker service
+  class bookq,invq,notifq queue
+  class pubdb,billdb,os,idem,s3 data
+`;
+  // Detailed topology — every real resource, full labels (endpoint paths, Feign client names,
+  // queue ARNs), ==> for shared writes, edge infra + secrets + monitoring + an orphan resource.
+  // This is the "implementer's map" — it must be obviously richer than the overview.
+  const detailed = `flowchart LR
+  subgraph client[Client tier]
+    fe[Frontend - React + TanStack Query<br/>web.demo.example.com]
+    mock[Mock Server - Express<br/>localhost:4010]
+  end
 
-  billing --> billdb
-  billing -->|invoice.created| invq
-  invq -->|consume| worker
+  subgraph edge[Edge infra]
+    cf[CloudFront<br/>d1234.cloudfront.net]
+    alb[ALB<br/>api.demo.example.com]
+    cog[Cognito<br/>JWT issuer]
+  end
 
-  sqs -->|*.notify| notifq
-  notifq -->|consume| worker
-  worker --> idem
-  worker -.->|email + push| ext[/External providers/]
+  subgraph services[Service tier]
+    pub[publisher-svc<br/>Spring Boot 3 / Java 21<br/>API: /v1/publishers/**]
+    search[search-svc<br/>NestJS 10 / Node 20<br/>API: /v1/search/**]
+    billing[billing-svc<br/>FastAPI / Py 3.12<br/>API: /v1/invoices/**]
+    workersvc[notifications-worker<br/>Python 3.12 Lambda<br/>handler: notify.lambda_handler]
+    legacy[legacy-billing-cron<br/>Python 2.7 Lambda<br/>last deploy 2024-08-12]
+  end
+
+  subgraph data[Data — Terraform-owned]
+    pubdb[(RDS Postgres 15<br/>publisher_db<br/>db.r6g.large)]
+    billdb[(RDS Postgres 15<br/>billing_db<br/>db.r6g.large)]
+    os[(OpenSearch 2.11<br/>search-index<br/>3× r6g.large.search)]
+    idem[(DynamoDB<br/>notification_idem<br/>TTL 7d)]
+    s3[(S3<br/>demo-books-dev<br/>versioned + KMS)]
+    s3legacy[(S3<br/>demo-billing-archive<br/>no owner)]
+  end
+
+  subgraph queues[Queues — CDK-owned]
+    sqs[[SQS<br/>book-events.fifo<br/>visibility 60s, DLQ 5×]]
+    invq[[SQS<br/>invoice-events<br/>visibility 30s, DLQ 3×]]
+    notifq[[SQS<br/>notification-queue<br/>batch 10, DLQ 5×]]
+    sns[[SNS<br/>book-fanout-topic]]
+  end
+
+  subgraph ops[Ops + Secrets]
+    sm[Secrets Manager<br/>db creds + Stripe key]
+    cw[CloudWatch + X-Ray<br/>traceparent header]
+  end
+
+  subgraph external[External providers]
+    sg[SendGrid<br/>v3 transactional]
+    fcm[Firebase Cloud Messaging<br/>HTTP v1]
+    stripe[Stripe<br/>v2024-04-10]
+  end
+
+  fe -->|"GET /v1/publishers/{id}"| alb
+  fe -->|"GET /v1/search?q="| alb
+  fe -->|"POST /v1/invoices"| alb
+  fe -.->|"contract dev only"| mock
+  cf -.->|"static assets"| fe
+  alb -->|"Authorization: Bearer ..."| cog
+  alb -->|"/v1/publishers/**"| pub
+  alb -->|"/v1/search/**"| search
+  alb -->|"/v1/invoices/**"| billing
+
+  pub ==>|"JDBC HikariCP pool=20"| pubdb
+  pub ==>|"PutObject server-side encryption"| s3
+  pub -.->|"BookPublishedEvent v2 (FIFO group=publisherId)"| sqs
+  pub -->|"PublisherClient.getProfile (Feign)"| billing
+  pub -->|"GetSecretValue: rds/publisher"| sm
+
+  search ==>|"_bulk index, 500 docs / batch"| os
+  sqs -.->|"consume → reindex (10 msgs / poll)"| search
+  search -->|"GetSecretValue: opensearch/master"| sm
+
+  billing ==>|"asyncpg pool=10"| billdb
+  billing -.->|"InvoiceCreatedEvent (standard)"| invq
+  billing -->|"POST charges (idempotency-key)"| stripe
+  invq -.->|"consume (visibility 30s)"| workersvc
+
+  sqs -.->|"FilterPolicy: type=*.notify"| sns
+  sns -.->|"fanout"| notifq
+  notifq -.->|"consume (batch=10, partial-batch-fail)"| workersvc
+  workersvc ==>|"PutItem ConditionExpression: NotExists"| idem
+  workersvc -->|"POST /v3/mail/send"| sg
+  workersvc -->|"POST /v1/projects/.../messages:send"| fcm
+
+  pub -.->|"trace export"| cw
+  search -.->|"trace export"| cw
+  billing -.->|"trace export"| cw
+  workersvc -.->|"trace export"| cw
+
+  classDef frontend fill:#E6F4EA,stroke:#1E8E3E,stroke-width:1.5px,color:#0D5223
+  classDef service  fill:#FFF4E5,stroke:#E67C00,stroke-width:2px,color:#5A3A00,font-weight:600
+  classDef worker   fill:#F3E8FD,stroke:#7E22CE,stroke-width:1.5px,color:#3B0764
+  classDef queue    fill:#FDECEA,stroke:#C5221F,stroke-width:1.5px,color:#7A0D0D
+  classDef data     fill:#E8F0FE,stroke:#1A73E8,stroke-width:1.5px,color:#0B3D91
+  classDef infra    fill:#DDE7F5,stroke:#1A73E8,stroke-width:1.5px,color:#0B3D91
+  classDef external fill:#FFE7C7,stroke:#E67C00,stroke-width:1.5px,color:#5A3A00
+  classDef orphan   fill:#FFE0E0,stroke:#C5221F,stroke-width:1.5px,color:#7A0D0D,stroke-dasharray:5 3
+
+  class fe,mock frontend
+  class pub,search,billing service
+  class workersvc worker
+  class legacy,s3legacy orphan
+  class sqs,invq,notifq,sns queue
+  class pubdb,billdb,os,idem,s3 data
+  class cf,alb,cog,sm,cw infra
+  class sg,fcm,stripe external
 `;
   write(path.join(WS_DIR, 'context', 'architecture-overview.mmd'), overview);
   write(path.join(WS_DIR, 'context', 'architecture.mmd'), detailed);

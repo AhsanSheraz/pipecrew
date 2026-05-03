@@ -138,6 +138,40 @@ If no infra repo is affected, the producer emits `{"infra_changes": []}` rather 
 
 ---
 
+### `MAPPER_REPORT`
+
+**Producer**: `architecture-mapper` agent (dispatched by `/draw-diagram --scan` or `/draw-diagram --repos`)
+**Consumers**: `/draw-diagram` skill orchestrator (prints summary), human reviewer (audits skipped/unresolved items), future `--reconcile` mode (compares against `platform.md`)
+**File**: emitted in the agent's response alongside `architecture-overview.mmd` + `architecture.mmd` blocks; the orchestrator extracts it for printing
+**Canonical example**: [`templates/blocks/mapper-report.example.json`](../templates/blocks/mapper-report.example.json)
+
+**Field reference:**
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `scanned_repos[]` | array | One entry per repo the mapper scanned. |
+| `scanned_repos[].path` | string | Absolute repo path. |
+| `scanned_repos[].name` | string | Repo name (from package metadata). |
+| `scanned_repos[].tech_stack` | enum | spring-boot / nestjs / fastapi / django / flask / express / react / nextjs / cdk / terraform / python-worker / node-mock / go / rust / dotnet / unknown. |
+| `scanned_repos[].role_hint` | enum | frontend / backend / worker / infra / contract / unknown. |
+| `scanned_repos[].tier_a_reads` | number | Tier A (repo identity) reads — typically ~3. |
+| `scanned_repos[].tier_b_reads` | number | Tier B (declared integrations) reads — typically 5–15. |
+| `scanned_repos[].tier_c_grep_hits` | number | Tier C grep matches before filtering. |
+| `scanned_repos[].tier_d_verification_reads` | number | Tier D verification reads — capped at 20 per HARD RULE R1. |
+| `edges[]` | array | Cross-repo edges discovered. |
+| `edges[].from` | string | Source repo / service / queue. |
+| `edges[].to` | string | Target repo / service / queue. May be `(unknown-host: ...)` or `(dynamic-target)`. |
+| `edges[].kind` | enum | `http` / `event-publish` / `event-consume` / `db` / `cross-stack`. |
+| `edges[].confidence` | enum | `high` (declared in config) / `medium` (code grep + verified) / `low` (name-similarity inference only). |
+| `edges[].evidence` | string | File:line or file path that supports the edge. |
+| `unresolved[]` | array | Targets the mapper could not resolve (dynamic, hardcoded localhost, unresolved env vars). |
+| `skipped[]` | array | Items deliberately not scanned, with reason — typically Tier D overflow. |
+| `stats` | object | Aggregate counts: `total_repos_scanned`, `total_edges`, `edges_{high,medium,low}_confidence`, `unresolved_count`, `skipped_count`. |
+
+The MAPPER_REPORT exists so the human reviewer can judge **what the mapper saw vs. what it inferred vs. what it deliberately skipped**. Diagrams are lossy by design; this report is the reconciliation layer.
+
+---
+
 ### `REQUIREMENTS_INDEX`
 
 **Producer**: workspace product-owner agent (Phase 1 dispatch instructs it)

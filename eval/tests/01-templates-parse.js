@@ -49,6 +49,21 @@ const SHAPE_CHECKS = {
     assert('mock_required' in j, 'mock_required must be present');
     assert(Array.isArray(j.spec_edit_order), 'spec_edit_order must be array');
   },
+  'mapper-report.example.json': (j) => {
+    assert(Array.isArray(j.scanned_repos), 'scanned_repos must be array');
+    assert(Array.isArray(j.edges), 'edges must be array');
+    assert(Array.isArray(j.unresolved), 'unresolved must be array');
+    assert(Array.isArray(j.skipped), 'skipped must be array');
+    assert(typeof j.stats === 'object' && j.stats !== null, 'stats must be object');
+    for (const e of j.edges) {
+      assert(['http', 'event-publish', 'event-consume', 'db', 'cross-stack'].includes(e.kind),
+        `edge.kind must be http | event-publish | event-consume | db | cross-stack (got ${e.kind})`);
+      assert(['high', 'medium', 'low'].includes(e.confidence),
+        `edge.confidence must be high | medium | low (got ${e.confidence})`);
+    }
+    assert(j.stats.edges_high_confidence + j.stats.edges_medium_confidence + j.stats.edges_low_confidence === j.stats.total_edges,
+      'stats edge counts must sum to total_edges');
+  },
   'infrastructure-impact.example.json': (j) => {
     assert(Array.isArray(j.infra_changes), 'infra_changes must be array');
     for (const c of j.infra_changes) {

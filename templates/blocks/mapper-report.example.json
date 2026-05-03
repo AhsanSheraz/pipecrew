@@ -1,0 +1,88 @@
+{
+  "_comment": "Canonical example for the MAPPER_REPORT block emitted by the architecture-mapper agent alongside Mermaid diagrams. Carries scan metadata, all edges with confidence + evidence, unresolved hosts, and skipped items so the consumer (the orchestrator or a human reviewer) knows what was found, what was inferred, and what was deliberately not scanned. Field reference lives in docs/file-formats.md. Producers must match this structure; consumers extract via scripts/extract-block.js. Strip the _comment field from real output.",
+  "scanned_repos": [
+    {
+      "path": "/Users/me/code/publisher-service",
+      "name": "publisher-service",
+      "tech_stack": "spring-boot",
+      "role_hint": "backend",
+      "tier_a_reads": 3,
+      "tier_b_reads": 8,
+      "tier_c_grep_hits": 12,
+      "tier_d_verification_reads": 9
+    },
+    {
+      "path": "/Users/me/code/publisher-frontend",
+      "name": "publisher-frontend",
+      "tech_stack": "react",
+      "role_hint": "frontend",
+      "tier_a_reads": 3,
+      "tier_b_reads": 4,
+      "tier_c_grep_hits": 18,
+      "tier_d_verification_reads": 14
+    },
+    {
+      "path": "/Users/me/code/order-events-worker",
+      "name": "order-events-worker",
+      "tech_stack": "python-worker",
+      "role_hint": "worker",
+      "tier_a_reads": 3,
+      "tier_b_reads": 6,
+      "tier_c_grep_hits": 5,
+      "tier_d_verification_reads": 5
+    }
+  ],
+  "edges": [
+    {
+      "from": "publisher-frontend",
+      "to": "publisher-service",
+      "kind": "http",
+      "confidence": "high",
+      "evidence": "publisher-frontend/src/api/client.ts:14 (axios baseURL) → matches publisher-service/openapi/publishers.yaml server URL"
+    },
+    {
+      "from": "publisher-service",
+      "to": "order-events-queue",
+      "kind": "event-publish",
+      "confidence": "high",
+      "evidence": "publisher-service/src/main/resources/application.yaml:45 (sqs.queues.order-events) → declared queue"
+    },
+    {
+      "from": "order-events-queue",
+      "to": "order-events-worker",
+      "kind": "event-consume",
+      "confidence": "high",
+      "evidence": "order-events-worker/src/handlers.py:8 (@sqs_listener('order-events'))"
+    },
+    {
+      "from": "order-events-worker",
+      "to": "(unknown-host: NOTIFY_API_URL)",
+      "kind": "http",
+      "confidence": "low",
+      "evidence": "order-events-worker/src/notify.py:23 (httpx.post(NOTIFY_API_URL)) — env var unresolved in any .env.example"
+    }
+  ],
+  "unresolved": [
+    {
+      "from": "order-events-worker",
+      "literal": "NOTIFY_API_URL",
+      "reason": "env-var-not-in-config",
+      "file_line": "order-events-worker/src/notify.py:23"
+    }
+  ],
+  "skipped": [
+    {
+      "repo": "publisher-frontend",
+      "reason": "Tier C produced 18 hits; Tier D capped at 14. Dropped: 4 lower-priority DB-pattern hits in src/utils/."
+    }
+  ],
+  "stats": {
+    "total_repos_scanned": 3,
+    "total_edges": 4,
+    "edges_high_confidence": 3,
+    "edges_medium_confidence": 0,
+    "edges_low_confidence": 1,
+    "unresolved_count": 1,
+    "skipped_count": 1
+  }
+}

@@ -1020,6 +1020,18 @@
     padding-bottom: 4px;
   }
   .project-drawer-body h3:first-child { margin-top: 0; }
+  .deliver-run-block > summary .feature-name {
+    display: inline-block;
+    font-size: 14px;
+    color: var(--line, #f5a623);
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    background: rgba(245, 166, 35, 0.12);
+    border: 1px solid rgba(245, 166, 35, 0.4);
+    border-radius: 3px;
+    padding: 2px 8px;
+    text-shadow: 0 0 6px rgba(245, 166, 35, 0.3);
+  }
   .project-drawer-body table {
     width: 100%;
     border-collapse: collapse;
@@ -2634,7 +2646,7 @@ function renderWorkspaceOverview(data) {
       const filterText = ((run.feature_name || '') + ' ' + run.run_id).toLowerCase();
       fp.push(`<details class="deliver-run-block" data-run-id="${escapeHtml(run.run_id)}" data-filter-text="${escapeHtml(filterText)}" data-status="${escapeHtml(run.status || '')}" style="margin-top:8px; padding:6px 8px; border:1px solid var(--border, #333); border-radius:4px;">`);
       fp.push(`<summary style="cursor:pointer; display:flex; justify-content:space-between; align-items:center; gap:8px;">`);
-      fp.push(`<span><b>${escapeHtml(headingTitle)}</b>${badge}${statusBadge}</span>`);
+      fp.push(`<span><span class="feature-name">${escapeHtml(headingTitle)}</span>${badge}${statusBadge}</span>`);
       fp.push(`<span style="font-size:11px; color:var(--muted);">${escapeHtml(dateStr)}</span>`);
       fp.push(`</summary>`);
       fp.push(`<div class="deliver-run-detail" id="deliver-run-detail-${idx}" style="margin-top:8px;">`);

@@ -227,7 +227,21 @@ Once the user approves the plan, **persist each sub-task as a markdown file** un
 
 Read the feature slug from the scratchpad (set during Pre-flight).
 
-**Step 1 — Read the source material once.** Read `outputs/phase-1-requirements.md` and `outputs/phase-2-architecture.md` via the Read tool. These stay in the orchestrator's context for the duration of Phase 4.5 task creation and are dropped afterward.
+**Step 1 — Pull the source material as side files, not full markdown.** Phase 1 emits `outputs/phase-1-requirements.md` (read it via the Read tool — it's the human-readable requirement narrative) and Phase 2 emits per-block JSON side files at `outputs/blocks/`. **Do NOT `Read outputs/phase-2-architecture.md`** — it can be 30k+ tokens of architect prose the planner mostly doesn't use. Instead `cat` the side files this phase needs:
+
+```bash
+cat {pipeline_dir}/outputs/blocks/affected-services.json
+cat {pipeline_dir}/outputs/blocks/api-design.json
+cat {pipeline_dir}/outputs/blocks/data-model.json
+cat {pipeline_dir}/outputs/blocks/infrastructure-impact.json 2>/dev/null
+```
+
+These small JSON payloads stay in the orchestrator's context for the duration of Phase 4.5 task creation and are dropped afterward. If a section the planner needs is prose-only (e.g., FRONTEND_ARCHITECTURE, RISKS), use `extract-block.js --raw` to pull just that named section out without loading the whole file:
+
+```bash
+node {plugin_dir}/scripts/extract-block.js {pipeline_dir}/outputs/phase-2-architecture.md FRONTEND_ARCHITECTURE --raw
+node {plugin_dir}/scripts/extract-block.js {pipeline_dir}/outputs/phase-2-architecture.md RISKS --raw
+```
 
 **Step 2 — Generate a batch of task IDs.** For the N sub-tasks in the plan, generate N task IDs up front so they can be referenced in sibling task bodies if needed. Run a Bash one-liner to produce N suffixes:
 

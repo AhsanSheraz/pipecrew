@@ -54,7 +54,14 @@ Update agent-context docs to reflect the new feature per your refresh-mode instr
 If the feature added or removed any file under agent-context/common/ (topic files), you MUST also update CLAUDE.md's `## Deep context` table to stay in sync, then run:
   node {plugin_dir}/scripts/validate-claude-md.js {repo_worktree_path}/CLAUDE.md
 
-On validator exit 1 (hard-fail), fix the flagged issues and re-validate. Do not touch CLAUDE.md's stable sections (Agent guidelines, Quick facts, Build & run, Must-know guidelines) — those are repo-level invariants that features should not mutate.
+On validator exit 1 (hard-fail), fix the flagged issues and re-validate.
+
+CRITICAL FOR THIS DISPATCH (do not skip):
+- **Default to NOT modifying.** Only modify docs if the feature genuinely changed architecture, naming conventions, file organization, or established patterns. Routine feature work that follows existing patterns = no doc changes needed. When in doubt, leave alone.
+- **Never touch CLAUDE.md's stable sections.** `## Agent guidelines`, `## Quick facts`, `## Build & run`, and `## Must-know guidelines` are repo-level invariants that features must not mutate. Touch only `## Deep context` (the index of agent-context/) and matching `agent-context/` files.
+- **Validator must pass.** If `validate-claude-md.js` exits 1, the change is broken — fix or revert before reporting done.
+
+Now: refresh agent-context for `{repo_worktree_path}` per refresh mode.
 ```
 
 If a repo has no agent-context directory, skip it silently (this repo was onboarded in `claude-only` mode; there is nothing to refresh).

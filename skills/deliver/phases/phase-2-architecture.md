@@ -62,6 +62,16 @@ Now: design the technical architecture for the feature in {pipeline_dir}/outputs
 - **yes** → dispatch the `solution-architect` agent: `"Append one ADR entry to {workspace_root}/{slug}/agent-memory/solution-architect/adrs.md for the key decision(s). Create the file if it doesn't exist."` Wait, then continue.
 - **no** → continue immediately.
 
+**Materialize per-block side files**: after writing `outputs/phase-2-architecture.md`, run:
+
+```bash
+node {plugin_dir}/scripts/split-design.js {pipeline_dir}/outputs/phase-2-architecture.md
+```
+
+This scans every `<!-- BEGIN X -->` block, extracts each `\`\`\`json` fence, and writes one file per block to `{pipeline_dir}/outputs/blocks/<slug>.json` (e.g., `affected-services.json`, `api-design.json`, `data-model.json`, `infrastructure-impact.json`, `contract-design.json`). Prose-only blocks are skipped silently. **Loud-fails on JSON parse error** — exit 3 means the architect emitted malformed JSON; halt the pipeline and surface the error to the user.
+
+Downstream phases (3, 4, 5) read these side files instead of the markdown. The orchestrator no longer pulls `phase-2-architecture.md` into context — that file is the human-narrative artifact for the Phase 2 gate review only.
+
 **Update scratchpad**: Set Phase 2 Status to COMPLETED. Write full approved tech design to `outputs/phase-2-architecture.md`. Extract and store in active.md: Affected Contracts, Affected Services, Contract Edit Order, Spec Edit Order, and the auto-detected phase flags:
 - Contracts Required = Yes if architect's AFFECTED_CONTRACTS is non-empty (not `N/A`)
 - Frontend Required = Yes if architect's design includes frontend changes AND config has a frontend repo

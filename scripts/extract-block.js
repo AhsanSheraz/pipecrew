@@ -10,14 +10,18 @@
  * downstream phases can consume structured data without an LLM
  * re-parsing the prose.
  *
- * Usage:  node extract-block.js <file-path> <block-name>
+ * Usage:
+ *   node extract-block.js <file-path> <block-name>           # JSON mode (default)
+ *   node extract-block.js <file-path> <block-name> --raw     # raw block body, no JSON parse
+ *
  *   e.g.  node extract-block.js outputs/phase-2-architecture.md AFFECTED_SERVICES
+ *         node extract-block.js outputs/phase-2-architecture.md FRONTEND_ARCHITECTURE --raw
  *
  * Exit codes:
- *   0 — block found, JSON parsed, output emitted to stdout
+ *   0 — block found, output emitted to stdout
  *   1 — file not found / unreadable
  *   2 — usage error or block delimiters not found
- *   3 — no ```json fenced code block inside the named section
+ *   3 — no ```json fenced code block inside the named section (JSON mode only)
  *   4 — JSON parse error
  *
  * Schema documentation lives in `docs/file-formats.md`.
@@ -27,10 +31,13 @@
 
 const fs = require('fs');
 
-const [, , filePath, blockName] = process.argv;
+const args = process.argv.slice(2);
+const rawMode = args.includes('--raw');
+const positional = args.filter(a => a !== '--raw');
+const [filePath, blockName] = positional;
 
 if (!filePath || !blockName) {
-  console.error('Usage: extract-block.js <file-path> <block-name>');
+  console.error('Usage: extract-block.js <file-path> <block-name> [--raw]');
   process.exit(2);
 }
 
@@ -53,6 +60,13 @@ if (begin === -1 || end === -1 || end < begin) {
 }
 
 const blockBody = content.slice(begin + beginMarker.length, end);
+
+if (rawMode) {
+  // Emit the block body verbatim — used for prose-only sections like
+  // FRONTEND_ARCHITECTURE, RISKS, ARCHITECTURE_DECISION.
+  process.stdout.write(blockBody.trim() + '\n');
+  process.exit(0);
+}
 
 const fenceMatch = blockBody.match(/```json\s*\n([\s\S]*?)\n```/);
 if (!fenceMatch) {

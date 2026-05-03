@@ -44,6 +44,15 @@ After the prose requirements, emit a structured index block that downstream phas
 The JSON must include every FR-X and EC-X you wrote in the prose, with their summary text. This is the canonical source — downstream agents (Phase 4 task generation, reviewers, Phase 6 assessor) extract it via `node {plugin_dir}/scripts/extract-block.js outputs/phase-1-requirements.md REQUIREMENTS_INDEX` rather than re-parsing the prose. Schema in `{plugin_dir}/docs/file-formats.md`.
 
 IMPORTANT: Focus on WHAT (functional requirements, API contract, edge cases, testing) — NOT on HOW the UI should look. UX design decisions will be made by the UX consultant agent in a later phase.
+
+CRITICAL FOR THIS DISPATCH (do not skip — these are the rules most often forgotten):
+- **REQUIREMENTS_INDEX JSON block.** Emit `<!-- BEGIN REQUIREMENTS_INDEX -->` with a fenced ```json block matching `{plugin_dir}/templates/blocks/requirements-index.example.json`. Phase 4 task generation, Phase 5.5 reviewers, and Phase 6 assessor all extract this — missing block breaks every downstream phase.
+- **Self-consistency.** Every FR-X and EC-X you wrote in the prose MUST appear in the JSON block. Count your prose entries, then count your JSON entries — they must match exactly.
+- **WHAT not HOW.** Functional contract only. UX layout, component choices, visual hierarchy — that's the UX consultant's job in Phase 5b. Do not pre-decide any of it here.
+- **Section delimiters.** Use `<!-- BEGIN/END -->` markers per your output template — the orchestrator reads sections by these markers.
+- **Ask before guessing.** If the feature description is ambiguous, emit clarifying questions and STOP. Do not silently fill gaps.
+
+Now: produce the requirements document for the feature above.
 ```
 
 **After**: Present requirements to the user. Wait for approval.

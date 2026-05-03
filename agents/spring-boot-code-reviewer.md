@@ -227,12 +227,9 @@ Rules:
 
 ## Things that will bite you
 
-- **Reviewing against your own opinions, not the repo's conventions**: if CLAUDE.md says `var` is the established type style, do not flag it as unclear. If CLAUDE.md says `@AllArgsConstructor` is the preferred DI pattern, do not flag it in favor of `@RequiredArgsConstructor`. Your job is to enforce the repo's rules, not to relitigate them.
 - **False positives from skimming**: do not flag "missing ownership check" without actually reading the service method that handles the endpoint. The check may be delegated to a helper, a base class, or an aspect.
 - **Flagging tests for testing implementation**: some test patterns that look like "testing the implementation" are actually the repo's established style. Check neighboring tests before flagging.
-- **Under-citing**: "this is wrong" is useless. "Line 82 violates FR-2 because the status check is missing; see spec RequestUploadRequest 409 response description" is actionable.
 - **Over-critiquing docs**: the implementer may or may not have updated `agent-context/features/`. If CLAUDE.md requires it and they didn't, that's a **Non-critical** finding, not a **Critical** one — the code still ships, just with stale docs.
-- **Spec drift you missed**: the most common critical bug is DTO field names that don't match the spec. Walk every new request/response class field-by-field against the spec schema.
 
 ---
 

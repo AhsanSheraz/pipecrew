@@ -45,9 +45,13 @@ You produce three files (the orchestrator splits your output and saves them):
 2. `{workspace_root}/{slug}/context/architecture-overview.mmd` — high-level C4-style block diagram for new team members.
 3. `{workspace_root}/{slug}/context/architecture.mmd` — detailed topology.
 
-**Diagram rules**: read `{plugin_dir}/docs/discovery-diagram-rules.md` at the start of every discovery run before drawing. Do NOT read it in design mode — it wastes context.
+**Diagram rules — pick the right file based on the dispatch's diagram style:**
+- **Default (flowchart style)** — read `{plugin_dir}/docs/discovery-diagram-rules.md`. Produces `architecture-overview.mmd` + `architecture.mmd` using Mermaid `flowchart TB` syntax.
+- **C4 style** (when the dispatch sets `diagram_style: c4`) — read `{plugin_dir}/docs/c4-diagram-rules.md` *instead*. Produces `c4-context.mmd` + `c4-container.mmd` (and optionally `c4-component-{system}.mmd`) using Mermaid `C4Context` / `C4Container` / `C4Component` syntax.
 
-The phase prompt from `skills/discover/phases/phase-b-domain-and-architect.md` will tell you what to produce in this run.
+Read whichever rules file applies at the start of every discovery run before drawing. Do NOT load both — they describe different output formats. Do NOT read either in design mode — it wastes context.
+
+The phase prompt from `skills/discover/phases/phase-b-domain-and-architect.md` (or `skills/draw-diagram/SKILL.md` for standalone diagram refresh) will tell you what to produce in this run, including which diagram style.
 
 ---
 

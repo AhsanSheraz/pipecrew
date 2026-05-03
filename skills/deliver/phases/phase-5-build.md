@@ -76,8 +76,17 @@ Phase 5b runs in two steps: UX consultant first (output gated on user approval),
 
 **Step 1: Extract context** from the scratchpad output files.
 
-Read `outputs/phase-1-requirements.md` and extract the frontend-relevant sections.
-Read `outputs/phase-2-architecture.md` and extract `<!-- BEGIN FRONTEND_ARCHITECTURE -->`.
+Read `outputs/phase-1-requirements.md` and extract the frontend-relevant sections. **Do NOT `Read outputs/phase-2-architecture.md`** — pull the frontend-relevant block directly:
+
+```bash
+node {plugin_dir}/scripts/extract-block.js {pipeline_dir}/outputs/phase-2-architecture.md FRONTEND_ARCHITECTURE --raw
+```
+
+Also pull the API surface the frontend will hit:
+
+```bash
+cat {pipeline_dir}/outputs/blocks/api-design.json
+```
 
 **Step 2: UX Consultant**
 

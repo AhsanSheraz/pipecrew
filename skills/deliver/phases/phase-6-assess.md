@@ -64,13 +64,13 @@ SCOPE: cross-repo integration only.
 3. Event/infra wiring aligns (queue names, bucket ARNs, event payload fields).
 4. End-to-end story — trace each listed endpoint from UI action through API through persistence back to UI.
 
-DO NOT:
-- Re-review per-file craft (Phase 5.5 already did this — trust it)
-- Re-derive architecture from platform.md
-- Re-inspect un-modified files
-- Produce fix assignments for findings already addressed in the Phase 5.5 fix round
+CRITICAL FOR THIS DISPATCH (do not skip):
+- **Score constraint.** Score is PASS / PARTIAL / FAIL. **Cannot be PASS** if any task above is BLOCKED or FAILED, or if any critical cross-repo gap is unfixed. Default to FAIL on uncertainty — re-running is cheap; shipping a broken integration is not.
+- **Save to `{run_dir}/assessment.md`.** Phase 7 reporter reads this file.
+- **Walk every endpoint in the inventory above.** For each `method path → DTO`, verify wire-shape agreement across the affected sides (backend↔frontend↔mock). Missing one is a critical cross-repo gap.
+- **Cross-repo focus only.** Do NOT re-review per-file craft (Phase 5.5 covered it), do NOT re-derive architecture from platform.md, do NOT re-inspect un-modified files, do NOT produce fix assignments for findings already addressed in the Phase 5.5 fix round.
 
-OUTPUT: structured report, score PASS | PARTIAL | FAIL (cannot be PASS if any BLOCKED/FAILED task or any unfixed critical cross-repo gap). Save to {run_dir}/assessment.md. Reply with score + 3-5 sentence summary + any deployment-blockers.
+Now: assess the cross-repo integration for "{feature_summary}" and reply with score + 3-5 sentence summary + any deployment-blockers.
 ```
 
 Wait for the assessor to complete and present the report to the user.

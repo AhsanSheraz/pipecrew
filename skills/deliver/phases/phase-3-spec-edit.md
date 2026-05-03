@@ -15,17 +15,27 @@ Skip the whole phase if `--skip-spec-edit` was passed. Skip 3a if `AFFECTED_CONT
 
 #### Step 0: Extract the design inputs once
 
-Read `outputs/phase-2-architecture.md`. Extract:
+**Do NOT `Read outputs/phase-2-architecture.md`** — Phase 2 already split it into per-block side files at `outputs/blocks/`. Read only the blocks this phase needs:
 
-1. `<!-- BEGIN AFFECTED_CONTRACTS -->` … `<!-- END AFFECTED_CONTRACTS -->` — gives the ordered list of `(repo_key, [file_targets])` for contracts.
-2. `<!-- BEGIN AFFECTED_SERVICES -->` — pull the structured index with the extractor script:
-   ```bash
-   node {plugin_dir}/scripts/extract-block.js outputs/phase-2-architecture.md AFFECTED_SERVICES
-   ```
-   This emits the canonical JSON `{services: [{name, spec_policy, endpoints_added, ...}], spec_edit_order, frontend_required, mock_required}`. Use this output as the source of truth — do NOT re-parse the prose `## Notes` section under it.
-3. `<!-- BEGIN CONTRACT_DESIGN -->` … `<!-- END CONTRACT_DESIGN -->` and `<!-- BEGIN API_DESIGN -->` … `<!-- END API_DESIGN -->` — the design bodies the two agents need.
+```bash
+# AFFECTED_SERVICES — the structured services index
+cat {pipeline_dir}/outputs/blocks/affected-services.json
 
-From the JSON in step 2, `services_to_edit = services.filter(s => s.spec_policy === "api-first")`. Services filtered out are flagged in the scratchpad: `"Phase 3b skipped {svc} — spec_policy is {policy}"`. The `spec_edit_order` array tells you which service spec to edit first when multiple `api-first` services are affected.
+# AFFECTED_CONTRACTS — present iff contract repos affected
+cat {pipeline_dir}/outputs/blocks/affected-contracts.json 2>/dev/null || echo '{"contracts":[]}'
+
+# CONTRACT_DESIGN — the body 3a passes to schema-implementer (only when contracts affected)
+cat {pipeline_dir}/outputs/blocks/contract-design.json 2>/dev/null
+
+# API_DESIGN — the body 3b passes to openapi-spec-editor (only when api-first services affected)
+cat {pipeline_dir}/outputs/blocks/api-design.json
+```
+
+Each `cat` is one Bash call returning a small, deterministic JSON payload — orders of magnitude cheaper than reading the full markdown. The JSON shape is documented in `docs/file-formats.md` and matches `templates/blocks/<slug>.example.json`.
+
+For sub-agent prompts (Steps 2a / 2b below), pass the JSON content of `contract-design.json` / `api-design.json` directly into the `CONTRACT DESIGN:` / `API DESIGN:` slot of the dispatch prompt.
+
+From `affected-services.json`, `services_to_edit = services.filter(s => s.spec_policy === "api-first")`. Services filtered out are flagged in the scratchpad: `"Phase 3b skipped {svc} — spec_policy is {policy}"`. The `spec_edit_order` array tells you which service spec to edit first when multiple `api-first` services are affected.
 
 ---
 

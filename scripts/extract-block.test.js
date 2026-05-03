@@ -30,8 +30,8 @@ function writeFixture(content) {
   return filePath;
 }
 
-function run(filePath, blockName) {
-  const r = spawnSync('node', [SCRIPT, filePath, blockName], { encoding: 'utf8' });
+function run(filePath, blockName, ...extra) {
+  const r = spawnSync('node', [SCRIPT, filePath, blockName, ...extra], { encoding: 'utf8' });
   return { exitCode: r.status, stdout: r.stdout || '', stderr: r.stderr || '' };
 }
 
@@ -174,6 +174,38 @@ test('stdout is compact single-line JSON (no pretty-print)', () => {
   assert(r.exitCode === 0, `exit ${r.exitCode}; stderr: ${r.stderr}`);
   assert(!r.stdout.includes('\n'), 'stdout should be single-line for downstream piping');
   assert(JSON.parse(r.stdout).b.c === 2, 'roundtrip failed');
+});
+
+// -------- --raw mode: prose-only blocks --------
+
+test('--raw returns block body verbatim (no JSON parse)', () => {
+  const md = '<!-- BEGIN FRONTEND_ARCHITECTURE -->\n## Component tree\n- BookList\n- BookDetail\n<!-- END FRONTEND_ARCHITECTURE -->\n';
+  const r = run(writeFixture(md), 'FRONTEND_ARCHITECTURE', '--raw');
+  assert(r.exitCode === 0, `exit ${r.exitCode}; stderr: ${r.stderr}`);
+  assert(r.stdout.includes('## Component tree'), 'heading missing');
+  assert(r.stdout.includes('- BookList'), 'bullet missing');
+  assert(!r.stdout.includes('BEGIN FRONTEND_ARCHITECTURE'), 'should strip markers');
+});
+
+test('--raw on JSON-fenced block returns the fenced source verbatim', () => {
+  const md = '<!-- BEGIN X -->\n```json\n{"a":1}\n```\n<!-- END X -->\n';
+  const r = run(writeFixture(md), 'X', '--raw');
+  assert(r.exitCode === 0, `exit ${r.exitCode}; stderr: ${r.stderr}`);
+  assert(r.stdout.includes('```json'), '--raw should preserve fence in output');
+  assert(r.stdout.includes('"a":1'), 'json source missing');
+});
+
+test('--raw exits 0 even when no JSON fence exists', () => {
+  const md = '<!-- BEGIN X -->\nplain prose only\n<!-- END X -->\n';
+  const r = run(writeFixture(md), 'X', '--raw');
+  assert(r.exitCode === 0, `expected 0 (raw mode tolerates prose), got ${r.exitCode}`);
+});
+
+test('default mode unchanged after --raw flag added', () => {
+  const md = blockMd('AFFECTED_SERVICES', { services: [], frontend_required: false });
+  const r = run(writeFixture(md), 'AFFECTED_SERVICES');
+  assert(r.exitCode === 0, `exit ${r.exitCode}; stderr: ${r.stderr}`);
+  assert(JSON.parse(r.stdout).frontend_required === false);
 });
 
 // Cleanup
