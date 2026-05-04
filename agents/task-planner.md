@@ -1,6 +1,6 @@
 ---
 name: task-planner
-description: "Hydrates the architect's TASK_SKELETON into per-task markdown files for Phase 5 implementers. Three modes: `draft` (produce the plan summary the orchestrator presents at the user gate), `adjust` (re-issue with natural-language adjustments), `persist` (write all per-task files after gate approval). Reads workspace-shaped material the architect did not have — pitfalls catalogs, audit-findings, Phase-3 worktree paths, edited spec files — and merges it with the structured skeleton. Never re-derives architecture; the skeleton is the source of truth.\n\nInputs the caller must provide:\n- run_dir: absolute path to {workspace_root}/{slug}/runs/deliver/{run_id}/\n- workspace_root: absolute path\n- slug: workspace slug (used for context/platform.md, stacks/, audit-findings.md paths)\n- mode: 'draft' | 'adjust' | 'persist'\n- adjustments (adjust + persist only): natural-language pushback the user gave at the gate, accumulated across rounds\n- approved_slice (persist only): 'all' | 'minimum-only'\n- phase_3_worktrees (persist only): map of {repo_key → worktree_path} from Phase 3a/3b for resolving Contract Reference paths"
+description: "Hydrates the architect's TASK_SKELETON into per-task markdown files for Phase 5 implementers. Three modes: `draft` (produce the plan summary the orchestrator presents at the user gate), `adjust` (re-issue with natural-language adjustments), `persist` (write all per-task files after gate approval). Reads workspace-shaped material the architect did not have — pitfalls catalogs, audit-findings, Phase-3 worktree paths, edited spec files — and merges it with the structured skeleton. Never re-derives architecture; the skeleton is the source of truth.\n\nInputs the caller must provide:\n- run_dir: absolute path to {workspace_root}/{slug}/runs/deliver/{run_id}/\n- workspace_root: absolute path\n- slug: workspace slug (used for context/platform.md and audit-findings.md paths)\n- mode: 'draft' | 'adjust' | 'persist'\n- adjustments (adjust + persist only): natural-language pushback the user gave at the gate, accumulated across rounds\n- approved_slice (persist only): 'all' | 'minimum-only'\n- phase_3_worktrees (persist only): map of {repo_key → worktree_path} from Phase 3a/3b for resolving Contract Reference paths"
 tools: Read, Write, Edit, Glob, Grep, Bash
 model: sonnet
 ---
@@ -25,7 +25,7 @@ The orchestrator dispatches you up to three times per Phase 4.5: once in `draft`
 2. `{run_dir}/outputs/blocks/affected-services.json` — for `frontend_required` / `mock_required` cross-checks.
 3. `{run_dir}/outputs/phase-1-requirements.md` — the FR/EC narrative, used to fill the `summary` column in the plan table when the skeleton's `summary` field is terse.
 4. `{workspace_root}/{slug}/config.json` — for repo paths, types, roles. The skeleton's `repo_key` values must resolve here; flag any that don't.
-5. `{workspace_root}/{slug}/context/stacks/{type}.md` — per-repo conventions, only the §-anchored sections you'll cite in task files (i18n languages for frontend, framework version notes for backend, etc.). Don't pre-load all stacks — read each one when you encounter the first sub-task for that repo type.
+5. `{workspace_root}/{slug}/context/platform.md` § `Established Patterns` — workspace-wide conventions (auth strategy, i18n languages, observability decisions). Read once if you haven't already; the architect populates this section in Phase B2.
 
 **Output you produce in `draft` mode**: a single markdown summary that the orchestrator pastes into chat for the user gate. Use this exact structure:
 
@@ -144,7 +144,7 @@ last_worked_by: ""
 {One sentence built from sub_task.title + sub_task.summary.}
 
 ## Sub-task checklist
-{Numbered checklist — for backend, the standard DTOs/Repository/Service/Controller/Tests rows tailored to this sub-task; for frontend, API/Hooks/Components/Page/i18n/Tests rows tailored to this sub-task; for mock, Data/Handlers; for infra, Resources/IAM. Use the repo's stacks/{type}.md as a hint.}
+{Numbered checklist — for backend, the standard DTOs/Repository/Service/Controller/Tests rows tailored to this sub-task; for frontend, API/Hooks/Components/Page/i18n/Tests rows tailored to this sub-task; for mock, Data/Handlers; for infra, Resources/IAM. The implementer follows the existing patterns in the repo per R10 — your sub-task list should be skeletal, not prescriptive.}
 
 ## Functional requirements to enforce
 {Read {run_dir}/outputs/phase-1-requirements.md. Filter to the FR-X / EC-X listed in sub_task.fr_refs. Paste each requirement's title + body verbatim — implementers should not have to re-read the requirements doc.}

@@ -262,13 +262,7 @@ Review it? (yes / continue)
 
 If the user says "yes", show the platform.md content.
 
-**Update scratchpad**: Set Phase B2 status to COMPLETED. Set Current Phase to "B2.5. Stack Discovery".
-
----
-
-### B2.5: Stack Discovery + Per-Service Divergence
-
-This phase lives in its own file: `phases/phase-b25-stack-discovery.md`. Load it when you reach B2.5; it produces both `stacks/{type}.md` (engineering conventions per stack) and the `### Per-Service Divergences` subsection in `platform.md` from a single per-stack code scan. Return here for B2.6.
+**Update scratchpad**: Set Phase B2 status to COMPLETED. Set Current Phase to "B2.6. Observability Extraction".
 
 ---
 
@@ -282,14 +276,14 @@ Populate the `## Observability` section of `platform.md` with the OBSERVABILITY 
 
 #### Refresh mode (`--refresh-observability`)
 
-This phase is normally entered after B2.5 in a fresh `/discover` run. It can also be entered standalone via `/discover --refresh-observability --workspace=<slug>` to:
+This phase is normally entered after B2 in a fresh `/discover` run. It can also be entered standalone via `/discover --refresh-observability --workspace=<slug>` to:
 
 - **First-time backfill** — populate the OBSERVABILITY block for a workspace that was discovered before this phase existed (the block is missing from `platform.md`).
 - **Drift refresh** — re-extract from current IaC and reconcile against the existing OBSERVABILITY block (additions / removals / renames after IaC has evolved).
 
 The phase logic below (Steps 1–5) is identical in either entry path — only the entry conditions and Step 4's write strategy differ.
 
-**Refresh entry checklist** (only when `--refresh-observability` is the entry point — otherwise skip and use the normal phase entry from B2.5):
+**Refresh entry checklist** (only when `--refresh-observability` is the entry point — otherwise skip and use the normal phase entry from B2):
 
 1. Resolve `{workspace_root}` via `node {plugin_dir}/scripts/workspace-root.js --get`. Halt if unset.
 2. Resolve the workspace slug:
@@ -325,7 +319,7 @@ The phase logic below (Steps 1–5) is identical in either entry path — only t
    Continue? (yes / no)
    ```
 
-6. Create a refresh run dir: `{workspace_root}/{slug}/runs/discover/{run_id}/` with `run_id = {YYYY-MM-DD-HHMMSS}-refresh-obs-{slug}`. Emit `run_start` to `checkpoints.jsonl` with `event_subtype: "refresh-observability"` so reporter agents can distinguish refresh runs from full discoveries. Skip the rest of Phase A/B1/B2/B2.5/B3/C/D.
+6. Create a refresh run dir: `{workspace_root}/{slug}/runs/discover/{run_id}/` with `run_id = {YYYY-MM-DD-HHMMSS}-refresh-obs-{slug}`. Emit `run_start` to `checkpoints.jsonl` with `event_subtype: "refresh-observability"` so reporter agents can distinguish refresh runs from full discoveries. Skip the rest of Phase A/B1/B2/B3/C/D.
 7. Proceed to Step 1 below.
 8. After Step 4 (block written and validated), emit `run_end` to `checkpoints.jsonl` and skip Phase D's full verification (the workspace is already verified).
 

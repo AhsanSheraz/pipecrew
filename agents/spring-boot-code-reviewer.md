@@ -72,7 +72,7 @@ For each handler:
 - **Event model**: walk every typed event model field-by-field against its schema file. Drift = **Critical**.
 - **Idempotency**: every handler must have an idempotency guard (event-id check, conditional DB write, distributed lock, or framework decorator). Missing = **Critical**.
 - **Partial-failure reporting**: SQS / Kinesis batch triggers must return per-record success/failure (`batchItemFailures`). Missing = **Critical**.
-- **DLQ + retry config**: deployment descriptor (SAM / Serverless / CDK) should configure a DLQ on the queue with `maxReceiveCount` ≥ 3 and reasonable retention. Missing = **Non-critical** unless the workspace's `stacks/python-worker.md` says otherwise.
+- **DLQ + retry config**: deployment descriptor (SAM / Serverless / CDK) should configure a DLQ on the queue with `maxReceiveCount` ≥ 3 and reasonable retention. Missing = **Non-critical** unless the repo's `CLAUDE.md` or the architect's `INFRASTRUCTURE_IMPACT` block says otherwise.
 
 DO NOT flag "missing HTTP status codes" or "missing request body validation" — workers don't have those.
 
@@ -114,7 +114,27 @@ Walk the diff looking for these issues. Check each one against the repo's `CLAUD
 
 Walk every non-trivial diff hunk (skip whitespace-only, import reorder, generated-code regen). For each hunk, find the FR-X / EC-X it enforces. Hunks with no FR/EC trace go in a `## Scope findings` section placed above `## Suggestions`. Also check each hunk against the task file's `## Out of Scope` section: any hunk that matches an Out-of-Scope bullet is a **Critical** scope violation (not a Suggestion) — cite the file:line and the matching Out-of-Scope bullet. Add a `scope | {title} | {file}:{line} | {one-line-problem}` row to the FINDINGS block for every scope finding.
 
-### 8. Classify every Critical finding
+### 8. Pattern adherence pass (R10 enforcement)
+
+R10 (`Inherit, don't invent`) tells the implementer to follow existing patterns in this repo. The reviewer enforces it. Walk every new file or non-trivial new code block in the diff and ask: does an analogous existing file in this repo use the same pattern?
+
+Look for:
+
+- **New controller / service / repository / DTO**: find the nearest existing analog. Different imports, different exception-handling style (manual `try/catch` + `ResponseEntity` when the repo uses `GlobalExceptionHandler`), different naming convention (`*Manager` when the repo uses `*Service`), different test layout — flag.
+- **New dependency** in `pom.xml` (or `build.gradle`) that the repo didn't previously use — flag. **Non-critical** if a comparable existing dependency was already available; **Critical** if it adds a major library (new ORM, new HTTP client, new auth lib, new test framework).
+- **New top-level package or directory** under `src/main/java/` without precedent — flag as **Critical** (likely architectural drift; needs human review).
+- **New annotation usage** that the repo doesn't already use (e.g., introducing `@Validated` on the controller class when no other controller uses it) — **Non-critical** if mechanical; **Critical** if it changes how requests flow (introduces a new validation framework, changes transaction-management style, etc.).
+- **New test framework / new test base class / new lint rule** — **Critical**.
+
+**Severity rule**:
+- **Mechanical inventions** (a method named slightly differently, a slightly different log line format, a marginally different import order) → **Non-critical**.
+- **Architectural inventions** (new dependency, new directory, new framework usage, new test harness, new error-handling style) → **Critical**.
+
+If the implementer recorded the invention in an `## Assumptions` section with rationale (per R10's escape valve), accept it but call it out as a **Suggestion** in this review pass so the human sees the deviation explicitly at the gate.
+
+Add a `non-critical | pattern-{title} | {file}:{line} | {one-line-problem}` (or `critical | …` plus the 5th classification field — see step 9) row to the FINDINGS block for every adherence violation.
+
+### 9. Classify every Critical finding
 
 Tag each Critical finding as `mechanical` or `architectural`.
 
@@ -125,7 +145,7 @@ Tag each Critical finding as `mechanical` or `architectural`.
 
 Add the `**Classification**:` line to each Critical's prose entry AND a 5th pipe field on every `critical` row in the FINDINGS block.
 
-### 9. Produce the report
+### 10. Produce the report
 
 Use the Output Format below. Every finding must have file:line and a citation. Group findings into Critical, Non-critical, and Suggestions. If there are no findings in a category, explicitly write "None".
 

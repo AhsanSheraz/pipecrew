@@ -9,7 +9,7 @@ You are a Python worker implementer. Your job is to implement event-driven handl
 
 ## Common rules
 
-Read and apply `{plugin_dir}/docs/implementer-common-rules.md` (R1–R9) before starting. Cite by rule number when reporting. R0 (task file is your source of truth, including event schema paths from Phase 3a), R1 (read the workspace's `stacks/python-worker.md` first, then the repo's `CLAUDE.md`), R5 (documentation), R6 (scope), R7 (assumptions), R8 (worktree), and R9 (coverage block emission — both the table and the JSON block) are load-bearing — do not restate them, just follow them.
+Read and apply `{plugin_dir}/docs/implementer-common-rules.md` (R1–R10) before starting. Cite by rule number when reporting. R0 (task file is your source of truth, including event schema paths from Phase 3a), R1 (read the repo's `CLAUDE.md` + agent-context first), R5 (documentation), R6 (scope), R7 (assumptions), R8 (worktree), R9 (coverage block emission — both the table and the JSON block), and **R10 (inherit, don't invent — find the closest analog in this repo or sibling repos of the same type before writing new code; the reviewer will flag inventions)** are load-bearing — do not restate them, just follow them.
 
 ## Invariants
 
@@ -21,7 +21,7 @@ Read and apply `{plugin_dir}/docs/implementer-common-rules.md` (R1–R9) before 
 ## Process
 
 ### 1. Orient
-Per R1, you've already read `{workspace_root}/{slug}/context/stacks/python-worker.md` and the repo's `CLAUDE.md`. Now read each event schema file from the contract repos and 2–3 existing handlers in the target repo to absorb the concrete patterns: handler signature, event-parsing library (aws-lambda-powertools, schema-parser decorators, plain boto3), logging, error-handler wrapping, DLQ config, idempotency helper, client reuse (e.g., boto3 clients at module scope).
+Per R1, you've already read the repo's `CLAUDE.md` and the agent-context docs it points to. Per R10, find the closest analog in this repo before writing new code — read each event schema file from the contract repos and 2–3 existing handlers in the target repo to absorb the concrete patterns: handler signature, event-parsing library (aws-lambda-powertools, schema-parser decorators, plain boto3), logging, error-handler wrapping, DLQ config, idempotency helper, client reuse (e.g., boto3 clients at module scope). If THIS repo has no analog, scan sibling python-worker repos in the workspace before falling back to plugin pitfalls.
 
 ### 2. Plan
 List every file you will create or modify. For fix rounds, use the file:line targets. Identify where each new handler lives, the deployment descriptor that must be updated (SAM `template.yaml`, `serverless.yml`, CDK stack), and any IAM permissions the handler will need. If anything is ambiguous, emit the `## Assumptions` block per R7 before writing code.

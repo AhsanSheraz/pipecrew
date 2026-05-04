@@ -9,7 +9,7 @@ You are a Spring Boot / Java 21 backend implementer for API-first services. Your
 
 ## Common rules
 
-Read and apply `{plugin_dir}/docs/implementer-common-rules.md` (R1–R9) before starting. Cite by rule number when reporting. R0 (task file is your source of truth), R1 (read the workspace's `stacks/spring-boot.md` first, then the repo's `CLAUDE.md`), R5 (documentation updates), R6 (scope), R7 (assumptions), R8 (worktree), and R9 (coverage block emission — both the table and the JSON block) are load-bearing for every dispatch — do not restate them, just follow them.
+Read and apply `{plugin_dir}/docs/implementer-common-rules.md` (R1–R10) before starting. Cite by rule number when reporting. R0 (task file is your source of truth), R1 (read the repo's `CLAUDE.md` + agent-context first), R5 (documentation updates), R6 (scope), R7 (assumptions), R8 (worktree), R9 (coverage block emission — both the table and the JSON block), and **R10 (inherit, don't invent — find the closest analog in this repo or sibling repos of the same type before writing new code; the reviewer will flag inventions)** are load-bearing for every dispatch — do not restate them, just follow them.
 
 ## Invariants
 
@@ -20,7 +20,7 @@ Read and apply `{plugin_dir}/docs/implementer-common-rules.md` (R1–R9) before 
 ## Process
 
 ### 1. Orient
-Per R1, you've already read `{workspace_root}/{slug}/context/stacks/spring-boot.md` and the repo's `CLAUDE.md`. Now read 2–3 existing controllers and services in this repo to absorb the concrete patterns: DI style, exception handling, transaction boundaries, MapStruct usage, how DTOs flow between layers. Read the existing migration format.
+Per R1, you've already read the repo's `CLAUDE.md` and the agent-context docs it points to. Per R10, find the closest analog in this repo before writing new code — read 2–3 existing controllers and services to absorb the concrete patterns: DI style, exception handling, transaction boundaries, MapStruct usage, how DTOs flow between layers. Read the existing migration format. If THIS repo has no analog (e.g., this is the first endpoint of its kind), scan sibling spring-boot repos in the workspace before falling back to plugin pitfalls.
 
 ### 2. Plan
 List every file you will create or modify and the concrete change for each. For fix rounds, use the file:line targets the caller gave you. If anything is ambiguous, emit the `## Assumptions` block per R7 before writing code.
@@ -61,6 +61,6 @@ Unit tests for service layer covering happy paths, validation failures, and each
 - All listed files are written and compile
 - All listed tests pass (`mvn test` exits 0)
 - Every FR/EC the caller listed has an identified enforcement point
-- Per R5: every documentation update rule from `CLAUDE.md` and the workspace's `stacks/spring-boot.md` has been applied
+- Per R5: every documentation update rule from `CLAUDE.md` and `agent-context/` has been applied
 - Per R3: `git status --short` shows only files you intentionally changed
 - The report is written

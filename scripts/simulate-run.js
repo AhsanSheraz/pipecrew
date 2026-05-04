@@ -3,7 +3,7 @@
  * simulate-run.js — generate the demo workspace at
  *   {workspace_root}/simulate-run-demo/
  * with full /discover + /deliver + /learn artifacts following the latest
- * plugin schema (Phase 8 PR publish, pr_urls.json, learn runs, stacks docs,
+ * plugin schema (Phase 8 PR publish, pr_urls.json, learn runs,
  * architecture diagrams, design-system pointers).
  *
  * Each invocation WIPES and recreates the demo workspace. Run IDs are fixed
@@ -309,86 +309,16 @@ function writeAuditFindings() {
   write(path.join(WS_DIR, 'context', 'audit-findings.md'), body);
 }
 
+// NOTE: per-stack convention docs (`stacks/{type}.md`) are no longer produced
+// by /discover. Workspace-wide patterns live in platform.md § Established
+// Patterns; per-repo patterns live in each repo's CLAUDE.md; generic stack
+// pitfalls live in the plugin at docs/pitfalls/{type}.md and are injected
+// into per-task files by the task-planner. The simulator therefore no
+// longer fabricates these docs.
 function writeStacks() {
-  const writeStack = (name, title, sections) => {
-    const body = `# ${title} standards — ${WORKSPACE_NAME}
-
-> **Last Updated**: ${isoOf(5).slice(0, 10)}
-> **Bootstrapped by**: PipeCrew \`/discover\` — Phase B2.5 (simulated).
-
-${sections.map((s, i) => `## §${i + 1} ${s.title}
-
-**Detected pattern**: ${s.pattern}
-
-**Reference files:**
-${s.refs.map(r => `- ${r}`).join('\n')}
-`).join('\n---\n\n')}
-`;
-    write(path.join(WS_DIR, 'context', 'stacks', `${name}.md`), body);
-  };
-
-  writeStack('spring-boot', 'Spring Boot', [
-    { title: 'Auth / role enforcement', pattern: 'Spring Security filter + @PreAuthorize', refs: ['config/SecurityConfig.java', 'controller/UserController.java:45'] },
-    { title: 'Persistence', pattern: 'Spring Data JPA with Specification predicates', refs: ['repository/UserRepository.java', 'service/UserService.java'] },
-    { title: 'Pagination', pattern: 'Spring Data Pageable, default size 20', refs: ['controller/UserController.java:80'] },
-    { title: 'Migrations', pattern: 'Liquibase YAML changesets, additive only', refs: ['db/changelog/db.changelog-master.yaml'] },
-    { title: 'Tests', pattern: '@WebMvcTest + @WithMockUser + spring-security-test', refs: ['test/.../UserControllerTest.java'] },
-  ]);
-
-  writeStack('react', 'React', [
-    { title: 'API client factory', pattern: 'createApiClient() with Axios + interceptors', refs: ['src/api/client.ts', 'src/api/auth.ts'] },
-    { title: 'OpenAPI types', pattern: 'Generated via openapi-typescript at build time', refs: ['src/api/types.gen.ts'] },
-    { title: 'Data fetching', pattern: 'TanStack Query, staleTime: 30s', refs: ['src/features/users/hooks.ts'] },
-    { title: 'Hooks', pattern: 'Per-feature custom hooks under src/features/{feature}/hooks/', refs: ['src/features/users/hooks/useUsers.ts'] },
-    { title: 'Routing', pattern: 'React Router 6 with role guards', refs: ['src/routes.tsx', 'src/auth/RequireRole.tsx'] },
-    { title: 'i18n', pattern: 'i18next with EN + AR; logical CSS for RTL', refs: ['src/i18n/index.ts'] },
-    { title: 'Tests', pattern: 'Vitest + React Testing Library + msw for API mocking', refs: ['src/features/users/__tests__/UserList.test.tsx'] },
-  ]);
-
-  writeStack('node-mock', 'Node mock-server', [
-    { title: 'Routing', pattern: 'Express routers per resource, prefix /api/v1/*', refs: ['src/routes/users.js'] },
-    { title: 'Spec compliance', pattern: 'Each handler returns shape matching OpenAPI schema', refs: ['src/routes/users.js:20'] },
-    { title: 'Seed data', pattern: 'JSON fixtures under src/fixtures/', refs: ['src/fixtures/users.json'] },
-  ]);
-
-  writeStack('cdk', 'AWS CDK', [
-    { title: 'Module layout', pattern: 'lib/stacks/ + lib/constructs/', refs: ['lib/stacks/StorageStack.ts'] },
-    { title: 'Naming', pattern: '{project}-{stack}-{env}', refs: ['bin/app.ts'] },
-    { title: 'Stage handling', pattern: 'CDK context: cdk deploy -c env=dev', refs: ['cdk.json'] },
-    { title: 'Resource patterns — S3', pattern: 'Block public access, enforce SSL, versioning enabled', refs: ['lib/stacks/StorageStack.ts:18'] },
-  ]);
-
-  writeStack('nestjs', 'NestJS', [
-    { title: 'Module structure', pattern: 'feature.module.ts groups controller + service + repository per feature', refs: ['src/publishers/publishers.module.ts'] },
-    { title: 'Spec policy', pattern: 'api-first — OpenAPI is the source of truth, controllers generated via openapi-typescript-codegen', refs: ['openapi.yaml'] },
-    { title: 'Persistence', pattern: 'TypeORM with explicit migrations under src/db/migrations/', refs: ['src/publishers/publisher.entity.ts'] },
-    { title: 'Auth', pattern: '@UseGuards(JwtAuthGuard) on controller methods, JWT decoded by Passport strategy', refs: ['src/auth/jwt.strategy.ts'] },
-    { title: 'Tests', pattern: 'Jest + supertest, separate e2e suite under test/', refs: ['test/publishers.e2e-spec.ts'] },
-  ]);
-
-  writeStack('fastapi', 'FastAPI', [
-    { title: 'Module layout', pattern: 'app/api/{feature}/router.py + service.py + schemas.py', refs: ['app/api/billing/router.py'] },
-    { title: 'Spec policy', pattern: 'api-first — generated openapi.yaml committed; FastAPI app validates against it on startup', refs: ['app/openapi.yaml'] },
-    { title: 'Persistence', pattern: 'SQLAlchemy 2.x + Alembic migrations; sync engine, no asyncpg', refs: ['app/db/models.py'] },
-    { title: 'Auth', pattern: 'Bearer token via fastapi.security.HTTPBearer, JWT verified with python-jose', refs: ['app/auth/dependencies.py'] },
-    { title: 'Tests', pattern: 'pytest + httpx.AsyncClient against TestClient(app); fixtures in conftest.py', refs: ['tests/test_billing.py'] },
-  ]);
-
-  writeStack('python-worker', 'Python Worker', [
-    { title: 'Trigger', pattern: 'AWS SQS — boto3.client("sqs").receive_message poll loop', refs: ['src/handlers/notifications.py'] },
-    { title: 'Idempotency', pattern: 'Each message must be safe to re-process — DynamoDB conditional put on message_id', refs: ['src/util/idempotency.py'] },
-    { title: 'Retry / DLQ', pattern: 'Failures raise; SQS handles retry up to maxReceiveCount=5, then DLQ', refs: ['src/handlers/notifications.py:42'] },
-    { title: 'Logging', pattern: 'Structured JSON via structlog; each log includes message_id + handler_name', refs: ['src/log_config.py'] },
-    { title: 'Tests', pattern: 'pytest + moto-mock for SQS / DynamoDB; tests run in-process', refs: ['tests/test_notifications.py'] },
-  ]);
-
-  writeStack('terraform', 'Terraform', [
-    { title: 'Module layout', pattern: 'modules/{name}/{main,variables,outputs}.tf — composable units', refs: ['modules/vpc/main.tf'] },
-    { title: 'State backend', pattern: 'S3 backend per env, DynamoDB lock table; `dev` and `prod` share the same backend bucket with prefix segmentation', refs: ['envs/dev/backend.tf'] },
-    { title: 'Variable conventions', pattern: 'snake_case, nullable=true only when truly optional, descriptions required', refs: ['modules/rds/variables.tf'] },
-    { title: 'Plan-as-artifact', pattern: 'CI runs terraform plan into a tfplan file, posts it to PR; apply is gated on human approval', refs: ['.github/workflows/terraform.yml'] },
-    { title: 'Drift detection', pattern: 'Nightly terraform plan against prod posts to Slack on diff', refs: ['scripts/drift-check.sh'] },
-  ]);
+  // intentionally empty — kept as a no-op so removing the call site is a
+  // separate concern from the function definition. Safe to delete entirely
+  // once nothing references writeStacks.
 }
 
 function writeArchitectureDiagrams() {
@@ -570,8 +500,8 @@ function writeLearnLog() {
 ### Findings applied
 | # | Tier | Target | Summary |
 |---|---|---|---|
-| 1 | workspace-durable | stacks/spring-boot.md §1 | Auth pattern documented as SecurityConfig + @PreAuthorize (matches what shipped in PR #142) |
-| 2 | workspace-durable | stacks/spring-boot.md §2 | Query pattern documented as Specification<>; reviewer correction post-merge |
+| 1 | workspace-durable | platform.md § Established Patterns | Auth pattern documented as SecurityConfig + @PreAuthorize (matches what shipped in PR #142) |
+| 2 | workspace-durable | platform.md § Established Patterns | Query pattern documented as Specification<>; reviewer correction post-merge |
 
 ### Findings flagged (plugin-level)
 | # | Summary |
@@ -597,7 +527,6 @@ function writeDiscoverRun() {
   appendJsonl(cp, { ts: isoOf(7),    event: 'run_start', skill: 'discover', run_id: RUN_IDS.discover, workspace_slug: WORKSPACE_SLUG, args: '--simulated' });
   appendJsonl(cp, { ts: isoOf(7, 1), event: 'phase_end', skill: 'discover', run_id: RUN_IDS.discover, phase: 'A',    stage: 'Repo discovery',    duration_ms: 42000 });
   appendJsonl(cp, { ts: isoOf(7, 2), event: 'agent_end', skill: 'discover', run_id: RUN_IDS.discover, phase: 'B2',   stage: 'Architect discovery', agent_type: 'solution-architect', description: `Architect discovery for ${WORKSPACE_NAME}`, status: 'ok', total_tokens: 77922,  duration_ms: 240000 });
-  appendJsonl(cp, { ts: isoOf(7, 3), event: 'agent_end', skill: 'discover', run_id: RUN_IDS.discover, phase: 'B2.5', stage: 'Stack discovery',   agent_type: 'general-purpose',    description: 'Stack pattern discovery across repos',     status: 'ok', total_tokens: 41205,  duration_ms: 58000  });
   appendJsonl(cp, { ts: isoOf(7, 4), event: 'agent_end', skill: 'discover', run_id: RUN_IDS.discover, phase: 'B3',   stage: 'Design system',     agent_type: 'general-purpose',    description: 'Design system discovery (frontend repos)', status: 'ok', total_tokens: 46687,  duration_ms: 136000 });
   appendJsonl(cp, { ts: isoOf(7, 5), event: 'agent_end', skill: 'discover', run_id: RUN_IDS.discover, phase: 'C',    stage: 'Generation',        agent_type: 'context-manager',    description: 'Generate config + agents + agent-context', status: 'ok', total_tokens: 186350, duration_ms: 252000 });
   appendJsonl(cp, { ts: isoOf(7, 6), event: 'run_end',   skill: 'discover', run_id: RUN_IDS.discover, status: 'completed', duration_ms: 870000 });
@@ -1276,7 +1205,7 @@ function writeLearnRun({ runId, sourceLabel, daysAgo, applied, flagged }) {
 
   const findings = [];
   for (let i = 0; i < applied; i++) {
-    findings.push(`### Finding ${i + 1} — workspace-durable — stacks/spring-boot.md
+    findings.push(`### Finding ${i + 1} — workspace-durable — platform.md § Established Patterns
 
 **Observation**: Implementer used manual SecurityContextHolder.
 
@@ -1290,7 +1219,7 @@ function writeLearnRun({ runId, sourceLabel, daysAgo, applied, flagged }) {
 
 **Confidence**: \`high\`
 
-**Target**: \`{workspace_root}/${WORKSPACE_SLUG}/context/stacks/spring-boot.md\` §1
+**Target**: \`{workspace_root}/${WORKSPACE_SLUG}/context/platform.md\` § Established Patterns
 `);
   }
   for (let i = 0; i < flagged; i++) {
@@ -1372,7 +1301,6 @@ mkdirp(path.join(WS_DIR, 'runs', 'learn'));
 writeConfig();
 writePlatformMd();
 writeAuditFindings();
-writeStacks();
 writeArchitectureDiagrams();
 writeLearnLog();
 writeDiscoverRun();
@@ -1404,7 +1332,6 @@ console.log(`\n[sim] demo workspace ready at:\n  ${WS_DIR}\n`);
 console.log(`     /discover runs:    1 (${RUN_IDS.discover})`);
 console.log(`     /deliver runs:     ${usedReal ? '3 (2 synthesized + 1 from real run)' : '2 synthesized'}`);
 console.log(`     /learn runs:       2`);
-console.log(`     stacks docs:       8 (spring-boot, nestjs, fastapi, python-worker, react, node-mock, cdk, terraform)`);
 console.log(`     diagrams:          architecture.mmd + architecture-overview.mmd`);
 if (STEP_MS > 0) {
   console.log(`     live timeline:     deliver_a will animate (${STEP_MS}ms / step)`);

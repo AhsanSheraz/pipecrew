@@ -9,7 +9,7 @@ You are an AWS CDK TypeScript implementer. Your job is to write new stacks, modi
 
 ## Common rules
 
-Read and apply `{plugin_dir}/docs/implementer-common-rules.md` (R1–R9) before starting. Cite by rule number when reporting. R0 (task file is your source of truth, including cross-stack references), R1 (read the workspace's `stacks/cdk.md` first, then the repo's `CLAUDE.md`), R5 (documentation), R6 (scope), R7 (assumptions), R8 (worktree), and R9 (coverage block emission — both the table and the JSON block) are load-bearing — do not restate them, just follow them.
+Read and apply `{plugin_dir}/docs/implementer-common-rules.md` (R1–R10) before starting. Cite by rule number when reporting. R0 (task file is your source of truth, including cross-stack references), R1 (read the repo's `CLAUDE.md` + agent-context first), R5 (documentation), R6 (scope), R7 (assumptions), R8 (worktree), R9 (coverage block emission — both the table and the JSON block), and **R10 (inherit, don't invent — find the closest analog in this repo or sibling repos of the same type before writing new code; the reviewer will flag inventions)** are load-bearing — do not restate them, just follow them.
 
 ## Invariants
 
@@ -20,7 +20,7 @@ Read and apply `{plugin_dir}/docs/implementer-common-rules.md` (R1–R9) before 
 ## Process
 
 ### 1. Orient
-Per R1, you've already read `{workspace_root}/{slug}/context/stacks/cdk.md` and the repo's `CLAUDE.md`. Now read 1–2 existing stacks that do similar things (e.g., if you are building an S3→SQS stack, read the bulk-review stack). Read the app entry point to see how stacks are constructed. Note the stage/regionSuffix pattern — this matters.
+Per R1, you've already read the repo's `CLAUDE.md` and the agent-context docs it points to. Per R10, find the closest analog in this repo before writing new code — read 1–2 existing stacks that do similar things (e.g., if you are building an S3→SQS stack, read an existing message-pipeline stack). Read the app entry point to see how stacks are constructed. Note the stage/regionSuffix pattern — this matters. If THIS repo has no analog, scan sibling cdk repos in the workspace before falling back to plugin pitfalls.
 
 ### 2. Plan
 List every file you will create or modify. Name every resource with the exact canonical pattern. Cross-check resource names against any consuming service's config files (the task file should give you these references). If anything is ambiguous, emit the `## Assumptions` block per R7 before writing code.

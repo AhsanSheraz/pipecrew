@@ -119,7 +119,27 @@ For each EC-X:
 
 Walk every non-trivial diff hunk (skip whitespace-only, import reorder, generated-code regen). For each hunk, find the FR-X / EC-X it enforces. Hunks with no FR/EC trace go in a `## Scope findings` section placed above `## Suggestions`. Check each hunk against the task file's `## Out of Scope` section: any hunk matching an Out-of-Scope bullet is a **Critical** scope violation — cite the file:line and the matching bullet. Add a `scope | {title} | {file}:{line} | {one-line-problem}` row to the FINDINGS block for every scope finding.
 
-### 13. Classify every Critical finding
+### 13. Pattern adherence pass (R10 enforcement)
+
+R10 (`Inherit, don't invent`) tells the implementer to follow existing patterns in this repo. The reviewer enforces it. Walk every new file or non-trivial new code block in the diff and ask: does an analogous existing file in this repo use the same pattern?
+
+Look for:
+
+- **New component / hook / page**: find the nearest existing analog. Different React Query usage, different error-boundary pattern, different naming convention (`HookManager` when the repo uses `useThing`), different test layout — flag.
+- **New dependency** in `package.json` that the repo didn't previously use — flag. **Non-critical** if a comparable existing dependency was already available; **Critical** if it adds a major library (new state library, new routing library, new UI kit, new test framework).
+- **New top-level directory** under `src/` without precedent — **Critical** (likely architectural drift).
+- **New styling approach** when the repo has a documented one (e.g., introducing `styled-components` in a Tailwind repo) — **Critical**.
+- **New i18n key namespace** when the existing namespacing convention is consistent — **Non-critical** (cosmetic but causes drift).
+
+**Severity rule**:
+- **Mechanical inventions** (slightly different naming, slightly different prop ordering, marginally different file location) → **Non-critical**.
+- **Architectural inventions** (new dependency, new directory, new styling/state/test framework) → **Critical**.
+
+If the implementer recorded the invention in an `## Assumptions` section with rationale (per R10's escape valve), accept it but call it out as a **Suggestion** so the human sees the deviation explicitly at the gate.
+
+Add a `non-critical | pattern-{title} | {file}:{line} | {one-line-problem}` (or `critical | …` plus the 5th classification field) row to the FINDINGS block for every adherence violation.
+
+### 14. Classify every Critical finding
 
 Tag each Critical as `mechanical` or `architectural`.
 
@@ -130,7 +150,7 @@ Tag each Critical as `mechanical` or `architectural`.
 
 Add the `**Classification**:` line to each Critical's prose entry AND a 5th pipe field on every `critical` row in the FINDINGS block.
 
-### 14. Produce the report
+### 15. Produce the report
 
 Use the Output Format below. Every finding must have file:line and a citation. Group findings into Critical, Non-critical, and Suggestions. If there are no findings in a category, explicitly write "None".
 
