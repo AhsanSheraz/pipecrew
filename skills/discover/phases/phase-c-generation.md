@@ -93,20 +93,31 @@ Do **not** emit `services` entries for repos with `role` of `frontend`, `mock-se
 
 `schemas` / `api-collections` repos (role `contract`) are tracked only under `repos.*` for now. Future slices will add a `contracts` block that drives Phase 3 ordering.
 
-#### Probing `spec_copies` for frontend and mock-server repos
+#### Probing `spec_copies` for every repo
 
-Frontend and mock-server repos often carry their own copies of the backend OpenAPI specs (for type generation / mock responses). The path convention varies per project — do NOT guess. Probe by filename before recording in config:
+`spec_copies` is **repo-agnostic**. Any repo that keeps a local working copy of another service's OpenAPI spec can declare entries: frontends generating typed clients, mock-servers fabricating responses, api-services with build-time codegen (`openapi-generator-maven-plugin`, `openapitools`, `oapi-codegen`), IaC repos embedding specs into `RestApi.fromOpenApiDefinition` / `aws_api_gateway_rest_api.body`, doc sites (Redocly / Stoplight), contract-test repos (Pact), and SDKs. `/deliver` Phase 4 walks every repo with `spec_copies` regardless of role — so the probe must walk every repo too.
 
-For each api-service's `spec_file` (from Phase A), compute the basename and search each frontend + mock-server repo for it:
+For each api-service's `spec_file` (from Phase A), compute the basename and search **every other repo** in the workspace for that filename. The probe is deliberately filename-only — it does not parse build configs or guess from path patterns. If the file is physically present in a repo with the exact basename, that repo almost certainly consumes it. (False positives are caught by the validator at the end of this step and again at every `/deliver` pre-flight.)
 
 ```bash
 spec_basename=$(basename "{api-service.spec_file}")
-find {frontend_or_mock_path} -type f -name "$spec_basename" \
-  -not -path "*/node_modules/*" -not -path "*/dist/*" \
-  -not -path "*/.git/*" | head -1
+
+# Walk every repo in the workspace EXCEPT the api-service that owns this spec.
+{for each repo in config.repos where repo.path != owning_api_service.path:}
+  find {repo.path} -type f -name "$spec_basename" \
+    -maxdepth 8 \
+    -not -path "*/node_modules/*" -not -path "*/dist/*" -not -path "*/build/*" \
+    -not -path "*/target/*" -not -path "*/.git/*" -not -path "*/.next/*" \
+    -not -path "*/__pycache__/*" -not -path "*/venv/*" -not -path "*/.venv/*" \
+    | head -1
 ```
 
-If a match is found, record the path (relative to the repo root) under `repos.{frontend_or_mock}.spec_copies.{service_name}`. If no match is found, **omit the entry** — do not fabricate a plausible path. The validator will emit a warning if any recorded path is wrong, so an empty map is strictly better than guessed paths.
+If a match is found, record the path (relative to the consuming repo's root) under `repos.{consuming_repo}.spec_copies.{service_name}`. If no match is found, **omit the entry** — do not fabricate a plausible path. An empty map is strictly better than guessed paths.
+
+**Skip rules** (the probe does NOT record an entry):
+- The consuming repo is the api-service that owns the spec (self-reference).
+- The repo's `role` is `contract` (contract repos hold canonical schemas, never copies).
+- The matched file lives under the consuming repo's own `spec_file` (the repo's own canonical spec, not a copy).
 
 Also probe with any alternate filenames (e.g., a typo'd spec — ABVI has `user-managment-api-specs.yaml` with a missing `e`). Match by basename as declared in the api-service, not by a cleaned-up name.
 

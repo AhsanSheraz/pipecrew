@@ -60,7 +60,7 @@
           },
           "spec_copies": {
             "type": "object",
-            "description": "Map of service-name → relative path where this repo keeps a copy of that service's spec",
+            "description": "Map of service-name → relative path where this repo keeps a local copy of that service's spec. Repo-agnostic: any consuming repo (frontend, mock-server, api-service generating a typed client, infrastructure with API Gateway integration, doc site, contract-test repo, SDK) can declare entries. /deliver Phase 4 copies the source spec to each declared path whenever Phase 3b edits the source. Keys must match service names in the top-level services map.",
             "additionalProperties": { "type": "string" }
           }
         }
