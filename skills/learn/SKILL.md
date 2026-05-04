@@ -1,6 +1,6 @@
 ---
 name: learn
-description: "Learn from user feedback about a shipped feature — from a merged PR, a recorded /deliver run, a branch diff, or free-form text — and propose scoped updates to the workspace's durable context docs (platform.md, stacks/{type}.md, repo CLAUDE.md / DESIGN_SYSTEM.md / agent-context/). Presents findings tier-classified (repo / workspace / plugin-level) with before/after diffs; user approves per finding; approved changes are applied. After the docs are saved the user can optionally dispatch the per-repo implementer agents to apply the same findings to an existing branch as a fix round (so the branch the feedback came from gets brought in line with the new conventions, not just future work). Every run is logged to context/learn-log.md for institutional memory."
+description: "Learn from user feedback about a shipped feature — from a merged PR, a recorded /deliver run, a branch diff, or free-form text — and propose scoped updates to the workspace's durable context docs (platform.md § Established Patterns, repo CLAUDE.md / DESIGN_SYSTEM.md / agent-context/). Presents findings tier-classified (repo / workspace / plugin-level) with before/after diffs; user approves per finding; approved changes are applied. After the docs are saved the user can optionally dispatch the per-repo implementer agents to apply the same findings to an existing branch as a fix round (so the branch the feedback came from gets brought in line with the new conventions, not just future work). Every run is logged to context/learn-log.md for institutional memory."
 ---
 
 ## Description
@@ -14,7 +14,7 @@ The learning loop for PipeCrew. Converts one feedback signal → scoped doc upda
 - Free-form text — conversational user feedback from any channel
 
 **Output scopes** (tier classification for every finding):
-- **Workspace durable** → updates `{workspace_root}/{slug}/context/stacks/{type}.md` or `platform.md`
+- **Workspace durable** → updates `{workspace_root}/{slug}/context/platform.md` (typically the `Established Patterns` section)
 - **Repo durable** → updates `{repo}/CLAUDE.md` or `{repo}/agent-context/*` or `DESIGN_SYSTEM.md` (frontend — path resolved via `config.repos[repo].design_system_path`, falling back to standard candidates)
 - **Plugin-level** → flagged in the log only (not auto-applied; requires maintainer review)
 - **Run-local** → no propagation; already captured in the run's outputs, mentioned but not acted on
@@ -216,9 +216,8 @@ Identifier: {PR URL | run_id | branch name | <first 60 chars of text>}
 ## Current workspace durable docs (read and compare)
 
 Read each of these before proposing any update:
-- {workspace_root}/{slug}/context/platform.md
-- {workspace_root}/{slug}/context/stacks/{type}.md (one per repo.type in the workspace config)
-- {for each relevant repo:} {repo.path}/CLAUDE.md
+- {workspace_root}/{slug}/context/platform.md (especially the `Established Patterns` section)
+- {for each relevant repo:} {repo.path}/CLAUDE.md and the agent-context docs it points to
 - {for each frontend repo:} {repo.path}/agent-context*/common/DESIGN_SYSTEM.md
 
 ## Your job
@@ -239,8 +238,9 @@ Per finding, answer:
    - `run-local` — one-off, no propagation needed. Flag for visibility only.
    - `repo-durable` — convention specific to one repo. Target: that repo's
      CLAUDE.md, agent-context/, or DESIGN_SYSTEM.md.
-   - `workspace-durable` — convention shared across all repos of a type in
-     this workspace. Target: platform.md or stacks/{type}.md.
+   - `workspace-durable` — convention shared across all repos (or all repos
+     of a given type) in this workspace. Target: platform.md (typically
+     `## Established Patterns`).
    - `plugin-level` — universal best practice that would apply to any workspace.
      Target: flagged only, no file edit.
 5. **Target file + section** — the exact path + §-section the update would
@@ -389,8 +389,8 @@ Append to `{workspace_root}/{slug}/context/learn-log.md` (create if missing). Fo
 ### Findings applied
 | # | Tier | Target | Summary |
 |---|---|---|---|
-| 1 | workspace-durable | stacks/spring-boot.md §1 | Auth pattern documented as SecurityConfig + @PreAuthorize |
-| 2 | workspace-durable | stacks/spring-boot.md §2 | Query pattern documented as Specification<> |
+| 1 | workspace-durable | platform.md § Established Patterns | Auth pattern documented as SecurityConfig + @PreAuthorize |
+| 2 | workspace-durable | platform.md § Established Patterns | Query pattern documented as Specification<> |
 | 3 | repo-durable | abvi-backoffice-service/CLAUDE.md | Added note: service exposes contract endpoints since PR #31 |
 
 ### Findings rejected

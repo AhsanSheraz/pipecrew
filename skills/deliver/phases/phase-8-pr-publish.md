@@ -204,7 +204,7 @@ Pull Requests:
 
    The feedback skill scans review comments + post-plugin fix commits and
    proposes tier-classified updates to your workspace docs (platform.md,
-   stacks/{type}.md, repo agent-context). You approve each finding before
+   repo CLAUDE.md / agent-context). You approve each finding before
    anything is applied. Run it once per PR after meaningful review activity.
 
 Want INSTANT feedback on this run right now? Captures corrections you

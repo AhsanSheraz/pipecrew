@@ -1,13 +1,13 @@
 ---
 name: context-refresh
-description: "Audit or refresh PipeCrew context docs at three scopes: a single repo (its agent-context/, CLAUDE.md, and DESIGN_SYSTEM.md if frontend), the workspace (platform.md + stacks/{type}.md per tech stack), or everything (workspace + every repo). Audit mode reports staleness only; refresh mode updates docs to match current code."
+description: "Audit or refresh PipeCrew context docs at three scopes: a single repo (its agent-context/, CLAUDE.md, and DESIGN_SYSTEM.md if frontend), the workspace (platform.md), or everything (workspace + every repo). Audit mode reports staleness only; refresh mode updates docs to match current code."
 ---
 
 ## Usage
 
 ```
 /context-refresh <repo-key-or-path> [--mode=audit|refresh] [--workspace=<slug>]
-/context-refresh --workspace=<slug> [--mode=audit|refresh] [--stacks-only|--skip-stacks]
+/context-refresh --workspace=<slug> [--mode=audit|refresh]
 /context-refresh --all [--workspace=<slug>] [--mode=audit|refresh]
 ```
 
@@ -16,7 +16,7 @@ description: "Audit or refresh PipeCrew context docs at three scopes: a single r
 | Scope | Selector | What's audited / refreshed |
 |---|---|---|
 | Single repo | `<repo-key-or-path>` | That repo's `agent-context/`, `CLAUDE.md`, and `agent-context/common/DESIGN_SYSTEM.md` (if frontend) |
-| Workspace | `--workspace=<slug>` | `{workspace_root}/{slug}/context/platform.md` + every `context/stacks/*.md` |
+| Workspace | `--workspace=<slug>` | `{workspace_root}/{slug}/context/platform.md` |
 | Everything | `--all` | Workspace scope + every repo in the config |
 
 ### Flags
@@ -25,8 +25,6 @@ description: "Audit or refresh PipeCrew context docs at three scopes: a single r
 |------|---------|-------------|
 | `--mode` | `audit` | `audit` = report only. `refresh` = apply updates. |
 | `--workspace` | auto-detect | Workspace slug. Auto-detected for single-repo when omitted; required for `--workspace` and `--all`. |
-| `--stacks-only` | false | Workspace / all scope: skip `platform.md`, refresh only `stacks/*.md`. |
-| `--skip-stacks` | false | Workspace / all scope: skip `stacks/*.md`, refresh only `platform.md`. |
 | `--full` | false | Bypass the git-diff fast path; force a full claim-verification audit. Use when you suspect the docs are wrong about claims that pre-date the last refresh. |
 | `--since=<sha\|tag\|ref>` | — | Override the comparison point for the fast path. Useful for "audit since last release tag" workflows. Implies `--mode=refresh` is delta-driven from this ref. |
 
@@ -43,7 +41,7 @@ description: "Audit or refresh PipeCrew context docs at three scopes: a single r
 /context-refresh --workspace=dal
 
 # Workspace-level refresh, stacks only
-/context-refresh --workspace=dal --mode=refresh --stacks-only
+/context-refresh --workspace=dal --mode=refresh
 
 # Everything — workspace + every repo
 /context-refresh --all --workspace=dal --mode=refresh
@@ -64,7 +62,7 @@ description: "Audit or refresh PipeCrew context docs at three scopes: a single r
 
 **Step 1.2 — load + validate config**: load `{workspace_root}/{slug}/config.json` and validate via `node {plugin_dir}/scripts/validate-config.js {path}`. Halt on errors.
 
-**Step 1.3 — flag conflict checks**: `--stacks-only` and `--skip-stacks` are mutually exclusive. Both apply only to workspace + all scopes — error if used with single-repo.
+**Step 1.3 — flag check**: no scope-narrowing flags exist for the workspace pass — it always refreshes platform.md.
 
 ---
 
@@ -136,50 +134,35 @@ The agent does the actual mapping by reading the changed files; the table above 
 
 ### Step 2: Workspace-level refresh (when scope = workspace or all)
 
-Checks and updates these files (subject to `--stacks-only` / `--skip-stacks`):
+Checks and updates these files:
 
-- `{workspace_root}/{slug}/context/platform.md` — architecture, entities, integration patterns, per-service divergences. Must stay in sync with repo reality.
-- `{workspace_root}/{slug}/context/stacks/{type}.md` — one per distinct `repos.*.type` in the config. Engineering-conventions docs with §-anchored sections.
+- `{workspace_root}/{slug}/context/platform.md` — architecture, entities, integration patterns, established workspace-wide patterns. Must stay in sync with repo reality.
 - `{workspace_root}/{slug}/context/audit-findings.md` — from onboarding / prior refreshes. Not auto-refreshed; just checked for orphan references.
 
 **Do NOT auto-refresh** `{workspace_root}/{slug}/context/learn-log.md` — that's an append-only learning record owned by `/pipecrew:learn`.
 
 #### Step 2a: Audit pass (always runs, regardless of mode)
 
-For each workspace-level doc above, run concern-specific checks:
+Run concern-specific checks against `platform.md`:
 
-**`platform.md`**:
-- Entities & Ownership table — does each row's "Owning Service" actually exist in the current config?
-- Service Map — does each row's spec path still exist on disk?
-- Per-Service Divergences (the subsection produced by Phase B2.5) — are the cited versions / libraries / config formats still accurate per repo `pom.xml` / `package.json` / `application.*` / `pyproject.toml`?
-- Known Constraints — any entries explicitly dated > 90 days old?
-
-**`stacks/{type}.md`** (for each existing file):
-- Verify every section's "Reference files" still exist at the cited paths.
-- Verify "Detected pattern" still matches what the code shows — if `stacks/spring-boot.md §2` says `Specification<>` but no service in the workspace uses `Specification<>` anymore (all migrated to `@Query`), the doc is stale.
-- Check for stack types that exist in the config but have NO `stacks/{type}.md` yet — these are missing docs, propose bootstrap via Phase B2.5.
-- Check for orphaned `stacks/*.md` files where no repo of that type exists in the config — these are stale, propose deletion or archive.
+- **Entities & Ownership table** — does each row's "Owning Service" actually exist in the current config?
+- **Service Map** — does each row's spec path still exist on disk?
+- **Established Patterns** — are the cited versions / libraries / config formats still accurate per repo `pom.xml` / `package.json` / `application.*` / `pyproject.toml`? (Cross-cutting workspace patterns live here, not in a separate per-stack doc.)
+- **Known Constraints** — any entries explicitly dated > 90 days old?
 
 **`design_system_path` config field drift** (every frontend repo in the config):
 - If `config.repos[repo-name].design_system_path` is set, verify the file exists at `{repo.path}/{design_system_path}`. Missing file → flag as `design-system path drift` with the suggested fix (move the file, update the config, or run `/discover --resume` to re-bootstrap).
 - If the field is absent on a frontend repo, probe the canonical path `{repo.path}/agent-context/common/DESIGN_SYSTEM.md`. If found, flag as `design-system path not explicit — run /discover --resume to persist the path to config`. If not found, flag as `design-system missing — run /discover --resume to bootstrap (Phase B3)`.
 
-Emit a staleness report grouped by file with specific findings:
+Emit a staleness report:
 
 ```
 ## Workspace audit — {slug}
 
 ### platform.md
 - ⚠ "Entities & Ownership" row for `BulkUploadRequest` cites `publisher-service` but the entity no longer exists in code (was removed in commit 4a9e8f)
-- ✓ All other entity mappings verified
-
-### stacks/spring-boot.md
-- ✓ §1 Auth pattern (SecurityConfig + @PreAuthorize) matches code
-- ⚠ §2 Persistence references `src/main/java/.../ContractReviewService.java` which was deleted in PR #29 — update reference
-- ⚠ §4 Migrations says "Liquibase, YAML changesets" but 3/5 services have migrated to Flyway (publisher-service, backoffice-service retain Liquibase)
-
-### stacks/react.md
-- ✓ All §-sections current
+- ⚠ "Established Patterns" still says "Liquibase YAML changesets" but 3/5 services migrated to Flyway
+- ✓ Service Map current
 
 ### Frontend design-system paths
 - ✓ abvi-pms-frontend: `agent-context/common/DESIGN_SYSTEM.md` exists, config field set
@@ -190,52 +173,39 @@ If `--mode=audit`, stop here and present the report. Done.
 
 #### Step 2b: Refresh pass (if `--mode=refresh`)
 
-For each finding in the audit, dispatch a scanning agent per affected file. Use the same shape as `/discover` Phase B2.5's bootstrap agent, but in **refresh semantics — never overwrite hand-curated content; only update stale sections**.
+Dispatch a scanning agent for `platform.md` in **refresh semantics — never overwrite hand-curated content; only update stale sections**.
 
 **Tool**: `Agent`
 **subagent_type**: `general-purpose`
-**description**: `"Refresh stacks/{type}.md — {slug}"` (or `"Refresh platform.md — {slug}"`)
+**description**: `"Refresh platform.md — {slug}"`
 
-**Prompt** (for a `stacks/{type}.md` refresh):
+**Prompt**:
 
 ```
-You are refreshing the workspace's {type} engineering-conventions document at
-{workspace_root}/{slug}/context/stacks/{type}.md.
-
-The PipeCrew template (for reference only — do not overwrite file structure) is at:
-  {plugin_dir}/templates/stacks/{type}.md.template
-
-Current file: {workspace_root}/{slug}/context/stacks/{type}.md
-
-Repos of type `{type}` in this workspace:
-  {for each repo in config where repo.type == this.type:}
-  - {repo.name} at {repo.path}
+You are refreshing the workspace's platform context document at
+{workspace_root}/{slug}/context/platform.md.
 
 ## Staleness findings from the audit
 
-{paste the finding entries for this file verbatim}
+{paste the finding entries verbatim}
 
 ## Your job
 
-For each finding, update the specific §-section named, based on what the current code actually shows:
+For each finding, update the specific section named, based on what the current code actually shows:
 
 1. Read the current file — note which sections exist and their current content.
-2. For each stale section: re-scan the relevant repo code (grep, read), determine the current convention, and update the §-section in place.
+2. For each stale section: re-scan the relevant repos (grep, read configs, parse package manifests), determine the current state, and update the section in place.
 3. **Never delete or rewrite sections that are not stale** — the audit lists what to update; leave the rest alone. Hand-curated text in a non-stale section stays verbatim.
 4. Update the `Last Updated` date at the top of the file.
-5. If the audit identified a "reference file that no longer exists", replace it with the nearest still-existing file that exemplifies the pattern — don't leave a broken reference.
-6. If a §-section's detected pattern fundamentally changed across all repos (e.g., everyone migrated to Flyway from Liquibase), rewrite the pattern section. If only SOME repos changed, keep the dominant pattern and add a divergence note pointing at `platform.md § Per-Service Divergences`.
+5. If the audit identified a "reference file that no longer exists" (e.g., in the Service Map), replace it with the nearest still-existing analog — don't leave a broken reference.
 
 Output: write the updated file using the Edit tool — surgical edits, not whole-file rewrites. Report which sections you updated.
 ```
 
-Run in parallel if multiple files are being refreshed.
-
-After agents return, verify:
-- Every affected file still parses as markdown.
-- No section numbering changed (§-anchors are stable and cited by downstream agents).
-- `Last Updated` bumped on every touched file.
-- No `{{placeholders}}` introduced (only a fresh bootstrap should contain those; a refresh should not).
+After the agent returns, verify:
+- platform.md still parses as markdown.
+- `Last Updated` bumped.
+- No `{{placeholders}}` introduced.
 
 ---
 
@@ -315,7 +285,7 @@ Report what you changed.
 
 Workflow:
 
-1. Run the **workspace-level** pass (Step 2) first — it's the broader context, and per-repo refreshes may reference what's in `stacks/{type}.md`.
+1. Run the **workspace-level** pass (Step 2) first — it's the broader context, and per-repo refreshes may reference what's in `platform.md § Established Patterns`.
 2. Then run the **single-repo** pass (Step 3) for every repo in the config, in parallel (batched if many — say 5 at a time). Each repo independently consults Step 1.5 — some may take the fast path while others go full.
 3. Consolidate all reports into a single summary.
 
@@ -367,7 +337,7 @@ Emit the standard one-line phase-done status per scope. Include fast/full path c
 
 # Partial — some refreshes failed
 [context-refresh ✔⚠] workspace: 2 updated, 1 deferred; repos: 4 updated, 1 deferred (backoffice-service agent failed after retry)
-  Deferred: stacks/nestjs.md (529 after retry), abvi-backoffice-service (agent non-response) — re-run /context-refresh --resume --workspace={slug}
+  Deferred: abvi-backoffice-service (agent non-response after retry) — re-run /context-refresh --resume --workspace={slug}
 ```
 
 For `--mode=audit`: print the full staleness report grouped by file, no modifications.
