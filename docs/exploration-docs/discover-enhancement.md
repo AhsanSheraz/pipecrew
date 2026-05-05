@@ -2,47 +2,45 @@
 
 **Goal**: cut a typical 4-repo `/discover` run by ~40-50% wall-clock and tokens with no UX change.
 
-**Diagnosis** (from reading the phase files + agent dispatches):
-- Phase B2 is one Opus dispatch reading every repo's code in series (~80-120k Opus tokens).
-- Phase B2 + B2.5 + B3 each re-read repo files; no shared scan cache.
-- Phase B2.5 doesn't depend on B2's `platform.md` but runs sequentially after it.
+> **Status as of 2026-05-05**: Wins #1 and #2 are CLOSED (one rejected, one made moot). Win #3 is being landed now on `feat/split-b2-architect`. Wins #4, #5, #6 still on the queue. See "What shipped / what's open" at the bottom.
+
+**Diagnosis** (still accurate post-B2.5 removal):
+
+- Phase B2 is one Opus dispatch reading every repo's code in series (~80–120k Opus tokens). **This is the dominant remaining cost.**
 - Phase C.4 (CLAUDE.md) and Phase C.5 (agent-context) dispatch `context-manager` per repo with mostly overlapping inputs.
 - Re-running `/discover` on a workspace re-scans every repo even when nothing changed.
 
 ---
 
-## Six wins, ranked by impact-per-effort
+## The six wins, with current status
 
-### 1. Pre-scan repos into a manifest (one JS script, no LLM)
+### 1. Pre-scan repos into a manifest (one JS script, no LLM) — ❌ REJECTED
 
-Phase A currently regex-detects stacks but stops there. Extend it to emit a per-repo file inventory (entry points, route files, config files, test dirs, dep manifests) so B2 / B2.5 / B3 can query the manifest instead of walking the filesystem from scratch three times.
+Built `scripts/extract-repo-manifest.js` (zero-deps Node, regex-based) on a feature branch + tested it end-to-end against ABVI (11 repos in 700ms, found 2 real categorizer misses, fixed them). On reflection: the categorizer maintenance burden outweighed the savings. File reads aren't the bottleneck — Opus reasoning is. Stack-aware bucketing creates a maintenance surface that drifts as conventions evolve.
 
-- **Mechanism**: new `scripts/extract-repo-manifest.js`, modeled on `scripts/extract-observability.js` (zero deps, regex-based, deterministic).
-- **Output**: `{run_dir}/outputs/repo-manifests/{repo-key}.json` per repo.
-- **Saving**: ~30% of agent file-reads across B2/B2.5/B3.
-- **Risk**: low. Pure additive.
+**Decision**: branch dropped, no manifest generated. Conventions stay implicit (architect reads what it needs; R10 keeps implementers from inventing).
 
-### 2. Run B2.5 in parallel with B2
+If we ever want a *lite* version (just a flat file list + parsed dep manifest, no categorizer), that would be ~100 lines and could be reconsidered. Not on the roadmap right now.
 
-B2.5 (per-stack discovery) consumes only Phase A's repo list, not B2's `platform.md`. Today they're sequential. Run them in the same orchestrator message — saves the longer of the two phase durations entirely.
+### 2. Run B2.5 in parallel with B2 — ⚪ MOOT
 
-- **Mechanism**: dispatch B2 architect AND all B2.5 stack agents in one orchestrator message.
-- **Saving**: ~3-5 minutes wall-clock on a typical 4-repo workspace.
-- **Risk**: low. Existing agent contracts unchanged.
+Phase B2.5 was deleted entirely as a bigger simplification (commit `65a90e3` on 2026-05-05). The discipline that B2.5's per-stack convention docs implicitly enforced is now explicit via R10 in `docs/implementer-common-rules.md` and gate-checked by reviewers via the new Pattern Adherence pass. There's no longer a B2.5 to parallelize against B2.
 
-### 3. Split B2 into Sonnet-discovery + Opus-synthesis
+### 3. Split B2 into Sonnet-discovery + Opus-synthesis — 🟡 IN PROGRESS
 
 Same pattern as the recent `/deliver` Phase 2 / 4.5 split. Current B2 = one Opus dispatch reading all repos. Split into:
 
-- **Per-repo discovery**: parallel Sonnet, one agent per repo, scans that repo's code, emits a structured `REPO_PROFILE` JSON (entities, routes, integration points).
-- **Cross-repo synthesis**: one Opus dispatch reading just the JSON profiles, writes `platform.md`.
+- **B2.0 — Per-repo discovery**: parallel Sonnet, one `repo-discoverer` agent per repo, scans that repo's code, emits a structured `REPO_PROFILE` JSON (entities, routes, integration points, framework version, key conventions seen, audit findings).
+- **B2 — Cross-repo synthesis**: one Opus `solution-architect` dispatch reads just the JSON profiles + per-repo CLAUDE.md (if any), writes platform.md + audit-findings.md + the two diagrams.
 
-Same Opus depth on synthesis (where it matters); Sonnet does the bulk reads.
+Same Opus depth on the synthesis (where it matters); Sonnet does the bulk per-repo reading in parallel.
 
-- **Saving**: B2 cost down ~50% with no quality loss for the synthesis.
-- **Risk**: medium. Requires defining `REPO_PROFILE` schema + a thin `repo-discoverer` agent.
+- **Estimated saving**: B2 peak Opus cost ~50% lower (architect's input size collapses from "all repos" to "11 small JSON files + per-repo CLAUDE.md"). Wall-clock similar or slightly better (parallel Sonnet > serial Opus reading even when followed by Opus synthesis).
+- **Risk**: medium. New agent + new schema + ordering dependency (B2 must wait for B2.0 to finish).
 
-### 4. Add an outline-gate before full architect synthesis
+**Branch**: `feat/split-b2-architect` (in progress — see below).
+
+### 4. Add an outline-gate before full architect synthesis — 📋 OPEN
 
 Sonnet produces a 5k "platform outline" (sections + 1-line each), user approves the structure, then Opus writes the full `platform.md`. Most "I want to redo this" feedback happens at the structural level — catch it after a 5k pass instead of after a 100k pass.
 
@@ -50,43 +48,63 @@ Sonnet produces a 5k "platform outline" (sections + 1-line each), user approves 
 - **Saving**: avoids wasted Opus tokens when the user wants major direction changes — one full `/discover` run rejected at gate today is more wasteful than three preview cycles tomorrow.
 - **Risk**: low.
 
-### 5. Combine Phase C.4 + Phase C.5 into one context-manager dispatch per repo
+Naturally pairs with Win #3 — once architect synthesis is its own dispatch (post-Win-#3), inserting an outline pass before it is a clean addition.
 
-Currently two dispatches per repo with overlapping inputs (platform.md + stacks/{type}.md + repo scan). One dispatch in `full` mode produces both CLAUDE.md and agent-context.
+### 5. Combine Phase C.4 + Phase C.5 into one context-manager dispatch per repo — 📋 OPEN
 
-- **Saving**: ~40% of C.5 cost (which is the most expensive Phase C step today).
+Currently two `context-manager` dispatches per repo with overlapping inputs (platform.md + repo scan). One dispatch in `full` mode produces both CLAUDE.md and agent-context.
+
+- **Saving**: ~40% of Phase C's most expensive step.
 - **Risk**: low. `context-manager` already supports a `full` mode.
 
-### 6. Cache per-repo scan output across runs
+Cheapest remaining win — half a day of work.
 
-Hash each repo's `git rev-parse HEAD`. On `/discover --resume` or `--refresh-stacks`, skip repos whose HEAD hasn't moved since the last run; only re-scan changed ones.
+### 6. Cache per-repo scan output across runs (head_sha-keyed) — 📋 OPEN
+
+Hash each repo's `git rev-parse HEAD`. On `/discover --resume` skip repos whose HEAD hasn't moved since the last run; only re-scan changed ones.
 
 - **Pattern source**: `/context-refresh` already uses `runs/context-refresh/state.json`.
-- **Mechanism**: write `{workspace_root}/{slug}/runs/discover/state.json` recording per-repo `head_sha` + `ran_at`. Step 1.5-style decision tree at the top of B2 / B2.5.
-- **Saving**: huge for monorepos where most repos are stable but one moves.
-- **Risk**: low. Read-only optimization that falls back to a full scan on any uncertainty (branch change, dirty tree, missing state).
+- **Mechanism**: write `{workspace_root}/{slug}/runs/discover/state.json` recording per-repo `head_sha` + `ran_at`. Decision tree at the top of B2.0.
+- **Saving**: huge for monorepos where most repos are stable but one moves. First-run benefit is zero.
+- **Risk**: low. Read-only optimization that falls back to a full scan on any uncertainty.
+
+Pairs naturally with Win #3 (which introduces the per-repo profile that's the cacheable artifact). Cleanest landing order: #3 → #6.
 
 ---
 
 ## Smaller cleanups worth bundling
 
-- **B3 ↔ B2 overlap**: have B2 emit a `FRONTEND_SIGNALS` block (component library, design system signals, etc.). B3 only runs if it found nothing or wants depth. Avoids re-reading every component file.
+- **B3 ↔ B2 overlap**: have B2 emit a `FRONTEND_SIGNALS` block (component library, design system signals, etc.). B3 only runs if B2 didn't capture enough or wants depth. Avoids re-reading every component file. Becomes mostly free once Win #3 lands — the per-repo discoverer for frontends can populate FRONTEND_SIGNALS directly.
 - **Phase D inline report**: today the orchestrator writes the Phase D summary inline. Could route through the existing `reporter` agent (Haiku, ~5k) for richer trend comparison across discover runs. Optional.
 
 ---
 
-## Recommended sequencing
+## Updated sequencing (after closing #1 and #2)
 
-Land in this order — each builds on the previous and adds zero risk to the running pipeline:
+1. **Win #3 (in progress)**. Biggest single lever. Foundation for #6.
+2. **Win #5**. Cheapest. Independent of #3.
+3. **Win #6**. Compounds with #3 — `state.json` keys per-repo profile reuse.
+4. **Win #4**. Tightens the gate UX once #3 has the synthesis dispatch separated out.
 
-1. **Wins 1, 2, 5** first. They're independent, low-risk, additive. Net 30-40% faster discover with no behavior change.
-2. **Win 6** next. Adds the `state.json` infrastructure that future enhancements (and re-runs) benefit from.
-3. **Wins 3, 4** last. Bigger architectural change (B2 split + outline gate). Once the manifest from Win 1 exists and `state.json` from Win 6 is in place, the per-repo discoverer agents are easier to scope.
+After all four: typical `/discover` runs at roughly half the current Opus cost, comparable wall-clock (parallel Sonnet covers the new B2.0 step), and a re-run on an unchanged workspace is nearly free.
 
-After all six: typical `/discover` runs at roughly half the current Opus cost and ~half the wall-clock time, with the same outputs.
+---
+
+## What shipped / what's open
+
+| # | Win | Status | Branch / commit |
+|---|---|---|---|
+| 1 | Pre-scan manifest | ❌ Rejected | branch dropped |
+| 2 | Parallel B2 + B2.5 | ⚪ Moot (B2.5 deleted) | `65a90e3` (B2.5 removal) |
+| 3 | Split B2 (Sonnet + Opus) | 🟡 In progress | `feat/split-b2-architect` |
+| 4 | Outline gate | 📋 Open | — |
+| 5 | Merge C.4 + C.5 | 📋 Open | — |
+| 6 | head_sha cache | 📋 Open | — |
+| — | B3↔B2 overlap (sub-cleanup) | 📋 Open, blocked on #3 | — |
+| — | Phase D reporter agent | 📋 Open, optional | — |
 
 ---
 
 ## Open question
 
-`/discover` doesn't currently dispatch a `reporter` agent at Phase D. The `reporter` could be reused at end-of-run to produce a richer summary + trend comparison across `runs/discover/{run_id}/checkpoints.jsonl` files. This is orthogonal to the six wins but would make the new `state.json` (Win 6) more useful to a human reader.
+`/discover` doesn't currently dispatch a `reporter` agent at Phase D. The `reporter` could be reused at end-of-run to produce a richer summary + trend comparison across `runs/discover/{run_id}/checkpoints.jsonl` files. This is orthogonal to the six wins but would make `state.json` (Win #6) more useful to a human reader.
