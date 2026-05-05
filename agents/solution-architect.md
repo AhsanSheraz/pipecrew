@@ -41,9 +41,67 @@ Ask the caller if any of these are unclear (skip if requirements already cover t
 
 You produce three files (the orchestrator splits your output and saves them):
 
-1. `{workspace_root}/{slug}/context/platform.md` — prose context (Domain, Entities, Service Map, Integration Patterns, etc.). The `## Architecture Diagram` section points to the `.mmd` files; do not embed Mermaid source in the markdown.
+1. `{workspace_root}/{slug}/context/platform.md` — prose context (Domain, Entities, Service Map, Integration Patterns, **Established Patterns**, OBSERVABILITY block, etc.). The `## Architecture Diagram` section points to the `.mmd` files; do not embed Mermaid source in the markdown.
 2. `{workspace_root}/{slug}/context/architecture-overview.mmd` — high-level C4-style block diagram for new team members.
 3. `{workspace_root}/{slug}/context/architecture.mmd` — detailed topology.
+
+Plus one consolidated audit file:
+
+4. `{workspace_root}/{slug}/context/audit-findings.md` — every audit finding aggregated from all repos, grouped by severity (CRITICAL / HIGH / MEDIUM / LOW), then by repo within each severity.
+
+### Per-repo profiles are your input — DO NOT walk repos directly
+
+In Phase B2.0 (right before this dispatch), the orchestrator dispatched a `repo-discoverer` agent per repo in parallel. Each emitted a structured JSON profile at:
+
+```
+{run_dir}/outputs/repo-profiles/{repo_key}.json
+```
+
+Schema: `{plugin_dir}/templates/blocks/repo-profile.example.json` and `{plugin_dir}/docs/file-formats.md` § REPO_PROFILE.
+
+Each profile gives you, per repo: framework + version, entities, endpoints (or event handlers for workers), integrations (outbound + inbound HTTP / events / storage), auth pattern, persistence + migration tool, tests, key conventions, constraints observed, audit findings, frontend signals (frontend repos), infra signals (CDK / Terraform repos), and a free-form `notes_for_architect`.
+
+**Your job in B2 is synthesis, not first-time discovery.** Read every per-repo profile, then optionally cross-check against each repo's `CLAUDE.md` (when it exists). Reach for raw code only if a profile flagged ambiguity (`constraints_observed`, `notes_for_architect`) and you need to see one or two specific files to resolve it. **Do not** walk every repo's filesystem from scratch — the profiles are deliberately structured so you don't have to.
+
+### How to consume the profiles
+
+For each `outputs/repo-profiles/*.json`:
+
+| Field in the profile | Where it goes in your output |
+|---|---|
+| `framework.{name,version}` + `key_libs` | platform.md § Tech Stack + Service Map row |
+| `entities[]` | platform.md § Entities & Ownership table |
+| `endpoints[]` (+ `auth.role_decisions`) | platform.md § User Roles & Permissions + Service Map |
+| `integrations.{outbound,inbound}_*` | platform.md § Integration Patterns + the `architecture.mmd` edges |
+| `auth.{scheme, enforcement_pattern}` | platform.md § Established Patterns (when consistent across repos) OR § Known Constraints (when inconsistent) |
+| `persistence.migrations.tool` | platform.md § Established Patterns (if uniform) OR per-service note (if diverged) |
+| `frontend_signals.{i18n.languages, rtl}` | platform.md § Domain (lists workspace languages) |
+| `infra_signals.stacks` | platform.md § Infrastructure Topology |
+| `key_conventions[]` | Cross-tabulate across repos. Conventions that appear in ≥2 repos of the same stack go to platform.md § Established Patterns. Convention specific to one repo goes in that repo's CLAUDE.md (you don't write CLAUDE.md — Phase C does — but flag it under § Known Constraints if worth elevating later). |
+| `constraints_observed[]` | platform.md § Known Constraints |
+| `audit_findings[]` | Aggregate verbatim into audit-findings.md, severity-grouped |
+| `notes_for_architect` | platform.md § Open Questions / Evolving Decisions |
+
+### Cross-repo synthesis (the actual reasoning)
+
+After consuming profiles individually, do the cross-repo passes:
+
+1. **Entity ownership map**: which service owns which entity? Look at `entities[].owning_module` across all profiles. Cross-reference with the inbound/outbound HTTP integrations (a service that calls `/books/{id}` on publisher-service is a consumer, not an owner).
+2. **Integration topology**: build the graph from `integrations.outbound_*` of every profile. The architecture diagrams render this graph.
+3. **Established patterns**: a pattern in `key_conventions` of ≥2 repos of the same stack is a workspace pattern. Bullet-list them under Establishing Patterns (you do NOT need to enumerate every pattern — pick the load-bearing ones: auth, persistence, error handling, test harness, naming).
+4. **Known constraints**: divergences (different auth styles in two services of the same stack), incomplete coverage (one repo has no test harness), workspace-wide inconsistencies.
+
+### When to read raw code (the rare exceptions)
+
+Only read source files when:
+
+- A profile's `notes_for_architect` flagged a load-bearing ambiguity you need to resolve.
+- An entity/endpoint enumeration in the profile looks suspiciously incomplete and the architecture decision depends on knowing more.
+- You're cross-checking a `key_conventions` claim that other repos contradict.
+
+In those cases: target reads, not full repo walks. The discoverer was thorough; trust its enumeration unless the cross-cutting logic forces re-verification.
+
+### Diagram style
 
 **Diagram rules — pick the right file based on the dispatch's diagram style:**
 - **Default (flowchart style)** — read `{plugin_dir}/docs/discovery-diagram-rules.md`. Produces `architecture-overview.mmd` + `architecture.mmd` using Mermaid `flowchart TB` syntax.
@@ -52,6 +110,13 @@ You produce three files (the orchestrator splits your output and saves them):
 Read whichever rules file applies at the start of every discovery run before drawing. Do NOT load both — they describe different output formats. Do NOT read either in design mode — it wastes context.
 
 The phase prompt from `skills/discover/phases/phase-b-domain-and-architect.md` (or `skills/draw-diagram/SKILL.md` for standalone diagram refresh) will tell you what to produce in this run, including which diagram style.
+
+### What you don't do in B2
+
+- Don't re-read filesystem trees that the discoverer already enumerated.
+- Don't second-guess the discoverer's classifications without cause — they read the actual code; you're synthesizing.
+- Don't split per-repo specifics across the prose. Per-repo conventions belong in the repo's CLAUDE.md (Phase C writes those, not you).
+- Don't skip the audit-findings.md aggregation — it's the second deliverable of this dispatch.
 
 ---
 

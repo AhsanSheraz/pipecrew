@@ -42,13 +42,68 @@ Do NOT ask about:
 
 ---
 
-### B2: Architect-Led Context Discovery
+### B2.0: Per-repo Discovery (parallel, Sonnet)
 
-Launch the `solution-architect` agent to read actual code and produce a rich platform context document. This is the heavy-lift step that replaces dozens of human questions with automated discovery.
+Phase B2.0 runs BEFORE B2's architect dispatch. It walks each repo in parallel via the `repo-discoverer` agent (Sonnet) and emits a structured `REPO_PROFILE` JSON per repo. The architect (Opus) then consumes the JSON profiles in B2 to synthesize platform.md — drastically cutting the architect's token load (each profile is ~3 KB; the architect reads ~30 KB total instead of all repos' source code).
+
+**Pre-step — create the output directory:**
+
+```bash
+mkdir -p {workspace_root}/{slug}/runs/discover/{run_id}/outputs/repo-profiles/
+```
+
+**Dispatch — one `Agent` tool call per repo, all in a single orchestrator message** so they run concurrently. The dispatch shape per repo:
+
+**Tool**: `Agent`
+**subagent_type**: `repo-discoverer`
+**description**: `"Profile — {repo.name} ({repo.type})"`
+**prompt** (substitute per repo):
+
+```
+You are profiling ONE repo for the {workspace.name} workspace. Phase B2.0 of /discover.
+
+INPUTS:
+- repo_key:         {repo.name}
+- repo_path:        {repo.path}
+- repo_type:        {repo.type}
+- repo_role:        {repo.role}
+- spec_file:        {repo.spec_file or "(none)"}
+- run_dir:          {run_dir}
+- workspace_slug:   {slug}
+
+Read your system prompt's process. Walk the repo, populate the REPO_PROFILE JSON
+shape (see {plugin_dir}/templates/blocks/repo-profile.example.json), and write it to:
+
+  {run_dir}/outputs/repo-profiles/{repo.name}.json
+
+Schema reference: {plugin_dir}/docs/file-formats.md § REPO_PROFILE.
+
+Keep the file under ~3 KB. Sample representative endpoints/entities — don't enumerate exhaustively. Trust your role-specific guidance in the system prompt about which fields apply (frontend_signals for frontend repos, infra_signals for cdk/terraform repos, entities + endpoints for api-services + workers).
+```
+
+Per critical rule #13: parse each agent's `<usage>` block, append a Dispatch Log row with phase `B2.0`, agent `repo-discoverer`, tokens + duration. Capture each agent's status line for the phase-done emit.
+
+**Wait for ALL profiles to land** before advancing to B2. If any agent fails:
+- Apply the standard transient-failure retry policy (`docs/transient-failures.md`).
+- If a repo's profile is still missing after retry, emit a `⚠ Deferred` line and proceed to B2 with the available profiles. The architect will note the missing profile and recommend `/discover --resume` to re-attempt.
+
+**Phase-done emit**:
+
+```
+[phase B2.0 ✔] {N} repo profiles written, {M} audit findings collected ({duration}, {Xk} tokens — Sonnet, parallel)
+```
+
+**Update scratchpad**: Set Phase B2.0 status to COMPLETED. Set Current Phase to "B2. Architect Synthesis".
+
+---
+
+### B2: Architect-led synthesis (Opus)
+
+Launch the `solution-architect` agent in discovery mode. It reads the per-repo profiles produced in B2.0 (NOT raw repo code) and synthesizes the platform context — entity map, integration topology, established patterns, audit findings aggregated, the two architecture diagrams.
 
 **Tool**: `Agent`
 **subagent_type**: `solution-architect`
-**description**: `"Onboard — architect discovery for {workspace.name}"`
+**description**: `"Onboard — architect synthesis for {workspace.name}"`
 **prompt**:
 
 ```
@@ -62,13 +117,23 @@ this system), not prescriptive (what to build). Design-mode invocations happen
 later from the /deliver pipeline and read the file you produce here. Do not
 propose new architecture, refactors, or technical solutions in this mode.
 
-Your job: read the actual codebases and produce a platform context document.
+**Your input is the per-repo profiles from Phase B2.0**, NOT raw repo code.
+Phase B2.0 just dispatched a `repo-discoverer` agent per repo (Sonnet, parallel)
+and each emitted a structured JSON profile. Your job in B2 is cross-repo
+synthesis, not first-time discovery.
 
-REPOS TO ANALYZE (read CLAUDE.md if it exists, then explore key files):
+PROFILES TO READ (one per repo):
 {for each repo in the confirmed list:}
-- {repo.name} ({repo.type}, {repo.role}) at {repo.path}
-  {if repo.spec_file: "Spec: {repo.path}/{repo.spec_file}"}
-  {if repo.has_claude_md: "Has CLAUDE.md — read it first"}
+- {repo.name}: {run_dir}/outputs/repo-profiles/{repo.name}.json
+
+Schema for each: {plugin_dir}/templates/blocks/repo-profile.example.json
+Field reference: {plugin_dir}/docs/file-formats.md § REPO_PROFILE.
+
+Optionally cross-check each profile against `{repo.path}/CLAUDE.md` (when it
+exists). Read raw source code ONLY when a profile's `notes_for_architect` or
+`constraints_observed` flagged an ambiguity you need to resolve. Don't re-walk
+repos the discoverer already enumerated — the profiles are deliberately
+structured so you don't have to.
 
 DOMAIN CONTEXT FROM USER:
 - Name: {domain.name}
@@ -76,14 +141,13 @@ DOMAIN CONTEXT FROM USER:
 - User roles: {domain.user_roles}
 - Languages: {domain.i18n_languages}, RTL: {domain.rtl_support}
 
-DISCOVERY TASKS:
-1. For each api-service repo: read the OpenAPI spec (or controller files if no spec). List all entities with their key fields and status lifecycles.
-2. Identify entity ownership — which service owns which entity.
-3. Map integration patterns: sync (REST calls between services), async (events/queues/S3 triggers), shared resources.
-4. Read infra repo (if exists) to identify: queue names, bucket names, deployment topology.
-5. For frontend repos: identify the component library, design system, routing pattern, state management.
-6. Note any established patterns that all agents should follow (naming conventions, error handling patterns, auth mechanism, test patterns).
-7. List known constraints or tech debt items visible from the code.
+CROSS-REPO SYNTHESIS TASKS:
+1. **Entity ownership map.** Aggregate `entities[]` from every profile. Cross-reference with `integrations.outbound_*` to identify which service OWNS each entity vs which CONSUMES it.
+2. **Integration topology.** Build the cross-repo graph from each profile's `integrations.{outbound,inbound}_*` fields. The architecture diagrams render this graph.
+3. **Established patterns.** Cross-tabulate `key_conventions[]` across profiles of the same stack. Patterns observed in ≥2 repos go to `## Established Patterns`. Idiosyncratic single-repo patterns stay in their repo's CLAUDE.md (which Phase C generates separately, not you).
+4. **Known constraints.** Aggregate divergences (different auth styles in two services of the same stack), incomplete coverage gaps, workspace-wide inconsistencies. Each profile's `constraints_observed[]` feeds this.
+5. **Audit findings consolidation.** Aggregate `audit_findings[]` from every profile into a single audit-findings.md, severity-grouped (CRITICAL / HIGH / MEDIUM / LOW), then by repo within each severity.
+6. **Architecture diagrams** (two files — see diagram rules below).
 
 OUTPUT FORMAT:
 Produce the platform context document using the section structure from the template below. Fill in every section with what you discovered — leave none blank. If a section has no data (e.g., no infra repo exists), write "Not applicable — no infrastructure repo in the workspace."
