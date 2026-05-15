@@ -18,14 +18,16 @@ After `/discover` completes, you get:
 │   ├── audit-findings.md            ← real bugs spotted opportunistically during onboarding
 │   ├── architecture.mmd             ← detailed Mermaid topology
 │   ├── architecture-overview.mmd    ← 4-subgraph overview
-│   ├── stacks/{spring-boot,react,…}.md  ← per-stack convention docs (B2.5)
-│   └── design-system/{component-catalog,tokens,patterns}.md  ← (B3, frontend only)
+│   ├── design-system/{component-catalog,tokens,patterns}.md  ← (B3, frontend only)
+│   └── adrs/                        ← architecture decision records (filled by /deliver Phase 2 ADR gate)
+│       ├── INDEX.md                 ← one-line-per-ADR index, read by SA in Step 0
+│       └── ADR-NNN-<slug>.md        ← one file per ADR
 ├── agents/
 │   ├── {slug}-product-owner.md      ← workspace-tailored agents
 │   ├── {slug}-assessor.md
 │   └── {slug}-ux-consultant.md
 ├── agent-memory/
-│   └── solution-architect/adrs.md   ← decision log (filled by /deliver Phase 2 ADR gate)
+│   └── solution-architect/          ← rare architect-private notes (thin)
 └── runs/discover/{run_id}/
     ├── scratchpad.md
     ├── checkpoints.jsonl
@@ -52,7 +54,6 @@ Phase Greenfield:  Brainstorm + scaffold (only if --greenfield OR zero repos fou
 Phase A:      Repo Discovery — scan parent dirs, detect tech stacks
 Phase B1:     Domain Questions — 3 questions (name was captured in Pre-phase 0)
 Phase B2:     Architect Discovery — solution-architect reads code → platform.md
-Phase B2.5:   Stack Discovery + Divergences — per-stack scan → stacks/{type}.md
 Phase B2.6:   Observability extraction — IaC scan → OBSERVABILITY block in platform.md
 Phase B3:     Design System (frontend only) — components / tokens / patterns
 Phase C:      Generation — config.json + CLAUDE.md per repo + domain agents + agent-context
@@ -213,15 +214,6 @@ Architect reads actual code (not just filenames), produces a multi-section `plat
 | `## Stack Divergences` | Populated by Phase B2.5 |
 | `## Open Questions` | Things SA flagged for human follow-up |
 
-### B2.5 — Stack Discovery + Divergences
-
-Per detected stack (e.g., `spring-boot`, `react`, `cdk`), runs a focused scan to produce `context/stacks/{type}.md` — what the workspace actually does for THIS stack (build tool, test framework, lint config, common patterns).
-
-For each repo of that stack, compares the repo's choices to the stack baseline. Divergences (e.g., "publisher-svc uses Mockito, others use AssertJ") get appended to platform.md's `## Stack Divergences` subsection.
-
-`--skip-divergences` skips the platform.md write but keeps the stacks/ docs.
-`--refresh-stacks --workspace=<slug>` re-runs ONLY this phase against an existing workspace.
-
 ### B2.6 — Observability extraction
 
 Runs `extract-observability.js` against every infra repo (CDK / Terraform / k8s manifests / docker-compose / Ansible). Produces a draft for the user to curate (trace correlation header, dashboards, runbook locations). Writes the result as the `<!-- BEGIN OBSERVABILITY --> … <!-- END OBSERVABILITY -->` block in `platform.md`.
@@ -352,7 +344,6 @@ Final phase. Validates everything generated:
 | Every generated `CLAUDE.md` passes guardrails | `validate-claude-md.js` |
 | `checkpoints.jsonl` has no schema violations | `validate-checkpoints.js` |
 | Each domain agent file has the required frontmatter | inline check |
-| Per-stack `stacks/{type}.md` exists for every distinct repo type | inline check |
 | `audit-findings.md` exists if any agent emitted findings | inline check |
 
 Writes `runs/discover/{run_id}/report.md` — one-page summary with:
@@ -388,11 +379,6 @@ Discovery mode produces the artifacts design mode consumes. The clean separation
   - From C onward: `## Discovered Repos` (Phase A) + `## Domain Answers` (B1) must already be populated.
 - Re-runs `gate.js close` if a gate was open at interruption.
 
-`/discover --refresh-stacks --workspace=<slug>`:
-- Skips Phase A/B1/B2/B2.6/B3/C/D.
-- Runs ONLY B2.5 against the existing workspace.
-- Combine with `--skip-divergences` to refresh stacks docs only.
-
 `/discover --refresh-observability --workspace=<slug>`:
 - Skips everything except B2.6.
 - First-time backfill if the workspace was discovered before B2.6 existed.
@@ -416,7 +402,6 @@ flowchart LR
   A[Phase A repo discovery<br/>~8k]:::cheap
   B1[Phase B1 questions<br/>~2k user-only]:::cheap
   B2[Phase B2 SA discovery<br/>~80-120k Opus, effort:high]:::heavy
-  B25[Phase B2.5 stacks<br/>~30-60k Sonnet, parallel per stack]:::mid
   B26[Phase B2.6 observability<br/>~5-15k]:::cheap
   B3[Phase B3 design system<br/>~20-40k Sonnet, frontend only]:::mid
   C1[C.1 config<br/>~2k]:::cheap
@@ -426,7 +411,7 @@ flowchart LR
   C5[C.5 agent-context per repo<br/>~40-80k per repo Sonnet, parallel, opt-in]:::heavy
   D[Phase D verification<br/>~5k]:::cheap
 
-  pre --> A --> B1 --> B2 --> B25 --> B26 --> B3 --> C1 --> C2 --> C3 --> C4 --> C5 --> D
+  pre --> A --> B1 --> B2 --> B26 --> B3 --> C1 --> C2 --> C3 --> C4 --> C5 --> D
 ```
 
 **Order of magnitude:** a 4-repo onboarding with frontend + 2 backends + 1 infra ≈ **250-400k Opus tokens** (architect-heavy). Worker-only or backend-only workspaces stay closer to **150-250k**. Greenfield adds ~30k for brainstorming.
@@ -443,7 +428,7 @@ flowchart LR
 
 Same shared rules as `/deliver`:
 - Transient failures (`docs/transient-failures.md`): retry once on 529/503/network, halt on second 429 or non-429 4xx.
-- Parallel dispatches in C.4 / C.5 / B2.5: retry only the failed agent; let the rest finish.
+- Parallel dispatches in C.4 / C.5: retry only the failed agent; let the rest finish.
 - Deferred agents annotated in scratchpad → `--resume` picks them up.
 
 Hard failures specific to discover:
@@ -467,7 +452,6 @@ flowchart LR
     cfg[config.json]:::artifact
     plat[platform.md]:::artifact
     aud[audit-findings.md]:::artifact
-    stk[stacks/*.md]:::artifact
     ds[design-system/*.md]:::artifact
     ag[agents/*.md]:::artifact
     cmd[CLAUDE.md per repo]:::artifact
@@ -478,7 +462,7 @@ flowchart LR
     pre[Pre-flight: validate config]:::phase
     p1[Phase 1: PO reads requirements style from agent prompt]:::phase
     p2[Phase 2: SA reads platform.md in design mode]:::phase
-    p45[Phase 4.5: planner injects audit-findings + stacks into task files]:::phase
+    p45[Phase 4.5: planner injects audit-findings into task files]:::phase
     p5[Phase 5: implementers read CLAUDE.md + agent-context]:::phase
     p5b[Phase 5b: ux-consultant reads design-system]:::phase
     p6[Phase 6: assessor reads platform.md again]:::phase

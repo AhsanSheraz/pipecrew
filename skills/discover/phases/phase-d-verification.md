@@ -143,14 +143,13 @@ Emit:
 | A     | Repo Discovery           | 0:42     | 0      | —       |
 | B1    | Domain Questions         | 2:10     | 0      | —       |
 | B2    | Architect Discovery      | 4:03     | 1      | 77,922  |
-| B2.5  | Stack Discovery          | 0:58     | 3      | 41,205  |
 | B3    | Design System            | 2:16     | 1      | 46,687  |
 | C1    | Workspace Config         | 0:08     | 0      | —       |
 | C2    | Docs Generation (CLAUDE.md + agent-context) | 4:12 | 4 (1r) | 186,350 |
 | C3    | Domain Agents            | 0:45     | 0      | —       |
 | C4    | Audit Findings Collation | 0:04     | 0      | —       |
 | D     | Verification             | 0:12     | 0      | —       |
-|       | **Total**                | **14:30**| **9**  | **352,164** |
+|       | **Total**                | **13:32**| **6**  | **310,959** |
 ```
 
 Format rules:
@@ -167,9 +166,6 @@ Per-agent detail:
 | Agent                       | Phase | Tokens   | Duration | Status   | Findings |
 |-----------------------------|-------|----------|----------|----------|----------|
 | solution-architect          | B2    |  77,922  | 4:03     | ok       | —        |
-| general-purpose (divergence) | B2.5 |  13,402  | 0:54     | ok       | —        |
-| general-purpose (divergence) | B2.5 |  14,120  | 0:56     | ok       | —        |
-| general-purpose (divergence) | B2.5 |  13,683  | 0:58     | ok       | —        |
 | general-purpose (design-sys)| B3    |  46,687  | 2:16     | ok       | —        |
 | context-manager:full (auth)      | C2 |  48,702  | 3:12     | ok       | 2        |
 | context-manager:full (publisher) | C2 |  71,521  | 4:05     | ok       | 5        |

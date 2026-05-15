@@ -116,7 +116,7 @@ Layered self-correctness suite (templates parse, script refs resolve, schema sha
 `/site-view` opens at `http://127.0.0.1:5173` showing characters per phase, pyramid tiers rising as agents complete, fed by SSE from the scratchpad and checkpoints. Auto-started at pre-flight. Teams has tmux/iTerm2 panes — terminal-bound observation only.
 
 ### 10. `/discover` — workspace onboarding
-Scans existing repos, generates `platform.md`, `stacks/{type}.md` per tech stack, per-repo `agent-context/` and `CLAUDE.md`, per-repo `DESIGN_SYSTEM.md` for frontends, workspace-specific agents (`{slug}-product-owner`, `{slug}-ux-consultant`). Teams has no onboarding flow.
+Scans existing repos, generates `platform.md`, per-repo `agent-context/` and `CLAUDE.md`, per-repo `DESIGN_SYSTEM.md` for frontends, workspace-specific agents (`{slug}-product-owner`, `{slug}-ux-consultant`). Teams has no onboarding flow.
 
 ### 11. `/learn` — feedback loop into durable context
 Takes a merged PR / `/deliver` run / branch diff / free-form text, proposes scoped updates to workspace docs and per-repo context, presents tier-classified findings (repo / workspace / plugin) with before/after diffs for user approval. Teams has no learning loop.

@@ -20,11 +20,11 @@ Every command operates against a **workspace** — a directory under a configura
 ├── config.json              repo paths + types + roles + spec files (validated by scripts/validate-config.js)
 ├── context/
 │   ├── platform.md          domain + architecture (the "memory" all agents read)
-│   ├── stacks/{type}.md     one per tech stack — engineering conventions
 │   ├── audit-findings.md    real bugs spotted during onboarding
 │   ├── architecture.mmd     two canonical Mermaid diagrams
 │   ├── architecture-overview.mmd
-│   └── learn-log.md         append-only learning history
+│   ├── learn-log.md         append-only learning history
+│   └── adrs/                architecture decision records (INDEX.md + ADR-NNN-<slug>.md, filled by /deliver Phase 2 ADR gate)
 ├── agents/                  workspace-tailored agents (product-owner, ux-consultant, assessor, troubleshooter)
 └── runs/{skill}/{run_id}/   per-invocation work dir — scratchpad.md + checkpoints.jsonl + outputs/ + report.md
 ```
@@ -40,7 +40,7 @@ Every command operates against a **workspace** — a directory under a configura
 |---|---|
 | `/discover` | One-time onboarding — scan repos, interrogate domain, write workspace files |
 | `/scaffold` | Create empty repos `--from-scratch` (from a brief) or `--from-example` (clone structure). Standalone or invoked by `/discover --greenfield` |
-| `/context-refresh` | Audit/refresh `platform.md`, `stacks/*.md`, per-repo `CLAUDE.md`/`agent-context/`/`DESIGN_SYSTEM.md` (with a git-diff fast path + periodic full-audit safety net) |
+| `/context-refresh` | Audit/refresh `platform.md`, per-repo `CLAUDE.md`/`agent-context/`/`DESIGN_SYSTEM.md` (with a git-diff fast path + periodic full-audit safety net) |
 | `/draw-diagram` | Regenerate the two canonical Mermaid diagrams, or produce a focused `--topic=auth-flow` view, in flowchart or `--c4` style. `--scan` mode reads code directly without needing `/discover` to have run |
 
 ## Feature work
@@ -85,8 +85,6 @@ Phase B1    4 domain questions to user
   ↓
 Phase B2    solution-architect reads ACTUAL code, writes platform.md (~80–120k Opus)
   ↓
-Phase B2.5  per-stack scan → stacks/{type}.md + per-repo divergences (~30–60k Sonnet, parallel)
-  ↓
 Phase B2.6  observability extraction (CDK/Terraform/k8s/compose) → OBSERVABILITY block
   ↓
 Phase B3    design system discovery (frontend repos only) (~20–40k Sonnet)
@@ -96,7 +94,7 @@ Phase C     generate config.json → commit platform.md → publish workspace ag
 Phase D     verify, validate checkpoints, write report.md
 ```
 
-Each phase emits a one-line `[phase X ✔] ...` status. Scratchpad updated after every phase so `--resume` can pick up exactly where an interruption left off. Targeted refresh flags: `--refresh-stacks`, `--refresh-observability`.
+Each phase emits a one-line `[phase X ✔] ...` status. Scratchpad updated after every phase so `--resume` can pick up exactly where an interruption left off. Targeted refresh flags: `--refresh-observability`.
 
 ---
 
@@ -176,7 +174,7 @@ A few patterns that show up everywhere once you read the source:
 2. **One run dir per invocation, one event log per run** — `runs/{skill}/{run_id}/checkpoints.jsonl` is unified across every skill, so the reporter and site-view work the same way for `/discover`, `/deliver`, `/learn`, `/context-refresh`, `/troubleshoot`.
 3. **Scratchpad for resume, checkpoints for telemetry** — two different files, two different jobs.
 4. **Section-extracted artifacts** — agents emit `<!-- BEGIN X -->` blocks; `scripts/extract-block.js` and `scripts/split-design.js` give later phases tiny, focused inputs instead of the full design doc.
-5. **Tier-stratified docs** — workspace-level (platform.md, stacks/{type}.md) governs convention; repo-level (CLAUDE.md, agent-context/, DESIGN_SYSTEM.md) governs implementation. `/learn` and `/context-refresh` keep them in sync; `/discover` bootstraps them.
+5. **Tier-stratified docs** — workspace-level (platform.md, adrs/) governs convention; repo-level (CLAUDE.md, agent-context/, DESIGN_SYSTEM.md) governs implementation. `/learn` and `/context-refresh` keep them in sync; `/discover` bootstraps them.
 6. **Architect–planner split for Phase 2 / 4.5** — SA owns architecture and emits a coarse `TASK_SKELETON` (per-repo M/D sub-task list grounded in `AFFECTED_SERVICES` + `RISKS`). The dedicated `task-planner` agent (Sonnet) hydrates the skeleton in Phase 4.5 with workspace-shaped material the architect didn't have (pitfalls, audit-findings, post-Phase-3 spec paths) and writes the task files. The orchestrator never reads the full architecture markdown — it routes between SA, the planner, and the user gate.
 7. **Lazy phase loading** — `/deliver` loads only the active phase file into context; same for `/discover`. Keeps mid-run context lean.
 8. **Hooks are scoped by marker, not by matcher** — the troubleshooter bash guard works around Claude Code's lack of `agentMatcher` by self-gating on a marker file, so it can be installed plugin-wide without affecting any other agent.
