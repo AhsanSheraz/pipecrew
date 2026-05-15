@@ -45,6 +45,7 @@ INFRA REPOS:
 Produce the Technical Design Document using the required section delimiters.
 
 CRITICAL FOR THIS DISPATCH:
+- **Ask before guessing.** Walk the clarification-protocol dimension list in your system prompt. For every dimension not pinned by the requirements or `platform.md`, emit a clarifying question and STOP — do not silently fill gaps. Run the adversarial pass before emitting. Section markers come only after every dimension is either pinned, justifiably skipped as N/A, or captured under a top-level `## Assumptions` block.
 - Emit the AFFECTED_SERVICES section as a fenced ```json block matching `{plugin_dir}/templates/blocks/affected-services.example.json`. Downstream phases extract it programmatically — prose-only is a defect.
 - Emit the TASK_SKELETON section as a fenced ```json block matching `{plugin_dir}/templates/blocks/task-skeleton.example.json`. Phase 4.5's task-planner consumes this — without it the planner falls back to LLM-parsing RISKS prose, which is fragile. Every `D` sub-task in the skeleton must cite its corresponding RISKS sub-bullet via `deferral_reason`.
 - Include AFFECTED_CONTRACTS and CONTRACT_DESIGN sections if (and only if) any contract repo is affected.
@@ -60,7 +61,7 @@ Now: design the technical architecture for the feature in {pipeline_dir}/outputs
 
 > "Any decisions in this design worth recording for future reference? Examples: chose SQS over polling, ruled out Lambda, kept uploads in one service. (yes / no)"
 
-- **yes** → dispatch the `solution-architect` agent: `"Append one ADR entry to {workspace_root}/{slug}/agent-memory/solution-architect/adrs.md for the key decision(s). Create the file if it doesn't exist."` Wait, then continue.
+- **yes** → dispatch the `solution-architect` agent: `"Write one new ADR file under {workspace_root}/{slug}/context/adrs/ for the key decision(s). Determine the next ADR number by listing the existing ADR files in context/adrs/ and adding 1 (start at 1 if the directory is missing or empty; ignore INDEX.md when counting). Filename pattern: 'ADR-NNN-<kebab-slug>.md' where NNN is zero-padded to 3 digits and <kebab-slug> is a short title (e.g., 'ADR-007-bulk-upload-idempotency.md'). The file body must include: H1 title, Decision, Rationale, Dimensions pinned, Status (proposed/accepted/superseded). Then append a one-line index entry to context/adrs/INDEX.md using the format '- ADR-NNN [tag1, tag2]: one-line decision summary. → ADR-NNN-<slug>.md' — tags MUST cite the affected service and/or the dimension(s) the ADR pins (e.g., [bulk-upload, idempotency], [auth, tenancy]). Create the context/adrs/ directory and INDEX.md if they don't exist. INDEX.md is capped at 200 lines."` Wait, then continue.
 - **no** → continue immediately.
 
 **Materialize per-block side files**: after writing `outputs/phase-2-architecture.md`, run:

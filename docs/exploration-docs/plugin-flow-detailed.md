@@ -16,14 +16,16 @@ Every `/deliver` invocation gets its own dir. Same skeleton for every workspace.
 │   ├── audit-findings.md                ← real bugs spotted at onboarding
 │   ├── architecture.mmd                 ← detailed Mermaid diagram
 │   ├── architecture-overview.mmd        ← 4-subgraph overview
-│   ├── stacks/{spring-boot,react,…}.md  ← per-stack convention docs
-│   └── learn-log.md                     ← appended by /learn
+│   ├── learn-log.md                     ← appended by /learn
+│   └── adrs/                            ← architecture decision records (filled by /deliver Phase 2 ADR gate)
+│       ├── INDEX.md                     ← one-line-per-ADR index, read by SA in Step 0
+│       └── ADR-NNN-<slug>.md            ← one file per ADR
 ├── agents/                              ← workspace-specific agents (published to ~/.claude/agents)
 │   ├── {slug}-product-owner.md
 │   ├── {slug}-assessor.md
 │   └── {slug}-ux-consultant.md
 ├── agent-memory/
-│   └── solution-architect/adrs.md       ← architecture decision records
+│   └── solution-architect/              ← rare architect-private notes (thin)
 └── runs/
     ├── discover/{run_id}/               ← /discover invocations
     ├── deliver/{run_id}/                ← /deliver invocations  ← THIS doc focuses here

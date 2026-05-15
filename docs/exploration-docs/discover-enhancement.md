@@ -52,7 +52,7 @@ Sonnet produces a 5k "platform outline" (sections + 1-line each), user approves 
 
 ### 5. Combine Phase C.4 + Phase C.5 into one context-manager dispatch per repo
 
-Currently two dispatches per repo with overlapping inputs (platform.md + stacks/{type}.md + repo scan). One dispatch in `full` mode produces both CLAUDE.md and agent-context.
+Currently two dispatches per repo with overlapping inputs (platform.md + repo scan). One dispatch in `full` mode produces both CLAUDE.md and agent-context.
 
 - **Saving**: ~40% of C.5 cost (which is the most expensive Phase C step today).
 - **Risk**: low. `context-manager` already supports a `full` mode.
