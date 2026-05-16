@@ -29,10 +29,10 @@ Every command operates against a **workspace** — a directory under a configura
 │   │                                                agents — architect, planner, UX, assessor, learner, context-manager,
 │   │                                                troubleshooter — NOT loaded per implementer dispatch)
 │   ├── audit-findings.md                          real bugs / code smells from B2 scan, by severity + repo
-│   ├── architecture-overview.mmd                  high-level C4 block diagram (~10 nodes, 4 subgraphs)
-│   ├── architecture.mmd                           detailed topology with every service / DB / queue / Lambda + edge labels
-│   └── diagrams/                                  (only when /draw-diagram --topic was used)
-│       ├── auth-flow.mmd                          example focused topic diagram
+│   └── diagrams/                                  workspace architecture diagrams (Mermaid)
+│       ├── architecture-overview.mmd              high-level C4 block diagram (~10 nodes, 4 subgraphs)
+│       ├── architecture.mmd                       detailed topology with every service / DB / queue / Lambda + edge labels
+│       ├── auth-flow.mmd                          example focused topic diagram (from /draw-diagram --topic)
 │       ├── event-flow.mmd                         example focused topic diagram
 │       └── audit-{YYYY-MM-DD}.md                  (only from /draw-diagram --audit)
 │
