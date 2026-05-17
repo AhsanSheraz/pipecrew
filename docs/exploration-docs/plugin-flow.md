@@ -7,7 +7,6 @@ Two main pipelines, with a feedback loop.
 - **Phase A** — scan parent dirs, detect repos + tech stacks
 - **Phase B1** — interrogate domain (questions to user)
 - **Phase B2** — `solution-architect` reads code, writes `platform.md`
-- **Phase B2.5** — stack divergences (`stacks/{type}.md`)
 - **Phase B2.6** — observability extraction (IaC scan)
 - **Phase C** — generate `CLAUDE.md` per repo + workspace agents (`{slug}-product-owner`, `{slug}-assessor`, `{slug}-ux-consultant`)
 - **Phase D** — final report
