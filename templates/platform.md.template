@@ -38,7 +38,7 @@
 
 ## Observability
 
-> Log destinations, trace propagation, dashboards, and runbook pointers. The JSON block below is the source of truth (machine-readable); the prose under it is human commentary. Producer: `scripts/extract-observability.js` during `/discover` Phase B, curated with the user. Consumer: `{{WORKSPACE_SLUG}}-troubleshooter` agent. Schema: see [`docs/file-formats.md`](../../../../docs/file-formats.md#observability) and [`templates/blocks/observability.example.json`](../../../../templates/blocks/observability.example.json).
+> Log destinations, trace propagation, dashboards, and runbook pointers. The JSON block below is the source of truth (machine-readable); the prose under it is human commentary. Producer: `scripts/extract-observability.js` during `/discover` Phase B, curated with the user. Consumer: `{{WORKSPACE_SLUG}}-troubleshooter` agent. Schema: see [`templates/blocks/block-schemas.md`](../../../../templates/blocks/block-schemas.md#observability) and [`templates/blocks/observability.example.json`](../../../../templates/blocks/observability.example.json).
 
 <!-- BEGIN OBSERVABILITY -->
 ```json

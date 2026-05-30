@@ -2,7 +2,7 @@
 /**
  * Layer 1 — every templates/blocks/*.example.json parses as valid JSON.
  *
- * Why this matters: agent prompts and docs/file-formats.md cite these
+ * Why this matters: agent prompts and templates/blocks/block-schemas.md cite these
  * files as the canonical schema. If one stops parsing, every consumer
  * agent will silently emit broken output.
  */
@@ -41,7 +41,7 @@ for (const f of files) {
 }
 
 // Per-block shape sanity — minimal field presence, not full schema validation.
-// These mirror what consumer agents and docs/file-formats.md document.
+// These mirror what consumer agents and templates/blocks/block-schemas.md document.
 const SHAPE_CHECKS = {
   'affected-services.example.json': (j) => {
     assert(Array.isArray(j.services), 'services must be array');

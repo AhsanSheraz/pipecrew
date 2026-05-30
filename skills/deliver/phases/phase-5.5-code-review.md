@@ -218,7 +218,7 @@ This returns `{critical_total, critical_mechanical, critical_architectural, non_
 - `non_critical_total` — sum of `non_critical_total`
 - `scope_total` — sum of `scope_total`
 
-If a reviewer's report is missing the FINDINGS_SUMMARY block (e.g., older agent), fall back to counting rows in its FINDINGS block and log a warning so the agent can be tightened later. Schema in `{plugin_dir}/docs/file-formats.md`.
+If a reviewer's report is missing the FINDINGS_SUMMARY block (e.g., older agent), fall back to counting rows in its FINDINGS block and log a warning so the agent can be tightened later. Schema in `{plugin_dir}/templates/blocks/block-schemas.md`.
 
 Branch on the counts:
 

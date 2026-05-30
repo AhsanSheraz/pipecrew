@@ -84,7 +84,7 @@ Pass D shipped JSON migrations for `API_DESIGN`, `DATA_MODEL`, `INFRASTRUCTURE_I
 **Scope per block**: same shape as D1
 - `templates/blocks/{name}.example.json`
 - `agents/solution-architect.md` block section emits JSON-first, prose-second
-- `docs/file-formats.md` schema doc
+- `templates/blocks/block-schemas.md` schema doc
 - `eval/tests/01-templates-parse.js` shape check
 
 **Why deferred**: the additive-safe pattern means consumers can stay on prose. Migrate only when a real consumer pain emerges (e.g., schema-implementer occasionally misses a contract change because the prose is ambiguous). Defer `RISKS` indefinitely — it's narrative and unlikely to benefit.

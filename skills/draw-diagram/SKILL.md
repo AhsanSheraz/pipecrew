@@ -176,4 +176,4 @@ Code-scan mode is **honest about uncertainty** — unresolved hosts emit `(unkno
 - [`skills/discover/phases/phase-b-domain-and-architect.md`](../discover/phases/phase-b-domain-and-architect.md) — the original Phase B logic workspace mode re-uses
 - [`agents/solution-architect.md`](../../agents/solution-architect.md) — workspace-mode agent (discovery mode)
 - [`agents/architecture-mapper.md`](../../agents/architecture-mapper.md) — code-scan-mode agent
-- [`docs/file-formats.md#mapper_report`](../../docs/file-formats.md) — schema for the MAPPER_REPORT block emitted in code-scan mode
+- [`templates/blocks/block-schemas.md#mapper_report`](../../templates/blocks/block-schemas.md) — schema for the MAPPER_REPORT block emitted in code-scan mode

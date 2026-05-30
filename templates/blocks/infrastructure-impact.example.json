@@ -1,5 +1,5 @@
 {
-  "_comment": "Canonical example for the INFRASTRUCTURE_IMPACT block emitted by the solution-architect inside outputs/phase-2-architecture.md. Per-infra-repo entries listing resources added, modified, or removed. The JSON is the structured INDEX consumed by Phase 5d (terraform-implementer / cdk-stack-implementer) to enumerate the changes per repo. Detailed configuration (cross-stack references, IAM policies, naming conventions) lives in the prose under each repo's section. Field reference lives in docs/file-formats.md. If a feature has no infrastructure impact, emit `{\"infra_changes\": []}` rather than omitting the block.",
+  "_comment": "Canonical example for the INFRASTRUCTURE_IMPACT block emitted by the solution-architect inside outputs/phase-2-architecture.md. Per-infra-repo entries listing resources added, modified, or removed. The JSON is the structured INDEX consumed by Phase 5d (terraform-implementer / cdk-stack-implementer) to enumerate the changes per repo. Detailed configuration (cross-stack references, IAM policies, naming conventions) lives in the prose under each repo's section. Field reference lives in block-schemas.md. If a feature has no infrastructure impact, emit `{\"infra_changes\": []}` rather than omitting the block.",
   "infra_changes": [
     {
       "repo": "platform-cdk",

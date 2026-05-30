@@ -109,7 +109,7 @@ In Phase B2.0 (right before this dispatch), the orchestrator dispatched a `repo-
 {run_dir}/outputs/repo-profiles/{repo_key}.json
 ```
 
-Schema: `{plugin_dir}/templates/blocks/repo-profile.example.json` and `{plugin_dir}/docs/file-formats.md` § REPO_PROFILE.
+Schema: `{plugin_dir}/templates/blocks/repo-profile.example.json` and `{plugin_dir}/templates/blocks/block-schemas.md` § REPO_PROFILE.
 
 Each profile gives you, per repo: framework + version, entities, endpoints (or event handlers for workers), integrations (outbound + inbound HTTP / events / storage), auth pattern, persistence + migration tool, tests, key conventions, constraints observed, audit findings, frontend signals (frontend repos), infra signals (CDK / Terraform repos), and a free-form `notes_for_architect`.
 
@@ -294,7 +294,7 @@ If only one repo: list it. If none: `N/A`.]
 <!-- END AFFECTED_CONTRACTS -->
 
 <!-- BEGIN AFFECTED_SERVICES -->
-**Read `{plugin_dir}/templates/blocks/affected-services.example.json` before writing this section.** Emit a ```` ```json ```` fenced block whose structure matches that file (omit the `_comment` field). The JSON is the source of truth — downstream phases extract it with `node {plugin_dir}/scripts/extract-block.js {this-file} AFFECTED_SERVICES`. Schema reference: `{plugin_dir}/docs/file-formats.md` § AFFECTED_SERVICES.
+**Read `{plugin_dir}/templates/blocks/affected-services.example.json` before writing this section.** Emit a ```` ```json ```` fenced block whose structure matches that file (omit the `_comment` field). The JSON is the source of truth — downstream phases extract it with `node {plugin_dir}/scripts/extract-block.js {this-file} AFFECTED_SERVICES`. Schema reference: `{plugin_dir}/templates/blocks/block-schemas.md` § AFFECTED_SERVICES.
 
 ```json
 { ... matches templates/blocks/affected-services.example.json ... }
@@ -317,7 +317,7 @@ One line per service explaining why it's involved. The JSON above carries the da
 <!-- END ARCHITECTURE_DECISION -->
 
 <!-- BEGIN DATA_MODEL -->
-**Read `{plugin_dir}/templates/blocks/data-model.example.json` before writing this section.** Emit a ```` ```json ```` fenced block whose structure matches that file (omit the `_comment` field). The JSON is the structured INDEX downstream consumers extract via `node {plugin_dir}/scripts/extract-block.js {this-file} DATA_MODEL` to enumerate entity and database changes per service. Schema reference: `{plugin_dir}/docs/file-formats.md` § DATA_MODEL.
+**Read `{plugin_dir}/templates/blocks/data-model.example.json` before writing this section.** Emit a ```` ```json ```` fenced block whose structure matches that file (omit the `_comment` field). The JSON is the structured INDEX downstream consumers extract via `node {plugin_dir}/scripts/extract-block.js {this-file} DATA_MODEL` to enumerate entity and database changes per service. Schema reference: `{plugin_dir}/templates/blocks/block-schemas.md` § DATA_MODEL.
 
 ```json
 { ... matches templates/blocks/data-model.example.json ... }
@@ -355,7 +355,7 @@ If no contract changes: write `N/A — no contract repos affected`.
 <!-- END CONTRACT_DESIGN -->
 
 <!-- BEGIN API_DESIGN -->
-**Read `{plugin_dir}/templates/blocks/api-design.example.json` before writing this section.** Emit a ```` ```json ```` fenced block whose structure matches that file (omit the `_comment` field). The JSON is the structured INDEX downstream phases extract via `node {plugin_dir}/scripts/extract-block.js {this-file} API_DESIGN` to enumerate per-service endpoints and handlers. Schema reference: `{plugin_dir}/docs/file-formats.md` § API_DESIGN.
+**Read `{plugin_dir}/templates/blocks/api-design.example.json` before writing this section.** Emit a ```` ```json ```` fenced block whose structure matches that file (omit the `_comment` field). The JSON is the structured INDEX downstream phases extract via `node {plugin_dir}/scripts/extract-block.js {this-file} API_DESIGN` to enumerate per-service endpoints and handlers. Schema reference: `{plugin_dir}/templates/blocks/block-schemas.md` § API_DESIGN.
 
 ```json
 { ... matches templates/blocks/api-design.example.json ... }
@@ -394,7 +394,7 @@ Split by service. For each affected service, look up its `spec_policy` in the wo
 <!-- END FRONTEND_ARCHITECTURE -->
 
 <!-- BEGIN INFRASTRUCTURE_IMPACT -->
-**Read `{plugin_dir}/templates/blocks/infrastructure-impact.example.json` before writing this section.** Emit a ```` ```json ```` fenced block whose structure matches that file (omit the `_comment` field). The JSON is the structured INDEX downstream consumers (Phase 5d `terraform-implementer` / `cdk-stack-implementer`) extract via `node {plugin_dir}/scripts/extract-block.js {this-file} INFRASTRUCTURE_IMPACT` to enumerate per-repo resource changes. Schema reference: `{plugin_dir}/docs/file-formats.md` § INFRASTRUCTURE_IMPACT.
+**Read `{plugin_dir}/templates/blocks/infrastructure-impact.example.json` before writing this section.** Emit a ```` ```json ```` fenced block whose structure matches that file (omit the `_comment` field). The JSON is the structured INDEX downstream consumers (Phase 5d `terraform-implementer` / `cdk-stack-implementer`) extract via `node {plugin_dir}/scripts/extract-block.js {this-file} INFRASTRUCTURE_IMPACT` to enumerate per-repo resource changes. Schema reference: `{plugin_dir}/templates/blocks/block-schemas.md` § INFRASTRUCTURE_IMPACT.
 
 ```json
 { ... matches templates/blocks/infrastructure-impact.example.json ... }
@@ -417,7 +417,7 @@ For each infra repo named in the JSON above, give the configuration detail consu
 <!-- END RISKS -->
 
 <!-- BEGIN TASK_SKELETON -->
-**Read `{plugin_dir}/templates/blocks/task-skeleton.example.json` before writing this section.** Emit a ```` ```json ```` fenced block whose structure matches that file (omit the `_comment` field). The JSON is the source of truth — Phase 4.5's task-planner extracts it with `node {plugin_dir}/scripts/extract-block.js {this-file} TASK_SKELETON` and hydrates each sub-task into a per-task markdown file. Schema reference: `{plugin_dir}/docs/file-formats.md` § TASK_SKELETON.
+**Read `{plugin_dir}/templates/blocks/task-skeleton.example.json` before writing this section.** Emit a ```` ```json ```` fenced block whose structure matches that file (omit the `_comment` field). The JSON is the source of truth — Phase 4.5's task-planner extracts it with `node {plugin_dir}/scripts/extract-block.js {this-file} TASK_SKELETON` and hydrates each sub-task into a per-task markdown file. Schema reference: `{plugin_dir}/templates/blocks/block-schemas.md` § TASK_SKELETON.
 
 This block is a per-repo, sub-task-shaped projection of AFFECTED_SERVICES + RISKS — you already have the data in working memory; the skeleton just structures it for the planner. Rules:
 

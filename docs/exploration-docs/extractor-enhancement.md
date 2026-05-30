@@ -25,7 +25,7 @@ node {plugin_dir}/scripts/extract-block.js outputs/phase-2-architecture.md AFFEC
 # → {"services":[{"name":"publisher-service","spec_policy":"api-first",...}],"frontend_required":true,...}
 ```
 
-Schema definitions for every block live in a single canonical location: `templates/blocks/{name}.example.json`. Both the producer agent prompt and `docs/file-formats.md` reference the example file rather than duplicating the schema inline. Add a field → edit one file.
+Schema definitions for every block live in a single canonical location: `templates/blocks/{name}.example.json`. Both the producer agent prompt and `templates/blocks/block-schemas.md` reference the example file rather than duplicating the schema inline. Add a field → edit one file.
 
 ---
 
@@ -47,7 +47,7 @@ Schema definitions for every block live in a single canonical location: `templat
 ### Documentation
 | File | Purpose |
 |------|---------|
-| `docs/file-formats.md` | Schema reference for all 4 blocks. Explains the pattern + how to add a new block. |
+| `templates/blocks/block-schemas.md` | Schema reference for all 4 blocks. Explains the pattern + how to add a new block. |
 | `skills/deliver/SKILL.md` § Utility scripts | Inventory of all 5 plugin scripts so the orchestrator knows what's available before any phase runs. |
 
 ### Migrated consumer phases

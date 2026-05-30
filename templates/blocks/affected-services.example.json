@@ -1,5 +1,5 @@
 {
-  "_comment": "Canonical example for the AFFECTED_SERVICES block emitted by the solution-architect inside outputs/phase-2-architecture.md. Field reference and consumer list live in docs/file-formats.md. Producers must match this structure; consumers extract via scripts/extract-block.js. The _comment field is illustrative only — strip it from real output.",
+  "_comment": "Canonical example for the AFFECTED_SERVICES block emitted by the solution-architect inside outputs/phase-2-architecture.md. Field reference and consumer list live in block-schemas.md. Producers must match this structure; consumers extract via scripts/extract-block.js. The _comment field is illustrative only — strip it from real output.",
   "services": [
     {
       "name": "publisher-service",

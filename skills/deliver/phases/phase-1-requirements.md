@@ -41,7 +41,7 @@ After the prose requirements, emit a structured index block that downstream phas
 ```
 <!-- END REQUIREMENTS_INDEX -->
 
-The JSON must include every FR-X and EC-X you wrote in the prose, with their summary text. This is the canonical source — downstream agents (Phase 4 task generation, reviewers, Phase 6 assessor) extract it via `node {plugin_dir}/scripts/extract-block.js outputs/phase-1-requirements.md REQUIREMENTS_INDEX` rather than re-parsing the prose. Schema in `{plugin_dir}/docs/file-formats.md`.
+The JSON must include every FR-X and EC-X you wrote in the prose, with their summary text. This is the canonical source — downstream agents (Phase 4 task generation, reviewers, Phase 6 assessor) extract it via `node {plugin_dir}/scripts/extract-block.js outputs/phase-1-requirements.md REQUIREMENTS_INDEX` rather than re-parsing the prose. Schema in `{plugin_dir}/templates/blocks/block-schemas.md`.
 
 IMPORTANT: Focus on WHAT (functional requirements, API contract, edge cases, testing) — NOT on HOW the UI should look. UX design decisions will be made by the UX consultant agent in a later phase.
 

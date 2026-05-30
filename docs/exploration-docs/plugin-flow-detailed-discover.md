@@ -491,7 +491,7 @@ Every artifact has a downstream consumer. Anything onboarding skips, `/deliver` 
 - `attention-and-caching.md` — why we treat attention as the bottleneck
 - `pipecrew-vs-agent-teams.md` — comparison with native Claude Code Agent Teams
 - `standalone-usage.md` — running individual skills outside the pipelines
-- `docs/file-formats.md` — canonical schema for every JSON block
+- `templates/blocks/block-schemas.md` — canonical schema for every JSON block
 - `docs/observability.md` — `checkpoints.jsonl` event spec
 - `docs/transient-failures.md` — retry / halt rules
 - `docs/site-view.md` — gate contract + label catalog

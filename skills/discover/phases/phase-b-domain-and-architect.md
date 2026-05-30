@@ -76,7 +76,7 @@ shape (see {plugin_dir}/templates/blocks/repo-profile.example.json), and write i
 
   {run_dir}/outputs/repo-profiles/{repo.name}.json
 
-Schema reference: {plugin_dir}/docs/file-formats.md § REPO_PROFILE.
+Schema reference: {plugin_dir}/templates/blocks/block-schemas.md § REPO_PROFILE.
 
 Keep the file under ~3 KB. Sample representative endpoints/entities — don't enumerate exhaustively. Trust your role-specific guidance in the system prompt about which fields apply (frontend_signals for frontend repos, infra_signals for cdk/terraform repos, entities + endpoints for api-services + workers).
 ```
@@ -86,6 +86,19 @@ Per critical rule #13: parse each agent's `<usage>` block, append a Dispatch Log
 **Wait for ALL profiles to land** before advancing to B2. If any agent fails:
 - Apply the standard transient-failure retry policy (`docs/transient-failures.md`).
 - If a repo's profile is still missing after retry, emit a `⚠ Deferred` line and proceed to B2 with the available profiles. The architect will note the missing profile and recommend `/discover --resume` to re-attempt.
+
+**Validate the profiles (deterministic gate — runs BEFORE the B2 architect dispatch):**
+
+```bash
+node {plugin_dir}/scripts/validate-repo-profile.js {run_dir}/outputs/repo-profiles/
+```
+
+This is the cheap catch for a Sonnet writer that truncated its JSON, wrapped it in a markdown fence, or omitted a contract key (`integrations` sub-arrays, `specs`, role-non-applicable fields that must be `null`/`[]`). Exit 0 → every profile is well-formed; proceed to B2. Exit 1 → the validator names each bad file and the specific errors:
+
+- Re-dispatch `repo-discoverer` for ONLY the failed repo(s) as a fix round, passing the validator's error list verbatim in the prompt so the agent knows exactly what to correct. Re-validate.
+- If a profile still fails after one fix round, treat it like an unrecoverable miss: emit a `⚠ Deferred` line for that repo and proceed to B2 with the valid profiles (the architect notes the gap and recommends `/discover --resume`). Do NOT feed a malformed profile into the Opus synthesis pass — a broken `integrations` block silently corrupts the topology diagrams.
+
+Do NOT advance to B2 until the validator returns 0 for every profile that did land.
 
 **Phase-done emit**:
 
@@ -127,7 +140,7 @@ PROFILES TO READ (one per repo):
 - {repo.name}: {run_dir}/outputs/repo-profiles/{repo.name}.json
 
 Schema for each: {plugin_dir}/templates/blocks/repo-profile.example.json
-Field reference: {plugin_dir}/docs/file-formats.md § REPO_PROFILE.
+Field reference: {plugin_dir}/templates/blocks/block-schemas.md § REPO_PROFILE.
 
 Optionally cross-check each profile against `{repo.path}/CLAUDE.md` (when it
 exists). Read raw source code ONLY when a profile's `notes_for_architect` or
@@ -332,7 +345,7 @@ If the user says "yes", show the platform.md content.
 
 ### B2.6: Observability Extraction
 
-Populate the `## Observability` section of `platform.md` with the OBSERVABILITY block. The block is the routing table the future `{slug}-troubleshooter` agent reads to know which log destination to query for a given `(service, env)` pair, plus operator dashboards and runbook pointers. Schema lives at [`docs/file-formats.md#observability`](../../../docs/file-formats.md) and the canonical example at [`templates/blocks/observability.example.json`](../../../templates/blocks/observability.example.json).
+Populate the `## Observability` section of `platform.md` with the OBSERVABILITY block. The block is the routing table the future `{slug}-troubleshooter` agent reads to know which log destination to query for a given `(service, env)` pair, plus operator dashboards and runbook pointers. Schema lives at [`templates/blocks/block-schemas.md#observability`](../../../templates/blocks/block-schemas.md) and the canonical example at [`templates/blocks/observability.example.json`](../../../templates/blocks/observability.example.json).
 
 **Skip if**: the workspace has no repo with `role: "infrastructure"` AND no `mock-server` repo with a `docker-compose.yml`. In that case write an empty block (`{"log_destinations": [], "trace": {}, "dashboards": [], "runbooks": {}}`) and proceed to B3 — the troubleshooter still works (it'll ask the user to paste logs) but its routing table is empty.
 
@@ -486,7 +499,7 @@ On `yes` (or after `review-each` resolves): replace the block contents between t
 ```markdown
 ## Observability
 
-> Log destinations, trace propagation, dashboards, and runbook pointers. The JSON block below is the source of truth (machine-readable); the prose under it is human commentary. Producer: `scripts/extract-observability.js` during `/discover` Phase B, curated with the user. Consumer: `{slug}-troubleshooter` agent. Schema: see [`docs/file-formats.md`](.../docs/file-formats.md#observability) and [`templates/blocks/observability.example.json`](.../templates/blocks/observability.example.json).
+> Log destinations, trace propagation, dashboards, and runbook pointers. The JSON block below is the source of truth (machine-readable); the prose under it is human commentary. Producer: `scripts/extract-observability.js` during `/discover` Phase B, curated with the user. Consumer: `{slug}-troubleshooter` agent. Schema: see [`templates/blocks/block-schemas.md`](.../templates/blocks/block-schemas.md#observability) and [`templates/blocks/observability.example.json`](.../templates/blocks/observability.example.json).
 
 <!-- BEGIN OBSERVABILITY -->
 ```json

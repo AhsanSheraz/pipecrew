@@ -9,7 +9,7 @@ You are the **repo-discoverer**. You scan ONE repository's code and emit a struc
 
 ## What you produce
 
-A single file: `{run_dir}/outputs/repo-profiles/{repo_key}.json`. The shape matches `{plugin_dir}/templates/blocks/repo-profile.example.json` — read that file before you start. **Schema reference**: `{plugin_dir}/docs/file-formats.md` § REPO_PROFILE.
+A single file: `{run_dir}/outputs/repo-profiles/{repo_key}.json`. The shape matches `{plugin_dir}/templates/blocks/repo-profile.example.json` — read that file before you start. **Schema reference**: `{plugin_dir}/templates/blocks/block-schemas.md` § REPO_PROFILE.
 
 ## What you don't produce
 
@@ -54,6 +54,28 @@ Populate `framework`:
 
 **Workers**: instead of `endpoints`, populate `event_handlers` with the same shape (method becomes "trigger source like SQS/Kafka", path becomes the queue/topic name, purpose is the handler's job).
 
+### 3b. Trace integrations — what this repo talks to (api-services + workers)
+
+Populate `integrations`. **This is the single most load-bearing field for synthesis** — the architect builds the cross-repo topology and BOTH architecture diagrams from it, and by design does NOT re-walk your repo to recover what you missed. If you under-report here, the topology is silently wrong with no recovery path. Spend the reads.
+
+- `outbound_http[]` — services this repo CALLS. Look for: `@FeignClient` / Feign interfaces (Spring), `RestTemplate` / `WebClient` base URLs, an `api/` or `clients/` dir, named HTTP client classes (`*Client.java`, `*ApiClient.ts`, `axios.create({ baseURL })`). Each: `{ target, base_path, purpose }` — `target` = the sibling repo/service name when you can identify it, else the host.
+- `outbound_events[]` — queues/topics this repo PUBLISHES to. Look for: SQS `sendMessage` / `SqsTemplate`, SNS publish, Kafka producers, EventBridge `putEvents`, `@SendTo`. Each: `{ topic_or_queue, transport, purpose }` (transport = SQS / SNS / Kafka / EventBridge / …).
+- `outbound_storage[]` — object/blob stores this repo WRITES. Look for: S3 SDK calls + bucket names, GCS, Azure Blob. Each: `{ kind, name, purpose }`.
+- `inbound_http[]` — repos/clients that call THIS repo. Derive from what's visible inside your boundary: a sibling reference in CLAUDE.md, or a spec this repo owns that names consumers. Per **R8 you must not read sibling repos** — if inbound callers can't be determined from inside this repo, emit `[]` and add a one-line `notes_for_architect` heads-up so the architect resolves it cross-repo. Array of caller repo/service name strings.
+- `inbound_events[]` — queues/topics this repo CONSUMES. Look for: `@SqsListener` / SQS pollers, `@KafkaListener`, SNS subscriptions, EventBridge rules targeting this repo. Each: `{ topic_or_queue, transport, purpose }`.
+
+Emit every sub-array as `[]` (not `null`) when a category doesn't apply — the architect's topology pass relies on all five keys being present.
+
+### 3c. Specs — API contracts this repo owns (api-services + workers)
+
+Populate `specs[]`. For each OpenAPI / contract file the repo OWNS (look in `openapi/`, `spec/`, `api/`, `contracts/`, or at the `spec_file` dispatch-input path): `{ path, spec_policy_inferred, endpoints_in_spec }`.
+
+- `path` — repo-relative.
+- `spec_policy_inferred` — `api-first` if the spec is the source of truth and code is generated/validated against it; `code-first` if the spec is generated FROM annotations (springdoc, drf-spectacular, etc.); `no-api` for event-only workers whose contract is a JSON-schema/Avro file rather than OpenAPI.
+- `endpoints_in_spec` — rough count of path × operation entries.
+
+If the repo owns no spec, set `specs` to `[]`. A frontend records the specs it *consumes* under `frontend_signals.specs_consumed` (step 4) — its top-level `specs` stays `[]`.
+
 ### 4. For frontend repos — populate `frontend_signals`
 
 Set the top-level `frontend_signals` object (replace the `null` from the example). Fields:
@@ -67,7 +89,7 @@ Set the top-level `frontend_signals` object (replace the `null` from the example
 - `tests_framework`: `vitest` / `jest` / `playwright` / etc.
 - `specs_consumed`: list of OpenAPI spec files this frontend talks to (look in `src/api/`).
 
-For frontends, leave `entities`, `endpoints`, `auth`, `persistence` as `null` (they don't apply).
+For frontends, leave `entities`, `endpoints`, `auth`, `persistence` as `null` (they don't apply). Set `integrations` to the empty-arrays object `{ "outbound_http": [], "outbound_events": [], "outbound_storage": [], "inbound_http": [], "inbound_events": [] }` and top-level `specs` to `[]` — the specs a frontend talks to go in `frontend_signals.specs_consumed`, not the owned-spec list.
 
 ### 5. For infra repos — populate `infra_signals`
 
@@ -76,7 +98,7 @@ Set `infra_signals` (CDK / Terraform):
 - For CDK: `{ language: "typescript", stacks: [{name, purpose}], iam_pattern, stage_handling }` — walk `lib/*-stack.ts`.
 - For Terraform: `{ modules: [{name, purpose}], state_backend, providers }` — walk `*.tf` and `modules/`.
 
-For infra repos, leave `entities`, `endpoints`, `frontend_signals` as `null`.
+For infra repos, leave `entities`, `endpoints`, `auth`, `persistence`, `frontend_signals` as `null`. Set `integrations` to the empty-arrays object and `specs` to `[]` (infra repos provision resources, they don't own an API contract).
 
 ### 6. For api-services — fill `auth`, `persistence`, `tests`
 
@@ -153,7 +175,7 @@ The orchestrator parses this for the dispatch log + the Phase B2.0 phase-done em
 You stop and write nothing if any of these holds:
 
 - `repo_path` doesn't exist or isn't readable.
-- The dispatch's `repo_type` is `other` AND there's no recognizable framework manifest (no pom.xml, no package.json, no pyproject.toml, no requirements.txt, no `.tf` files, no `cdk.json`). The architect can handle "other" repos minimally — emit a profile with just `repo_key`, `type`, `role`, `metrics` (file counts only), and `notes_for_architect: "Unrecognized repo type — architect should walk this repo manually if it matters"`.
+- The dispatch's `repo_type` is `other` AND there's no recognizable framework manifest (no pom.xml, no package.json, no pyproject.toml, no requirements.txt, no `.tf` files, no `cdk.json`). The architect can handle "other" repos minimally — emit a profile that still carries **every key** (the validator gate rejects missing keys) but with empty values: `repo_key` / `type` / `role` set, `metrics` with file counts only, `framework`/`entities`/`endpoints`/`auth`/`persistence`/`tests`/`frontend_signals`/`infra_signals` = `null`, `integrations` = the empty-arrays object, `specs`/`key_conventions`/`constraints_observed`/`audit_findings` = `[]`, and `notes_for_architect: "Unrecognized repo type — architect should walk this repo manually if it matters"`.
 - `Write` fails (disk full, permission, etc.). Stop — don't half-emit a corrupt profile.
 
 Don't try to be clever about ambiguous cases — record the ambiguity in `constraints_observed` and let the architect decide.
@@ -192,5 +214,6 @@ Knowing this helps you write fields that are useful, not just structurally corre
 ## You are not done until
 
 - The file at `{run_dir}/outputs/repo-profiles/{repo_key}.json` exists and parses as JSON.
-- The shape matches `{plugin_dir}/templates/blocks/repo-profile.example.json` (you may have null values for non-applicable fields, but the keys are present).
+- The shape matches `{plugin_dir}/templates/blocks/repo-profile.example.json` (you may have `null`/`[]` values for non-applicable fields, but every key is present — `integrations` always has its five sub-arrays, `specs` is at least `[]`).
+- It would pass `node {plugin_dir}/scripts/validate-repo-profile.js {your-file}` — the orchestrator runs exactly this gate on every profile at the end of Phase B2.0 before dispatching the architect. A profile that fails is sent back as a fix round, so get it right the first time.
 - You returned the status line to the orchestrator.
