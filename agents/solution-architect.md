@@ -278,19 +278,22 @@ Do NOT read whole directories or browse code "to learn the patterns" — trust t
 # Technical Design: [Feature Name]
 
 <!-- BEGIN AFFECTED_CONTRACTS -->
-## Affected Contracts
-List every **contract repo** this feature touches. Contract repos host shared data definitions (JSON Schema, Avro, Protobuf) used by multiple services. They are edited by `/deliver` Phase 3a, BEFORE service specs and implementers, because service specs may `$ref` these schemas and service code may generate types from them.
+**Read `{plugin_dir}/templates/blocks/affected-contracts.example.json` before writing this section.** Emit a ```` ```json ```` fenced block whose structure matches that file (omit the `_comment` field). The JSON is the source of truth — Phase 3a's contract dispatcher extracts it with `node {plugin_dir}/scripts/extract-block.js {this-file} AFFECTED_CONTRACTS` (or reads `outputs/blocks/affected-contracts.json` after `split-design.js` runs), and the task-planner uses it to resolve event-schema file paths for `no-api` workers. Schema reference: `{plugin_dir}/templates/blocks/block-schemas.md` § AFFECTED_CONTRACTS.
 
-For each affected contract repo:
-- **{repo-key}** (format: Avro | JSON Schema | Protobuf | mixed): [one-line reason]
-  - file: `{relative_path}` — {one-line change}
-  - file: `{another_path}` — {change}
+Contract repos host shared data definitions (JSON Schema, Avro, Protobuf) used by multiple services. They are edited BEFORE service specs and implementers, because service specs may `$ref` these schemas and service code may generate types from them.
 
-If no contract changes: write `N/A`.
+```json
+{ ... matches templates/blocks/affected-contracts.example.json ... }
+```
 
-## Contract Edit Order
-[If multiple contract repos are affected, give an order — a contract referenced by another must come first. E.g., "1. shared-types (defines PublisherRef), 2. order-events (uses PublisherRef in OrderCreated)".
-If only one repo: list it. If none: `N/A`.]
+If no contract repos are affected, emit `{"contracts": [], "edit_order": [], "breaking_changes_authorized": false}` — do NOT omit the block. Phase 3a's skip-decision reads `contracts[].length`.
+
+## Notes
+One line per affected repo explaining what changed at the conceptual level. The JSON above carries the file list + classification; this prose is for human context only.
+- **{repo-key}**: [why this contract repo is touched]
+
+## Contract Edit Order — rationale
+[1–2 lines explaining `edit_order` only if multiple repos are listed AND the order is non-obvious (e.g., "data-schemas defines OrderRef; order-events `$ref`s it"). Otherwise `N/A`.]
 <!-- END AFFECTED_CONTRACTS -->
 
 <!-- BEGIN AFFECTED_SERVICES -->
@@ -335,21 +338,20 @@ If the feature touches no data layer, emit `{"entities": [], "database_changes":
 
 <!-- BEGIN CONTRACT_DESIGN -->
 ## Contract Design
-For each file in AFFECTED_CONTRACTS, give the concrete change with an explicit **additive / breaking** label. The schema-implementer refuses breaking changes unless the design includes the literal sentence `breaking changes authorized: yes` right after listing them.
+For each file in AFFECTED_CONTRACTS, give the concrete change content the schema-implementer needs to apply (Avro field definitions, JSON Schema `$ref`s, Protobuf field numbers, default values). The AFFECTED_CONTRACTS JSON above carries the **classification** (`additive` / `breaking`) and the **navigable index**; this prose section carries the **schema-edit detail** that doesn't fit a uniform field set.
 
-For each contract repo in edit order:
+For each contract repo in `edit_order`:
 
 ### {repo-key}
-- **File**: `{relative_path}` (format: Avro | JSON Schema | Protobuf)
-  - **Change**: {e.g., add field `contractId` of type `["null", "string"]` with default `null` to the `Order` record}
-  - **Classification**: additive | breaking
-  - **Rationale**: {one line}
+- **File**: `{relative_path}`
+  - **Change**: {full schema-edit content — e.g., add field `contractId` of type `["null", "string"]` with default `null` to the `Order` record; include the full new field block as it should appear in the file}
   - **Consumers**: {services/workers that read this schema today — helps reviewers judge blast radius}
 
+The schema-implementer refuses any file with `classification: "breaking"` in AFFECTED_CONTRACTS unless `breaking_changes_authorized: true` is set there. If you set the flag to `true`, you MUST include a `### Breaking Change Authorization` sub-section below explaining: which files are breaking, which consumers must update in lockstep, and the migration plan. Without the authorization sub-section the flag is rejected.
+
 ### Breaking Change Authorization
-[Include this only if any change above is `breaking`. Otherwise omit.]
-The following breaking changes are needed because {reason}. Consumers that must update in lockstep: {list}. Migration plan: {one paragraph}.
-breaking changes authorized: yes
+[Include this only if `breaking_changes_authorized: true` in the AFFECTED_CONTRACTS JSON. Otherwise omit.]
+The following breaking changes are needed because {reason}. Affected files: {list `repo_key:path` pairs whose `classification: breaking`}. Consumers that must update in lockstep: {list}. Migration plan: {one paragraph}.
 
 If no contract changes: write `N/A — no contract repos affected`.
 <!-- END CONTRACT_DESIGN -->
