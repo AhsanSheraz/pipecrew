@@ -15,7 +15,7 @@
  *   1 — file unreadable / extract-block failed / structural error
  *   2 — usage error
  *
- * Schema reference: docs/file-formats.md#observability
+ * Schema reference: templates/blocks/block-schemas.md#observability
  * Canonical example: templates/blocks/observability.example.json
  *
  * Zero dependencies — pure Node stdlib.

@@ -1,6 +1,6 @@
-# Machine-readable file formats
+# Structured block schema registry — producer/consumer contracts for every machine-read JSON block
 
-Phase outputs in PipeCrew are markdown files written for humans first, but several pieces of data inside them are extracted programmatically by downstream phases. This document defines the structured blocks that downstream consumers depend on, so the producer (typically the `solution-architect`) and the consumer (a phase orchestrator) agree on schema.
+The contract registry for every machine-read JSON block in PipeCrew. Phase outputs are markdown files written for humans first, but several pieces of data inside them are extracted programmatically by downstream phases. This document is the catalogue: one entry per block, naming its producer, its consumers, where it lives, and its field rules — so the producer (typically the `solution-architect`) and the consumer (a phase orchestrator) agree on schema. The canonical example files sit beside this doc in `templates/blocks/`; this doc carries the field reference tables and the producer/consumer wiring those examples can't express.
 
 ## How structured blocks work
 
@@ -25,7 +25,7 @@ The orchestrator (an LLM) can read the script's stdout as-is — JSON is its nat
 **Producer**: `solution-architect` (Phase 2 design output)
 **Consumers**: Phase 3 (spec edit), Phase 4 (plan), Phase 5 (build), Phase 5.5 (review), Phase 7 (report)
 **File**: `{run_dir}/outputs/phase-2-architecture.md`
-**Canonical example**: [`templates/blocks/affected-services.example.json`](../templates/blocks/affected-services.example.json) — the single source of truth for the structure. Update that file when the schema changes; this doc only carries the field reference table below.
+**Canonical example**: [`templates/blocks/affected-services.example.json`](./affected-services.example.json) — the single source of truth for the structure. Update that file when the schema changes; this doc only carries the field reference table below.
 
 **Field reference:**
 
@@ -49,7 +49,7 @@ The orchestrator (an LLM) can read the script's stdout as-is — JSON is its nat
 **Producer**: `solution-architect` (Phase 2 design output)
 **Consumers**: Phase 3b (openapi-spec-editor — enumerates endpoints to edit), Phase 4 (task generation — selects per-service endpoint subsets), Phase 5 (backend implementers — read via task file)
 **File**: `{run_dir}/outputs/phase-2-architecture.md`
-**Canonical example**: [`templates/blocks/api-design.example.json`](../templates/blocks/api-design.example.json) — the structured INDEX. Detailed per-endpoint schemas (request/response bodies for code-first, event-handler details for no-api) live in the prose under each service's section.
+**Canonical example**: [`templates/blocks/api-design.example.json`](./api-design.example.json) — the structured INDEX. Detailed per-endpoint schemas (request/response bodies for code-first, event-handler details for no-api) live in the prose under each service's section.
 
 **Field reference:**
 
@@ -84,7 +84,7 @@ The JSON serves as the addressable index for orchestration (which endpoints to e
 **Producer**: `solution-architect` (Phase 2 design output)
 **Consumers**: Phase 4 (task generation — selects per-service entity/DB changes), Phase 5 (backend implementers — read via task file), Phase 6 (assessor — checks migrations are present)
 **File**: `{run_dir}/outputs/phase-2-architecture.md`
-**Canonical example**: [`templates/blocks/data-model.example.json`](../templates/blocks/data-model.example.json) — the structured INDEX. Field-level details (types, relationships, migration SQL) live in the prose under each entity / change section.
+**Canonical example**: [`templates/blocks/data-model.example.json`](./data-model.example.json) — the structured INDEX. Field-level details (types, relationships, migration SQL) live in the prose under each entity / change section.
 
 **Field reference:**
 
@@ -113,7 +113,7 @@ If a feature touches no data layer, the producer emits `{"entities": [], "databa
 **Producer**: `solution-architect` (Phase 2 design output)
 **Consumers**: Phase 5d (`terraform-implementer`, `cdk-stack-implementer` — read via task file), Phase 6 (assessor — verifies cross-stack refs)
 **File**: `{run_dir}/outputs/phase-2-architecture.md`
-**Canonical example**: [`templates/blocks/infrastructure-impact.example.json`](../templates/blocks/infrastructure-impact.example.json) — the structured INDEX. Configuration details (cross-stack ref shapes, IAM policy contents, naming conventions) live in the prose under each repo's section.
+**Canonical example**: [`templates/blocks/infrastructure-impact.example.json`](./infrastructure-impact.example.json) — the structured INDEX. Configuration details (cross-stack ref shapes, IAM policy contents, naming conventions) live in the prose under each repo's section.
 
 **Field reference:**
 
@@ -143,7 +143,7 @@ If no infra repo is affected, the producer emits `{"infra_changes": []}` rather 
 **Producer**: `architecture-mapper` agent (dispatched by `/draw-diagram --scan` or `/draw-diagram --repos`)
 **Consumers**: `/draw-diagram` skill orchestrator (prints summary), human reviewer (audits skipped/unresolved items), future `--reconcile` mode (compares against `platform.md`)
 **File**: emitted in the agent's response alongside `architecture-overview.mmd` + `architecture.mmd` blocks; the orchestrator extracts it for printing
-**Canonical example**: [`templates/blocks/mapper-report.example.json`](../templates/blocks/mapper-report.example.json)
+**Canonical example**: [`templates/blocks/mapper-report.example.json`](./mapper-report.example.json)
 
 **Field reference:**
 
@@ -177,7 +177,7 @@ The MAPPER_REPORT exists so the human reviewer can judge **what the mapper saw v
 **Producer**: workspace product-owner agent (Phase 1 dispatch instructs it)
 **Consumers**: Phase 4 (task generation), Phase 5.5 (reviewers walking FR/EC), Phase 6 (assessor)
 **File**: `{run_dir}/outputs/phase-1-requirements.md`
-**Canonical example**: [`templates/blocks/requirements-index.example.json`](../templates/blocks/requirements-index.example.json)
+**Canonical example**: [`templates/blocks/requirements-index.example.json`](./requirements-index.example.json)
 
 **Field reference:**
 
@@ -198,7 +198,7 @@ The `services` mapping (which service owns which FR/EC) lives in `AFFECTED_SERVI
 **Producer**: every implementer agent (per common-rules R9, in its final report)
 **Consumers**: code reviewers (Phase 5.5) — verify the implementer's claim against actual diff
 **File**: each implementer's report (in-context, then archived to `{run_dir}/outputs/phase-5-implementer-{repo}.md`)
-**Canonical example**: [`templates/blocks/coverage.example.json`](../templates/blocks/coverage.example.json)
+**Canonical example**: [`templates/blocks/coverage.example.json`](./coverage.example.json)
 
 **Field reference:**
 
@@ -216,7 +216,7 @@ The `services` mapping (which service owns which FR/EC) lives in `AFFECTED_SERVI
 **Producer**: every code reviewer (spring-boot, react, nestjs, nextjs)
 **Consumers**: Phase 5.5 Step 2 (gate decision logic)
 **File**: each reviewer's report (in-context, then archived to `{run_dir}/outputs/phase-5-5-code-review.md`)
-**Canonical example**: [`templates/blocks/findings-summary.example.json`](../templates/blocks/findings-summary.example.json)
+**Canonical example**: [`templates/blocks/findings-summary.example.json`](./findings-summary.example.json)
 
 **Field reference:**
 
@@ -237,7 +237,7 @@ The summary is pre-computed by the reviewer so the orchestrator's gate decision 
 **Producer**: `scripts/extract-observability.js` during `/discover` Phase B (deterministic IaC parse), curated by the LLM with the user to fill the parts no parser can extract (trace correlation header, dashboard URLs, runbook pointers).
 **Consumers**: `{slug}-troubleshooter` agent (selects a row by `service` + `env`, formats `query` with `{since}` / `{filter}` placeholders, runs via Bash), `scripts/validate-observability.js` (required-fields check at end of Phase B and start of `/troubleshoot`)
 **File**: `{workspace_root}/{slug}/context/platform.md` under the `## Observability` H2 section
-**Canonical example**: [`templates/blocks/observability.example.json`](../templates/blocks/observability.example.json) — single source of truth for the structure. Update that file when the schema changes; this doc only carries the field reference table below.
+**Canonical example**: [`templates/blocks/observability.example.json`](./observability.example.json) — single source of truth for the structure. Update that file when the schema changes; this doc only carries the field reference table below.
 
 **Field reference:**
 
@@ -263,6 +263,45 @@ The summary is pre-computed by the reviewer so the orchestrator's gate decision 
 | `runbooks.index` | string | Repo-relative path to the runbook index file (e.g., `docs/runbooks/README.md`). |
 
 If the workspace has no observability stack (toy or local-only), the producer emits `{"log_destinations": [], "trace": {}, "dashboards": [], "runbooks": {}}` rather than omitting the block — empty arrays preserve the contract for downstream consumers.
+
+---
+
+### `REPO_PROFILE`
+
+**Producer**: `repo-discoverer` agent (Sonnet) during `/discover` Phase B2.0 — one dispatch per repo, fired in parallel.
+**Consumers**: `solution-architect` (Phase B2 synthesis — reads the full set of profiles via direct `Read` + `JSON.parse`), `scripts/validate-repo-profile.js` (required-fields + shape gate run at the end of Phase B2.0, before the architect dispatch).
+**File**: `{run_dir}/outputs/repo-profiles/{repo_key}.json` — **one standalone `.json` file per repo**.
+**Canonical example**: [`templates/blocks/repo-profile.example.json`](./repo-profile.example.json) — single source of truth for the structure. Update that file when the schema changes; this doc only carries the field reference table below.
+
+> **This block is an exception to "How structured blocks work" above.** `REPO_PROFILE` is NOT a `<!-- BEGIN -->`…`<!-- END -->` section embedded in a markdown file — it is a bare JSON file written with the `Write` tool, no fence, no markers. `extract-block.js` does not apply; consumers `Read` the file and `JSON.parse` it directly. The contract is "every key in the canonical example is present; role-non-applicable fields are `null` (objects) or `[]` (arrays), never omitted" — that invariant is what `validate-repo-profile.js` enforces so a truncated or prose-wrapped write is caught deterministically before the Opus synthesis pass instead of failing mid-synthesis.
+
+**Field reference:**
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `repo_key` | string | Must match a key in `config.repos`. Echoes the dispatch input. |
+| `type` | string | Repo type (`spring-boot` / `react` / `cdk` / …). Echoes the dispatch input. |
+| `role` | string | `api-service` / `frontend` / `mock-server` / `infrastructure` / `worker` / `contract` / `other`. |
+| `scanned_at` | string | ISO-8601 scan time. Optional today; reserved for the incremental-refresh cache (discover-enhancement Win #6). |
+| `head_sha` | string | Repo `HEAD` SHA at scan time. Optional today; reserved for the same cache. |
+| `branch` | string | Branch scanned. Optional today; reserved for the same cache. |
+| `framework` | object\|null | `{ name, version, language_version, key_libs[] }`. `null` only for `type=other` with no recognizable manifest. |
+| `entities[]` | array\|null | `{ name, key_states[], owning_module }`. `null` for frontend / infra repos. |
+| `endpoints[]` | array\|null | `{ method, path, auth, purpose }`. `null` for frontend / infra. Workers omit this and use `event_handlers[]` (same shape; `method` = trigger source, `path` = queue/topic). |
+| `integrations` | object\|null | `{ outbound_http[], outbound_events[], outbound_storage[], inbound_http[], inbound_events[] }`. The cross-repo topology and BOTH architecture diagrams derive from this. Sub-arrays are `[]` (never `null`) when a category doesn't apply. `outbound_http[]`: `{ target, base_path, purpose }`. `outbound_events[]` / `inbound_events[]`: `{ topic_or_queue, transport, purpose }`. `outbound_storage[]`: `{ kind, name, purpose }`. `inbound_http[]`: array of caller repo/service names. |
+| `auth` | object\|null | `{ scheme, library, enforcement_pattern, role_decisions[] }`. `null` for frontend / infra. |
+| `persistence` | object\|null | `{ orm, db, migrations: { tool, format, count } }`. `null` when the repo has no datastore. |
+| `tests` | object\|null | `{ framework, count, harness }`. |
+| `key_conventions[]` | array of strings | Patterns used CONSISTENTLY across the repo (observed in ≥2 sibling files). |
+| `constraints_observed[]` | array of strings | Workspace-shaping limits / divergences / coverage gaps. Feeds platform.md § Known Constraints. |
+| `audit_findings[]` | array | `{ severity: CRITICAL\|HIGH\|MEDIUM\|LOW, file, line, description }`. Aggregated verbatim into `audit-findings.md`. |
+| `specs[]` | array\|null | OpenAPI / contract files the repo OWNS: `{ path, spec_policy_inferred: api-first\|code-first\|no-api, endpoints_in_spec }`. `[]` for repos with no owned spec. Frontends record specs they CONSUME under `frontend_signals.specs_consumed`, not here. |
+| `frontend_signals` | object\|null | Set only for `role=frontend`, else `null`. `{ component_library, state_management, routing, i18n: { library, languages[], rtl }, styling, design_system_path, tests_framework, specs_consumed[] }`. |
+| `infra_signals` | object\|null | Set only for `cdk` / `terraform` repos, else `null`. CDK: `{ language, stacks[], iam_pattern, stage_handling }`. Terraform: `{ modules[], state_backend, providers }`. |
+| `metrics` | object | `{ src_files, test_files, controllers, services, repositories, models, scan_truncated }`. `scan_truncated` is `true` when the repo was too large to sample comprehensively. |
+| `notes_for_architect` | string | Free-form heads-up paragraph (1–3 sentences). Feeds platform.md § Open Questions / Evolving Decisions. |
+
+Role-non-applicable fields keep their key with a `null` (object fields) or `[]` (array fields) value — they are never omitted, so the architect's synthesis passes can rely on the shape without per-field existence checks.
 
 ---
 

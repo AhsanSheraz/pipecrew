@@ -61,7 +61,7 @@ This is **audit-driven**. No pre-commitment to specific edits without reading th
 | Step | Target | Specific trim candidate | Effort | Risk |
 |------|--------|------------------------|--------|------|
 | **C1** | `skills/deliver/SKILL.md` "Utility scripts" inventory (~250 always-loaded tokens) | Either: split into per-phase references (highest savings, most work), OR keep but trim each entry's description to one line. | 20 min for the trim version; 1 hour for full split | Low (trim) / Medium (split) |
-| **C2** | Architect dispatch output-format framing | Replace verbose format spec with reference: "Emit blocks per `docs/file-formats.md` and the example files cited there." Loads on demand instead of always. | 20 min | Low — `docs/file-formats.md` already exists |
+| **C2** | Architect dispatch output-format framing | Replace verbose format spec with reference: "Emit blocks per `templates/blocks/block-schemas.md` and the example files cited there." Loads on demand instead of always. | 20 min | Low — `templates/blocks/block-schemas.md` already exists |
 | **C3** | Implementer common-rules — second pass | Re-read with fresh eyes; cut anything Karpathy missed. (Likely small cuts at this point.) | 30 min | Low |
 
 ---
@@ -72,7 +72,7 @@ This is **audit-driven**. No pre-commitment to specific edits without reading th
 
 | Step | Block | Producer change | Consumer changes | Effort | Risk |
 |------|-------|----------------|------------------|--------|------|
-| **D1** | `API_DESIGN` | Add JSON block to architect output spec; add `templates/blocks/api-design.example.json`; update `docs/file-formats.md`. | Phase 3 spec-editor + Phase 5 implementers (api-first / code-first paths). | 2 hours | Medium — `API_DESIGN` has the most field variation; example needs careful design |
+| **D1** | `API_DESIGN` | Add JSON block to architect output spec; add `templates/blocks/api-design.example.json`; update `templates/blocks/block-schemas.md`. | Phase 3 spec-editor + Phase 5 implementers (api-first / code-first paths). | 2 hours | Medium — `API_DESIGN` has the most field variation; example needs careful design |
 | **D2** | `DATA_MODEL` | Same pattern. | Phase 5 implementers that touch DB. | 1.5 hours | Low-Medium |
 | **D3** | `INFRASTRUCTURE_IMPACT` | Same pattern. | `terraform-implementer`, `cdk-stack-implementer`. | 1.5 hours | Low — these consumers are smaller |
 
@@ -124,7 +124,7 @@ Stop after each pass; re-evaluate. **Pass D's D2/D3 are explicitly conditional o
 |------|-----------|
 | Bloating prompts to make them "more cacheable" | Discipline from `attention-and-caching.md`: rearrangement only, no addition. Each commit's diff must be net-neutral or net-negative on token count. |
 | Moving rules from system prompt to dispatch (or vice versa) changes behavior | Pass B requires explicit audit-then-apply, with audit results visible before any edit. |
-| `docs/file-formats.md` and `templates/blocks/*.example.json` get out of sync | The eval harness already enforces this. Run `node eval/run.js` after every change. |
+| `templates/blocks/block-schemas.md` and `templates/blocks/*.example.json` get out of sync | The eval harness already enforces this. Run `node eval/run.js` after every change. |
 | Pass D breaks downstream consumers | One block per commit; one consumer-list per commit. Easy revert. |
 | Spec drift in architect output (downstream phases expect specific JSON shape) | New JSON block goes in alongside existing prose first; consumers migrate one at a time; prose stays as fallback during transition. |
 

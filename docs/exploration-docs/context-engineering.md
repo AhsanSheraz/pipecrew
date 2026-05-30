@@ -158,5 +158,5 @@ The utility scripts inventory we added to SKILL.md costs ~250 tokens loaded ever
 - [`attention-work-plan.md`](./attention-work-plan.md) — the per-pass execution plan implementing those recommendations
 - [`extractor-enhancement.md`](./extractor-enhancement.md) — the structured-block work; the canonical example of context-precision applied
 - [`karpathy-assessment-v3.md`](./karpathy-assessment-v3.md) — the Simplicity-First pass that trimmed always-loaded content
-- [`docs/file-formats.md`](./docs/file-formats.md) — schema reference for the structured blocks
+- [`templates/blocks/block-schemas.md`](../../templates/blocks/block-schemas.md) — schema reference for the structured blocks
 - [`eval/`](./eval/) — the eval harness this doc recommends

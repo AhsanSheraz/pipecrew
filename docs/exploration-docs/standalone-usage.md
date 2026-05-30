@@ -168,4 +168,4 @@ Practical heuristic: **if you have a workspace already onboarded (`/discover` ha
 - [`context-engineering.md`](./context-engineering.md) — design principles for the agents and dispatches
 - [`README.md`](./README.md) — the plugin's primary entry point
 - [`docs/implementer-common-rules.md`](./docs/implementer-common-rules.md) — R0–R9 that implementers follow regardless of caller
-- [`docs/file-formats.md`](./docs/file-formats.md) — structured-block schemas the agents emit/consume
+- [`templates/blocks/block-schemas.md`](../../templates/blocks/block-schemas.md) — structured-block schemas the agents emit/consume

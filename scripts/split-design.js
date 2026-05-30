@@ -28,7 +28,7 @@
  *   3  — JSON parse error in any block (loud failure — design is wrong)
  *   4  — output dir cannot be created/written
  *
- * Schema documentation: docs/file-formats.md
+ * Schema documentation: templates/blocks/block-schemas.md
  *
  * Zero dependencies — pure Node stdlib.
  */

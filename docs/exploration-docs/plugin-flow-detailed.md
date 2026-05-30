@@ -207,7 +207,7 @@ All zero-dep Node, run via Bash, output to stdout.
 Every JSON block has:
 1. A canonical example at `templates/blocks/<slug>.example.json`
 2. A schema-shape check in `eval/tests/01-templates-parse.js`
-3. A consumer list documented in `docs/file-formats.md`
+3. A consumer list documented in `templates/blocks/block-schemas.md`
 
 | Block | Producer | Consumers |
 |---|---|---|
@@ -548,7 +548,7 @@ flowchart LR
 - `attention-remaining.md` — what's still deferred from the original work plan
 - `pipecrew-vs-agent-teams.md` — comparison with Claude Code's native Agent Teams
 - `standalone-usage.md` — using individual skills/agents outside `/deliver`
-- `docs/file-formats.md` — the canonical schema for every JSON block
+- `templates/blocks/block-schemas.md` — the canonical schema for every JSON block
 - `docs/observability.md` — `checkpoints.jsonl` event spec
 - `docs/transient-failures.md` — retry / halt rules
 - `docs/site-view.md` — gate contract + label catalog

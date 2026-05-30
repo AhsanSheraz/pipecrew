@@ -1,5 +1,5 @@
 {
-  "_comment": "Canonical example for the MAPPER_REPORT block emitted by the architecture-mapper agent alongside Mermaid diagrams. Carries scan metadata, all edges with confidence + evidence, unresolved hosts, and skipped items so the consumer (the orchestrator or a human reviewer) knows what was found, what was inferred, and what was deliberately not scanned. Field reference lives in docs/file-formats.md. Producers must match this structure; consumers extract via scripts/extract-block.js. Strip the _comment field from real output.",
+  "_comment": "Canonical example for the MAPPER_REPORT block emitted by the architecture-mapper agent alongside Mermaid diagrams. Carries scan metadata, all edges with confidence + evidence, unresolved hosts, and skipped items so the consumer (the orchestrator or a human reviewer) knows what was found, what was inferred, and what was deliberately not scanned. Field reference lives in block-schemas.md. Producers must match this structure; consumers extract via scripts/extract-block.js. Strip the _comment field from real output.",
   "scanned_repos": [
     {
       "path": "/Users/me/code/publisher-service",

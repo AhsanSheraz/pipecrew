@@ -1,0 +1,96 @@
+{
+  "_comment": "Canonical example for the REPO_PROFILE block emitted by the repo-discoverer agent (Sonnet) during /discover Phase B2.0. ONE file per repo at {run_dir}/outputs/repo-profiles/{repo-key}.json. The solution-architect (Opus) then reads the full set of profiles in Phase B2 to synthesize platform.md + audit-findings.md + the architecture diagrams. Field reference and consumer list live in block-schemas.md. Producers must match this structure; the architect extracts it via direct Read on the file. Stack-specific fields (under `stack` and `integrations`) are filled when relevant for the repo's role. The _comment field is illustrative only — strip it from real output.",
+  "repo_key": "publisher-service",
+  "type": "spring-boot",
+  "role": "api-service",
+  "scanned_at": "2026-05-05T10:30:00Z",
+  "head_sha": "7066b304bb21829fad3fe9404c3f0f76de866988",
+  "branch": "main",
+
+  "framework": {
+    "name": "spring-boot",
+    "version": "3.5.7",
+    "language_version": "21",
+    "key_libs": ["spring-data-jpa", "spring-security", "liquibase-core", "jakarta-validation"]
+  },
+
+  "entities": [
+    { "name": "Book", "key_states": ["DRAFT", "REVIEW", "PUBLISHED"], "owning_module": "publisher" },
+    { "name": "Publisher", "key_states": [], "owning_module": "publisher" },
+    { "name": "Contract", "key_states": ["PENDING", "ACTIVE", "TERMINATED"], "owning_module": "publisher" }
+  ],
+
+  "endpoints": [
+    { "method": "POST", "path": "/api/v1/books", "auth": "Publisher", "purpose": "Submit a new book" },
+    { "method": "GET",  "path": "/api/v1/books/{id}", "auth": "Publisher", "purpose": "Read a book" },
+    { "method": "PATCH","path": "/api/v1/books/{id}/status", "auth": "ALC Manager", "purpose": "Approve or reject" }
+  ],
+
+  "integrations": {
+    "outbound_http": [],
+    "outbound_events": [
+      { "topic_or_queue": "book.uploaded", "transport": "SQS", "purpose": "Notify reviewers when a book is submitted" }
+    ],
+    "outbound_storage": [
+      { "kind": "S3", "name": "abvi-books-{stage}", "purpose": "Cover images + manuscript files" }
+    ],
+    "inbound_http": ["pms-frontend", "backoffice-service"],
+    "inbound_events": []
+  },
+
+  "auth": {
+    "scheme": "JWT",
+    "library": "spring-security",
+    "enforcement_pattern": "manual SecurityContextHolder reads in service layer (smell — see audit_findings)",
+    "role_decisions": ["Controllers use @PreAuthorize sparingly; some role checks happen in service"]
+  },
+
+  "persistence": {
+    "orm": "spring-data-jpa",
+    "db": "PostgreSQL",
+    "migrations": { "tool": "liquibase", "format": "YAML changesets", "count": 15 }
+  },
+
+  "tests": {
+    "framework": "JUnit 5 + @SpringBootTest",
+    "count": 2,
+    "harness": "Tests use @SpringBootTest with full context (no @WebMvcTest pattern in this repo yet)"
+  },
+
+  "key_conventions": [
+    "Controllers use @RestController under controller/",
+    "Service layer throws specific exceptions, mapped centrally by GlobalExceptionHandler",
+    "Repositories extend JpaRepository<Entity, Long>",
+    "DTOs live under dto/ (not entities/) — request/response separated from JPA entities",
+    "MapStruct mappers under mapper/ for DTO ↔ entity translation"
+  ],
+
+  "constraints_observed": [
+    "Mixed authorization style — some @PreAuthorize, some manual SecurityContextHolder reads in services. Inconsistent and worth standardizing."
+  ],
+
+  "audit_findings": [
+    { "severity": "HIGH", "file": "ApiKeyValidator.java", "line": 45, "description": "Token comparison uses == not equals() — fails for cached strings outside the constant pool" },
+    { "severity": "MEDIUM", "file": "BookService.java", "line": 88, "description": "Logs raw user-supplied filename without sanitization (log injection risk)" }
+  ],
+
+  "specs": [
+    { "path": "openapi/specs.yaml", "spec_policy_inferred": "api-first", "endpoints_in_spec": 18 }
+  ],
+
+  "frontend_signals": null,
+
+  "infra_signals": null,
+
+  "metrics": {
+    "src_files": 119,
+    "test_files": 2,
+    "controllers": 6,
+    "services": 15,
+    "repositories": 6,
+    "models": 20,
+    "scan_truncated": false
+  },
+
+  "notes_for_architect": "This repo's auth pattern is inconsistent — flag in platform.md § Established Patterns or Known Constraints. The DTO/entity split convention is clean and worth elevating to workspace-wide pattern. Frontend repo references this service via `pms-frontend/src/api/publisher-api-specs.yaml`."
+}

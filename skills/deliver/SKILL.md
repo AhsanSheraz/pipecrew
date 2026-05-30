@@ -210,7 +210,7 @@ Zero-dep Node — prefer over LLM parsing. Phase files cite the specific script 
 
 | Script | Purpose |
 |--------|---------|
-| `node {plugin_dir}/scripts/extract-block.js <file> <BLOCK> [--raw]` | Pull a structured JSON block from a phase output (default), or the raw block body for prose-only sections (`--raw`). Block names: `docs/file-formats.md`. |
+| `node {plugin_dir}/scripts/extract-block.js <file> <BLOCK> [--raw]` | Pull a structured JSON block from a phase output (default), or the raw block body for prose-only sections (`--raw`). Block names: `templates/blocks/block-schemas.md`. |
 | `node {plugin_dir}/scripts/split-design.js <file> [out-dir]` | Materialize every JSON-fenced block in a phase output as a separate file under `<out-dir>/<slug>.json` (default `<input-dir>/blocks/`). Phase 2 runs this after writing `phase-2-architecture.md` so phases 3–5 can `cat outputs/blocks/<slug>.json` instead of reading the full markdown. |
 | `node {plugin_dir}/scripts/gate.js {open\|close} ...` | Open/close approval gates. Always close after the user answers. |
 | `node {plugin_dir}/scripts/validate-config.js <path>` | Validate workspace `config.json`. |

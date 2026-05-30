@@ -24,7 +24,7 @@
  *   3 — no ```json fenced code block inside the named section (JSON mode only)
  *   4 — JSON parse error
  *
- * Schema documentation lives in `docs/file-formats.md`.
+ * Schema documentation lives in `templates/blocks/block-schemas.md`.
  *
  * Zero dependencies — pure Node stdlib.
  */

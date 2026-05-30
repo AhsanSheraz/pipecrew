@@ -1,5 +1,5 @@
 {
-  "_comment": "Canonical example for the API_DESIGN block emitted by the solution-architect inside outputs/phase-2-architecture.md. Per-service entries with endpoints (api-first / code-first) or handlers (no-api). The JSON is the structured INDEX — full request/response schemas for code-first endpoints and full event-handler details for no-api workers live in the prose under each service section. Field reference and consumer list live in docs/file-formats.md. Producers must match this structure; consumers extract via scripts/extract-block.js. Strip the _comment field from real output.",
+  "_comment": "Canonical example for the API_DESIGN block emitted by the solution-architect inside outputs/phase-2-architecture.md. Per-service entries with endpoints (api-first / code-first) or handlers (no-api). The JSON is the structured INDEX — full request/response schemas for code-first endpoints and full event-handler details for no-api workers live in the prose under each service section. Field reference and consumer list live in block-schemas.md. Producers must match this structure; consumers extract via scripts/extract-block.js. Strip the _comment field from real output.",
   "services": [
     {
       "name": "publisher-service",

@@ -31,7 +31,7 @@ cat {pipeline_dir}/outputs/blocks/contract-design.json 2>/dev/null
 cat {pipeline_dir}/outputs/blocks/api-design.json
 ```
 
-Each `cat` is one Bash call returning a small, deterministic JSON payload — orders of magnitude cheaper than reading the full markdown. The JSON shape is documented in `docs/file-formats.md` and matches `templates/blocks/<slug>.example.json`.
+Each `cat` is one Bash call returning a small, deterministic JSON payload — orders of magnitude cheaper than reading the full markdown. The JSON shape is documented in `templates/blocks/block-schemas.md` and matches `templates/blocks/<slug>.example.json`.
 
 For sub-agent prompts (Steps 2a / 2b below), pass the JSON content of `contract-design.json` / `api-design.json` directly into the `CONTRACT DESIGN:` / `API DESIGN:` slot of the dispatch prompt.
 

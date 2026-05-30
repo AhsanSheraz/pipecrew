@@ -29,7 +29,7 @@ After `/discover` completes, you have:
 | `--resume` | Resume an interrupted onboarding from the scratchpad |
 | `--workspace=<slug>` | Required with `--resume` and `--refresh-observability` if multiple workspaces exist |
 | `--greenfield` | Skip repo scan, start with brainstorm + scaffold (see Phase Greenfield) |
-| `--refresh-observability` | Run only Phase B2.6 against an existing workspace — refreshes (or first-time backfills) the OBSERVABILITY block in `platform.md`. Re-runs the IaC extractor across CDK / Terraform / k8s / docker-compose / Ansible, presents the draft for user curation (trace correlation header, dashboards, runbooks), validates, and writes the result. If the workspace was discovered before B2.6 existed (no OBSERVABILITY block in platform.md), this flag performs a first-time backfill — inserts the section before `## Established Patterns`. Requires `--workspace=<slug>` if more than one workspace exists. Skips Phase A/B1/B2/B3/C/D. |
+| `--refresh-observability` | Run only Phase B2.6 against an existing workspace — refreshes (or first-time backfills) the OBSERVABILITY block in `platform.md`. Re-runs the IaC extractor across CDK / Terraform / k8s / docker-compose / Ansible, presents the draft for user curation (trace correlation header, dashboards, runbooks), validates, and writes the result. If the workspace was discovered before B2.6 existed (no OBSERVABILITY block in platform.md), this flag performs a first-time backfill — inserts the section before `## Established Patterns`. Requires `--workspace=<slug>` if more than one workspace exists. Skips Phase A/B1/B2.0/B2/B3/C/D. |
 
 ### Examples
 ```
@@ -60,7 +60,8 @@ After `/discover` completes, you have:
 
     Examples:
     - `[phase A ✔] 7 repos discovered, 3 api-services, 1 frontend (0:42)`
-    - `[phase B2 ✔] platform.md generated — 11 entities, 7 patterns (4:03, 78k tokens)`
+    - `[phase B2.0 ✔] 7 repo profiles written, 12 audit findings collected (1:08, 22k tokens — Sonnet, parallel)`
+    - `[phase B2 ✔] platform.md generated — 11 entities, 7 patterns (2:14, 38k tokens — Opus, synthesis from profiles)`
     - `[phase C ✔] 2 CLAUDE.md + 2 agent-context generated, 3 domain agents written (6:12, 186k tokens)`
 
     This gives users a consistent, greppable progress signal without forcing them to open the scratchpad. Keep it to one line per phase — no trailing commentary. After the line, proceed to the next phase without waiting for acknowledgement.
@@ -170,7 +171,8 @@ Both are kept; neither replaces the other.
 | Greenfield | SKIPPED | (runs only if --greenfield or zero repos found) |
 | A. Repo Discovery | PENDING | |
 | B1. Domain Questions | PENDING | |
-| B2. Architect Discovery | PENDING | |
+| B2.0. Per-repo Discovery | PENDING | |
+| B2. Architect Synthesis | PENDING | |
 | B3. Design System | PENDING | |
 | C. Generation | PENDING | |
 | D. Verification | PENDING | |
@@ -263,7 +265,8 @@ Emit the first `run_start` event to `{run_dir}/checkpoints.jsonl` (see `docs/obs
 Phase Greenfield: Brainstorm + Scaffold ─ (only if --greenfield OR zero repos found)
 Phase A:  Repo Discovery ─────── scan dirs, detect tech stacks, confirm with user
 Phase B:  Domain Questions ────── 4 questions to the user
-Phase B2: Architect Discovery ─── solution-architect reads code, generates platform.md (MODE: discovery)
+Phase B2.0: Per-repo Discovery ── repo-discoverer × N (Sonnet, parallel) → REPO_PROFILE JSON per repo
+Phase B2: Architect Synthesis ── solution-architect (Opus, MODE: discovery) reads profiles, writes platform.md + audit-findings.md + diagrams
 Phase B2.6: Observability ─────── extract IaC log destinations + curate trace/dashboards/runbooks
 Phase B3: Design System ────────── (only if frontend) discover components, tokens, patterns
 Phase C:  Generation ──────────── config + CLAUDE.md + platform.md + agents + agent-context
