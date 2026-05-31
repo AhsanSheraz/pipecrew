@@ -203,10 +203,30 @@ const PHASE2_SAMPLES = {
   'bulk-upload': `# Technical Design — Bulk Upload
 
 <!-- BEGIN AFFECTED_CONTRACTS -->
-## Affected Contracts
-1. \`book-events\` — adds a new \`book.batch.uploaded\` Avro schema referenced by the bulk endpoint when emitting per-batch summary events.
-   - Files to edit: \`schemas/book.batch.uploaded.avsc\` (NEW)
-   - **Change classification: additive** (new event type — no existing consumers break)
+\`\`\`json
+{
+  "contracts": [
+    {
+      "repo_key": "book-events",
+      "format": "avro",
+      "rationale": "Bulk endpoint emits a new batch-uploaded event for downstream indexing",
+      "files": [
+        {
+          "path": "schemas/book.batch.uploaded.avsc",
+          "change_kind": "added",
+          "classification": "additive",
+          "summary": "New event type — no existing consumers"
+        }
+      ]
+    }
+  ],
+  "edit_order": ["book-events"],
+  "breaking_changes_authorized": false
+}
+\`\`\`
+
+## Notes
+- **book-events**: introduces \`book.batch.uploaded\` so search-svc and any future batch-aware consumer can subscribe.
 <!-- END AFFECTED_CONTRACTS -->
 
 <!-- BEGIN AFFECTED_SERVICES -->
@@ -375,8 +395,16 @@ New feature module under \`src/features/bulk-upload/\`:
   'contract-modals': `# Technical Design — Contract Modals
 
 <!-- BEGIN AFFECTED_CONTRACTS -->
-## Affected Contracts
-N/A
+\`\`\`json
+{
+  "contracts": [],
+  "edit_order": [],
+  "breaking_changes_authorized": false
+}
+\`\`\`
+
+## Notes
+No contract repos affected — this feature is read-only display backed by existing schemas.
 <!-- END AFFECTED_CONTRACTS -->
 
 <!-- BEGIN AFFECTED_SERVICES -->

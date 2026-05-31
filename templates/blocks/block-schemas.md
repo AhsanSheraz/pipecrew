@@ -20,6 +20,33 @@ The orchestrator (an LLM) can read the script's stdout as-is — JSON is its nat
 
 ## Defined block schemas
 
+### `AFFECTED_CONTRACTS`
+
+**Producer**: `solution-architect` (Phase 2 design output)
+**Consumers**: Phase 3a (contract edit — dispatches `schema-implementer` per repo in `edit_order`), `task-planner` Phase 4.5 (resolves event-schema file paths for `no-api` workers via `outputs/blocks/affected-contracts.json`), Phase 6 assessor (cross-checks contract changes against consumers).
+**File**: `{run_dir}/outputs/phase-2-architecture.md` (and `{run_dir}/outputs/blocks/affected-contracts.json` after `split-design.js`).
+**Canonical example**: [`templates/blocks/affected-contracts.example.json`](./affected-contracts.example.json) — single source of truth for the structure. Update that file when the schema changes; this doc only carries the field reference table below.
+
+**Field reference:**
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `contracts[]` | array | One entry per affected contract repo. Empty `[]` when no contracts are affected (NOT `null`, NOT omitted — Phase 3a's skip-decision reads `contracts.length`). |
+| `contracts[].repo_key` | string | Must match a key in `config.repos` whose `role` is `contract`. |
+| `contracts[].format` | enum | `avro` / `json-schema` / `protobuf` / `mixed`. Drives the schema-implementer's format-detection branch. |
+| `contracts[].rationale` | string | One-line reason this repo is touched. Human-readable, not machine-parsed. |
+| `contracts[].files[]` | array | One entry per file changed in this repo. Empty when the repo entry is here only for `edit_order` placement (rare). |
+| `contracts[].files[].path` | string | Repo-relative path to the schema file. |
+| `contracts[].files[].change_kind` | enum | `added` / `modified` / `removed`. |
+| `contracts[].files[].classification` | enum | `additive` / `breaking`. The schema-implementer refuses any file with `classification: "breaking"` unless `breaking_changes_authorized: true` at the top level. |
+| `contracts[].files[].summary` | string | One-line description of what changed. Full schema-edit content (field types, defaults, `$ref` shapes) lives in the prose under CONTRACT_DESIGN. |
+| `edit_order` | array of strings | `repo_key` values in dispatch order. A contract repo referenced by another (e.g., via `$ref`) must come first. Must include every `contracts[].repo_key`; the dispatcher follows this order literally. |
+| `breaking_changes_authorized` | boolean | Set to `true` only when at least one `classification: "breaking"` exists AND the design includes a `### Breaking Change Authorization` prose sub-section under CONTRACT_DESIGN. Default `false`. |
+
+The JSON serves as the addressable index for orchestration (which repos to dispatch, which files each schema-implementer touches, how to sequence them). The full schema-edit content for each file (Avro field definitions, JSON Schema `$ref`s, Protobuf field numbers, default values) lives in the prose under `CONTRACT_DESIGN` — consumers extract the JSON to enumerate; they read the prose for the actual change content.
+
+---
+
 ### `AFFECTED_SERVICES`
 
 **Producer**: `solution-architect` (Phase 2 design output)

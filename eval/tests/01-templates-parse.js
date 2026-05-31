@@ -43,6 +43,38 @@ for (const f of files) {
 // Per-block shape sanity — minimal field presence, not full schema validation.
 // These mirror what consumer agents and templates/blocks/block-schemas.md document.
 const SHAPE_CHECKS = {
+  'affected-contracts.example.json': (j) => {
+    assert(Array.isArray(j.contracts), 'contracts must be array');
+    assert(Array.isArray(j.edit_order), 'edit_order must be array');
+    assert(typeof j.breaking_changes_authorized === 'boolean',
+      'breaking_changes_authorized must be boolean');
+    const repoKeys = new Set();
+    for (const c of j.contracts) {
+      assert(typeof c.repo_key === 'string', 'contract.repo_key must be string');
+      repoKeys.add(c.repo_key);
+      assert(['avro', 'json-schema', 'protobuf', 'mixed'].includes(c.format),
+        `contract.format must be avro | json-schema | protobuf | mixed (got ${c.format})`);
+      assert(Array.isArray(c.files), 'contract.files must be array');
+      for (const f of c.files) {
+        assert(typeof f.path === 'string', 'file.path must be string');
+        assert(['added', 'modified', 'removed'].includes(f.change_kind),
+          `file.change_kind must be added | modified | removed (got ${f.change_kind})`);
+        assert(['additive', 'breaking'].includes(f.classification),
+          `file.classification must be additive | breaking (got ${f.classification})`);
+      }
+    }
+    // edit_order must reference every contracts[].repo_key
+    for (const c of j.contracts) {
+      assert(j.edit_order.includes(c.repo_key),
+        `edit_order missing repo_key "${c.repo_key}"`);
+    }
+    // If any file is breaking, breaking_changes_authorized must be true
+    const anyBreaking = j.contracts.some(c => c.files.some(f => f.classification === 'breaking'));
+    if (anyBreaking) {
+      assert(j.breaking_changes_authorized === true,
+        'breaking_changes_authorized must be true when any file.classification is breaking');
+    }
+  },
   'affected-services.example.json': (j) => {
     assert(Array.isArray(j.services), 'services must be array');
     assert('frontend_required' in j, 'frontend_required must be present');
