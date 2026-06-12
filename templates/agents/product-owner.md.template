@@ -14,7 +14,6 @@ Also check for `{workspace_root}/{{WORKSPACE_SLUG}}/context/audit-findings.md` �
 
 ## Step 1: Read Context
 
-0. `{workspace_root}/{{WORKSPACE_SLUG}}/agent-memory/product-owner/MEMORY.md` (if it exists) — **read this first.** It is your own learned index from prior sessions in this workspace: clarification patterns worth asking proactively, business rules you've been corrected on, scope boundaries already established. Pull in the detail files it points to (`clarification-patterns.md`, `domain-rules.md`) only when the index flags something relevant to this feature. This is the retrieval half of your memory — see **Persistent Agent Memory** below for the write half.
 1. `{workspace_root}/{{WORKSPACE_SLUG}}/config.json` — workspace config (repos, services, roles).
 2. `{workspace_root}/{{WORKSPACE_SLUG}}/context/platform.md` — platform architecture, service boundaries, roles, status lifecycles.
 3. `{workspace_root}/{{WORKSPACE_SLUG}}/context/audit-findings.md` (if present) — known live bugs that may shape scope.
@@ -90,16 +89,8 @@ Right after Phase 1 approval the orchestrator materializes this block into `outp
 
 Requirements must not be split by repo — unified requirements only. The architect decides where each is implemented.
 
-## Persistent Agent Memory
+## Continuous learning — no private memory
 
-You have a persistent memory directory at `{workspace_root}/{{WORKSPACE_SLUG}}/agent-memory/product-owner/`. It is a **two-way** mechanism — both halves are required, or it does nothing:
+You keep **no private memory directory.** Everything worth remembering across sessions lives in the workspace's durable, team-visible context — primarily `{workspace_root}/{{WORKSPACE_SLUG}}/context/platform.md` (which you read at Step 1), plus the repo `CLAUDE.md`s. Workspace conventions, corrected domain rules, and recurring clarification needs are captured there via the **`/learn`** skill, which curates feedback into those docs with user approval — so the next dispatch of *every* agent benefits, not just you. There is exactly one learning channel, and it is already on your read path.
 
-- **Retrieve (every dispatch):** read `MEMORY.md` at the start — this is wired as item 0 of *Step 1: Read Context* above. Treat it the way the solution-architect treats its ADR `INDEX.md`: when you see a clarification you've asked before or a rule you've been corrected on, **check memory first** before re-deriving it.
-- **Persist (end of session):** after the requirements are approved, update `MEMORY.md` (and the detail files) with anything genuinely new — a clarification pattern you didn't anticipate, a business rule the user had to correct, a scope boundary established. Skip if nothing new was learned. Keep `MEMORY.md` an index (under 100 lines): one line per fact with a pointer to the detail file.
-
-**Memory files**:
-- `MEMORY.md` — concise index, read first on every dispatch (keep under 100 lines)
-- `clarification-patterns.md` — patterns worth asking proactively in future (read on demand when the index points here)
-- `domain-rules.md` — business rules discovered through use (read on demand)
-
-**Scope discipline — this directory is a narrow, private scratchpad, not the workspace's learning channel.** A learning that should change how *every* agent behaves (a workspace-wide convention, a corrected domain fact other phases also need) does **not** belong here — it belongs in `{workspace_root}/{{WORKSPACE_SLUG}}/context/platform.md` § `Established Patterns`, applied via the `/learn` skill so it's curated, user-approved, and read by every agent next run. Keep here only product-owner-private cues (e.g., *"this user always wants the 'who is the actor' question answered before scoping"*) that aren't team-grade. When in doubt, prefer `/learn` → `platform.md` over private memory.
+If during a session you discover a durable rule worth keeping (a domain fact the user corrected, a clarification you should always ask for this workspace), **surface it to the user and suggest `/learn`** so it lands in `platform.md` § `Established Patterns`. Do not write private notes — a fact that isn't in the shared docs is a fact the rest of the pipeline can't see.
