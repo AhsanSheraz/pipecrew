@@ -294,9 +294,12 @@ spec_basename=$(basename "{api-service.spec_file}")
     -maxdepth 8 \
     -not -path "*/node_modules/*" -not -path "*/dist/*" -not -path "*/build/*" \
     -not -path "*/target/*" -not -path "*/.git/*" -not -path "*/.next/*" \
+    -not -path "*/.claude/*" \
     -not -path "*/__pycache__/*" -not -path "*/venv/*" -not -path "*/.venv/*" \
     | head -1
 ```
+
+> **Why exclude `.claude/`:** Claude Code / pipecrew create git worktrees under `{repo}/.claude/worktrees/` — each is a *full checkout* of the repo and therefore contains its own copy of every spec file. Without this exclusion the probe matches those transient copies and records a `spec_copies` path pointing into a worktree that may be pruned at any time. Never record a spec copy under `.claude/`.
 
 If a match is found, record the path (relative to the consuming repo's root) under `repos.{consuming_repo}.spec_copies.{service_name}`. If no match is found, **omit the entry** — do not fabricate a plausible path. An empty map is strictly better than guessed paths.
 

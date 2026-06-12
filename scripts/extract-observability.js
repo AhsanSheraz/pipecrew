@@ -92,8 +92,11 @@ function walk(dir, predicate, limit = 5000) {
     let entries;
     try { entries = fs.readdirSync(cur, { withFileTypes: true }); } catch { continue; }
     for (const ent of entries) {
+      // Skip `.claude` — it can hold git worktrees (full repo checkouts) whose
+      // duplicate IaC files would be counted as extra log destinations.
       if (ent.name === 'node_modules' || ent.name === '.git' || ent.name === 'dist' ||
-          ent.name === 'build' || ent.name === '.next' || ent.name === 'cdk.out') continue;
+          ent.name === 'build' || ent.name === '.next' || ent.name === 'cdk.out' ||
+          ent.name === '.claude') continue;
       const p = path.join(cur, ent.name);
       if (ent.isDirectory()) stack.push(p);
       else if (predicate(p)) { out.push(p); count++; }
