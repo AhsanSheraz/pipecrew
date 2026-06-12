@@ -17,9 +17,15 @@ This phase is SKIPPED for:
 
 **Precondition**: Before dispatching reviewers, confirm each worktree path recorded in the scratchpad's Implementation Tasks table still exists (`git -C {worktree_path} status`). If a worktree is missing, log it as a skip and do not dispatch a reviewer for that repo — a missing worktree means Phase 5 failed for that repo, which Phase 6 will flag as a blocker.
 
-#### Step 1: Dispatch reviewers in parallel
+#### Step 1: Dispatch reviewers concurrently (background — process each as it finishes)
 
-All applicable reviewers go in a single assistant message so they run concurrently.
+Dispatch every applicable reviewer as a **background** Agent (`run_in_background: true`), all in a single assistant message so they start at once. Record each dispatch's task handle keyed by repo.
+
+**Why background, not a synchronous batch:** the gate lane is now fully pipelined (Step 2) — a repo's fix round, or its approval gate, fires the moment *that* reviewer finishes, without waiting for slower siblings. That only works if the orchestrator can observe reviewers completing one at a time. A synchronous parallel dispatch returns all results together (a barrier by construction), which would force the old wait-for-all behavior. Background dispatch + per-completion processing is what makes "surface each repo as its reviewer finishes" real.
+
+As each background reviewer completes, the harness notifies you. **Process that reviewer immediately** (Step 1.5 → Step 2 for its repo) before the others finish — do not collect them into a batch. While you are blocked on one repo's gate, the remaining reviewers keep running in the background; their completions queue and are handled in turn once the current gate resolves.
+
+The reviewer prompt templates are unchanged — only the dispatch mechanism (background) and the per-completion processing differ.
 
 **Backend / Worker reviewer — one per affected service (spec_policy-aware)**
 
@@ -158,9 +164,11 @@ Now: review the diff in `{frontend_worktree_path}` for the feature, against the 
 
 **On completion of each reviewer**: save the report to `outputs/phase-5-5-code-review.md` (append one section per reviewed repo). Update the scratchpad with the review findings count.
 
-#### Step 1.5: Persist each finding as a task file
+#### Step 1.5: Persist each finding as a task file (per reviewer, the moment it completes)
 
-After each reviewer returns, **parse the `<!-- BEGIN FINDINGS -->` / `<!-- END FINDINGS -->` block** at the end of its report (every code reviewer now emits this machine-readable block — see the spring-boot-reviewer and react-reviewer agent definitions). The format is:
+This runs **once per reviewer, as that reviewer completes** — not in a batch after all are done. Immediately after persisting a reviewer's findings here, route its repo through Step 2 before moving to the next completion. Steps 1.5 → 2 → (3) form a per-repo chain that runs independently for each reviewer.
+
+**Parse the `<!-- BEGIN FINDINGS -->` / `<!-- END FINDINGS -->` block** at the end of its report (every code reviewer now emits this machine-readable block — see the spring-boot-reviewer and react-reviewer agent definitions). The format is:
 
 ```
 critical | {short-title} | {file}:{line} | {one-line-problem} | {mechanical|architectural}
@@ -200,49 +208,52 @@ created: "{ISO-date}"
 
 If a `critical` row arrives without a 5th field, treat the missing classification as `architectural` (conservative default — forces the user gate). Log a warning so the reviewer agent prompt can be tightened later.
 
-#### Step 2: Gate decision
+#### Step 2: Per-repo routing (pipelined — auto-approved repos dispatch as their reviewer finishes)
 
-Once Step 1.5 has persisted every finding as a task file, pull the pre-computed counts from each reviewer's FINDINGS_SUMMARY block — do NOT re-count rows in the FINDINGS block:
+Findings arrive **per reviewer** — Step 1.5 persists each repo's task files the moment that repo's reviewer returns. Route each repo as soon as its findings are persisted; do NOT barrier on the slowest reviewer unless the repo actually needs your approval. A fast reviewer's fix round must not wait behind a slow sibling reviewer when no human decision gates it.
+
+For each repo, pull its reviewer's pre-computed counts from the FINDINGS_SUMMARY block — do NOT re-count FINDINGS rows:
 
 ```bash
-# For each reviewer report saved at outputs/phase-5-5-code-review.md (or per-repo file):
-node {plugin_dir}/scripts/extract-block.js {report_path} FINDINGS_SUMMARY
+node {plugin_dir}/scripts/extract-block.js {repo_report_path} FINDINGS_SUMMARY
 ```
 
-This returns `{critical_total, critical_mechanical, critical_architectural, non_critical_total, scope_total}` per report. Sum them across reports to get the totals:
+(returns `{critical_total, critical_mechanical, critical_architectural, non_critical_total, scope_total}` for that repo. Missing block → fall back to counting that repo's FINDINGS rows and log a warning. Schema in `{plugin_dir}/templates/blocks/block-schemas.md`.)
 
-- `critical_total` — sum of every report's `critical_total`
-- `critical_mechanical` — sum of every report's `critical_mechanical`
-- `critical_architectural` — `critical_total - critical_mechanical`
-- `non_critical_total` — sum of `non_critical_total`
-- `scope_total` — sum of `scope_total`
+Classify the repo into exactly one lane:
 
-If a reviewer's report is missing the FINDINGS_SUMMARY block (e.g., older agent), fall back to counting rows in its FINDINGS block and log a warning so the agent can be tightened later. Schema in `{plugin_dir}/templates/blocks/block-schemas.md`.
+| Repo's findings | Lane | Action |
+|---|---|---|
+| `critical_total == 0` | **clean** | No fix round for this repo. Mark its Phase 5.5 row COMPLETED. |
+| `critical_total > 0` AND no approval is needed for this repo — i.e. **gates are disabled** for this run (autonomous / trust mode), OR `--auto-fix-mechanical` is set AND this repo's `critical_architectural == 0` | **auto** | **Dispatch this repo's fix round NOW (Step 3) — pipelined. Do not wait for sibling reviewers.** Before dispatching under `--auto-fix-mechanical`, re-read each mechanical task's Problem; if any starts with "decide whether" / "requires changing the approach", re-classify it architectural and move this repo to the **gate** lane instead. Log: `"Pipelined fix round — {repo}, {N} auto-approved criticals, no gate."` |
+| `critical_total > 0` AND not in the **auto** lane (an architectural critical with gates enabled, OR `--auto-fix-mechanical` not set) | **gate** | **Open this repo's approval gate NOW — do not wait for sibling reviewers.** Surface this one repo for the user's decision the moment its reviewer finishes (see per-repo gate below). |
 
-Branch on the counts:
+**"Gates disabled"** = the run is in a mode where Phase 5.5's fix-round approval is never shown, regardless of classification (autonomous / trust mode — see `docs/design/autonomy-trust-mode.md`; or an explicit autonomous flag if one is wired). In a normal interactive run gates are NOT disabled, so without `--auto-fix-mechanical` every repo with criticals lands in the **gate** lane — but each gate now fires per-repo as its reviewer finishes, not as one consolidated prompt at the end.
 
-| Condition | Action |
-|---|---|
-| `critical_total == 0` | **No fix round.** Set Phase 5.5 status to COMPLETED. Skip Step 3. Continue to next phase (5.75 or 6). |
-| `critical_total > 0` AND `--auto-fix-mechanical` was passed AND `critical_architectural == 0` | **Verify then auto-dispatch.** Re-read each "mechanical" task file's Problem field. If any description starts with "decide whether" or "requires changing the approach", re-classify it as `architectural` and fall through to the user gate instead. Otherwise skip the gate, proceed to Step 3. Log: `"Auto-dispatching fix round — {N} mechanical criticals, --auto-fix-mechanical set. No user gate."` |
-| Otherwise (any architectural critical, OR `--auto-fix-mechanical` not set) | **User gate.** Open the gate per SKILL.md rule #5 (use `node {plugin_dir}/scripts/gate.js open ...`). Show the summary below. On the user's answer: `yes` → close gate, proceed to Step 3. `no` → close gate, set Phase 5.5 COMPLETED with note `"user declined fix round, {critical_total} criticals deferred to follow-up"`, continue. `show details` → print per-repo finding lists, re-prompt. |
-
-**Gate summary template**:
+**Per-repo gate (gate lane):** open a gate scoped to **this single repo** as soon as its reviewer completes — the user can approve it and start its fix round while other reviewers are still running. Open per SKILL.md rule #5 (`node {plugin_dir}/scripts/gate.js open --run-dir={run_dir} --phase=5.5 --gate=approval --question="..."`), using this repo's counts only:
 
 ```
-Phase 5.5 found {critical_total} critical issues across {repo_count} repo(s):
-  - {critical_mechanical} mechanical (auto-fixable with --auto-fix-mechanical)
+Phase 5.5 — {repo}: {critical_total} critical issue(s) need your approval.
+  - {critical_mechanical} mechanical
   - {critical_architectural} architectural (need your judgment)
-{non_critical_total} non-critical, {scope_total} scope findings.
+{non_critical_total} non-critical, {scope_total} scope findings in this repo.
 
-Dispatch fix round? (yes / no / show details)
+Dispatch the fix round for {repo}? (yes / no / show details)
 ```
 
-Always close the gate before proceeding (`gate.js close`) so the pipeline-view UI's yellow waiting banner clears.
+On the answer: `yes` → close gate, dispatch THIS repo's fix round (Step 3) immediately. `no` → close gate, mark this repo COMPLETED with note `"user declined fix round, {critical_total} criticals deferred to follow-up"`. `show details` → print this repo's finding list, re-prompt. Always close the gate (`gate.js close`) before moving on so the UI's yellow banner clears.
+
+**Only one gate is open at a time.** `awaiting_input.json` is per-run, so two repos can't hold a gate simultaneously. Process completed reviewers in arrival order: open repo A's gate → user answers → close → dispatch A's fix (it runs in the background) → then handle the next completed reviewer (open B's gate, etc.). A's fix round and B's gate overlap; you never block a finished reviewer behind a still-running one.
+
+**When all reviewers have completed and all gates are resolved:** if every gate-lane repo was answered and every auto/clean repo handled, set Phase 5.5 COMPLETED and continue to Phase 5.75 / 6. There is no end-of-phase consolidated gate — approvals happened incrementally as findings arrived.
+
+**Default interactive run, single repo:** identical to before — one reviewer, one gate, one decision. The pipelining only changes multi-repo runs, where you now get one focused prompt per critical-finding repo as each reviewer finishes instead of one big prompt after the slowest.
 
 #### Step 3: Fix-round dispatch
 
-Run for each repo that has at least one critical or scope task file from Step 1.5. Mock and infra repos still skip (no reviewer ran for them).
+Step 3 is invoked **per repo**, always for one repo at a time, from Step 2: immediately for each **auto**-lane repo (the moment its reviewer finishes), and for each **gate**-lane repo the moment the user approves its per-repo gate. It is the same dispatch either way — only the trigger differs. Mock and infra repos still skip (no reviewer ran for them).
+
+> **Parallelism note:** each fix round is dispatched as soon as its repo is cleared (auto-routed or gate-approved) — one repo per message, fired immediately, never held back to batch with others. Because fix rounds run as background Agent dispatches against separate worktrees (no contention), multiple repos' fix rounds naturally overlap: repo A's fix runs while you answer repo B's gate. Pipelining, not batching, is the goal.
 
 1. **Build the fix list per repo.** Read every task file under `{run_dir}/tasks/` whose frontmatter has `phase: "5.5"`, `status: "todo"`, and `repo: <this repo>`. Collect them into an ordered list (criticals first, then scope, then non-criticals).
 
@@ -267,7 +278,7 @@ INSTRUCTIONS:
 Per common-rules R6 (scope discipline): touch ONLY the lines the fix list cites. Do not refactor adjacent code, do not add unrequested improvements, do not "while-I'm-here" anything. Per R7, if any fix-list entry is ambiguous (the reviewer's one-liner doesn't tell you exactly what to change), emit an `## Assumptions` block before writing code.
 ```
 
-3. **Dispatch all repos' fix rounds in the same assistant message** so they run in parallel — they touch different worktrees, no contention.
+3. **Dispatch — one repo, immediately, as a background Agent (`run_in_background: true`).** Fire this repo's fix round the instant it's cleared (auto-routed or gate-approved); do not hold it to batch with other repos. A single repo per dispatch is expected and correct — overlap comes from the background dispatches running concurrently against separate worktrees, not from batching them into one message. This holds for both lanes: the auto lane fires on reviewer completion, the gate lane fires on the user's `yes`.
 
 4. **Per-round artifacts**: save each implementer's report to `{run_dir}/fix-rounds/round-1/{repo-name}.md`. If a second round runs (e.g., user re-triggers after another review), the directory becomes `round-2/`, etc.
 
@@ -277,4 +288,4 @@ Per common-rules R6 (scope discipline): touch ONLY the lines the fix list cites.
 
 6. **One fix round per run.** Re-review does not auto-run. If issues remain after the fix round, record them in the scratchpad and report them at Phase 7 — do not auto-re-dispatch. If the user wants a second round, they re-run `/deliver --resume` after inspecting.
 
-After Step 3 completes (or Step 2 short-circuited to COMPLETED), continue to Phase 5.75 (security review, if triggered) or Phase 6 (assessment).
+**Phase exit:** Phase 5.5 is done when every reviewer has completed, every gate-lane repo has been answered, and every dispatched (auto- or gate-lane) fix round has returned. Because fix rounds are background dispatches, wait for the outstanding ones to finish before advancing. Then continue to Phase 5.75 (security review, if triggered) or Phase 6 (assessment).

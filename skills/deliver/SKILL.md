@@ -29,7 +29,7 @@ End-to-end feature pipeline. Orchestrates work across API service repos, fronten
 | `--with-infra` | Force infra phase |
 | `--no-mock` | Skip mock |
 | `--no-review` | Skip Phase 5.5 code review |
-| `--auto-fix-mechanical` | Phase 5.5 skips the user gate when ALL critical findings are classified `mechanical` (the reviewer tags each critical as `mechanical` or `architectural`). Any architectural critical re-asserts the gate. Use to tighten the loop on small features where reviewer findings are predictable (missing field, wrong status code, missing i18n key). |
+| `--auto-fix-mechanical` | Phase 5.5 routes fix rounds **per repo**: a repo whose criticals are all `mechanical` (the reviewer tags each critical `mechanical` or `architectural`) skips the gate and its fix round dispatches the moment its reviewer finishes — pipelined, without waiting for sibling reviewers. Repos with any `architectural` critical still gate — but each gets its own focused gate as its reviewer finishes (per phase-5.5 Step 2), not a consolidated end-of-phase prompt. Use to tighten the loop on small features where reviewer findings are predictable (missing field, wrong status code, missing i18n key). |
 | `--force-security-review` | Force security review |
 | `--no-security` | Skip security review |
 | `--no-context-update` | Skip Phase 7 agent-context refresh |
@@ -134,7 +134,7 @@ End-to-end feature pipeline. Orchestrates work across API service repos, fronten
        └── report.md                Phase 7 final report
    ```
    The timestamp prefix of `{run_id}` makes sibling dirs chronologically sortable — no separate `active/` or `completed/` split. In all phase files, `{run_dir}` resolves to `{workspace_root}/{slug}/runs/deliver/{run_id}/`. See `phases/pre-flight.md` for run_id computation + directory creation. Update the scratchpad immediately after every phase completes.
-5. **User approval gates** — pause after Phase 1 (requirements), Phase 2 (architecture), Phase 3 (spec changes), Phase 4.5 (implementation plan), **Phase 5b UX consultant** (before launching feature-implementer), and **Phase 5.5 code review** (only if the reviewer found critical issues — the gate asks whether to dispatch a fix round; the gate is auto-skipped when `--auto-fix-mechanical` is set AND every critical is classified `mechanical` — see phase-5.5-code-review.md Step 2).
+5. **User approval gates** — pause after Phase 1 (requirements), Phase 2 (architecture), Phase 3 (spec changes), Phase 4.5 (implementation plan), **Phase 5b UX consultant** (before launching feature-implementer), and **Phase 5.5 code review** (only for repos with critical issues that need approval — the gate asks whether to dispatch a fix round. Reviewers run as background dispatches and are processed per-repo as each finishes: a repo needing no approval (gates disabled, or `--auto-fix-mechanical` set AND that repo's criticals all `mechanical`) dispatches its fix round immediately; a repo needing approval gets its own focused gate the moment its reviewer finishes — one prompt per critical-finding repo as findings arrive, NOT one consolidated prompt after the slowest reviewer. Only one gate is open at a time. See phase-5.5-code-review.md Step 2).
 
     **At EVERY gate, surface the wait to the UI**: before asking the user, run `node {plugin_dir}/scripts/gate.js open --run-dir={run_dir} --phase={N} --gate=approval --question="..." [--context="..."]`. After receiving the user's answer, run `node {plugin_dir}/scripts/gate.js close --run-dir={run_dir}`. This drives the yellow "waiting for input" banner in the pipeline-view UI and the `⏸` prefix in the browser tab title — essential when the user has the UI open in a second monitor and is working elsewhere. Forgetting to `close` leaves the banner stuck; treat open/close as mandatory bracketing around every gate. Full gate contract + label catalog in `{plugin_dir}/docs/site-view.md`.
 6. **Parallel execution** — Phases 5a, 5c, 5d run in parallel via background agents. Phase 5b runs sequentially (UX → user gate → implementer) but can run in parallel with 5a/5c/5d.
@@ -264,7 +264,7 @@ Each pipeline phase lives in its own file under `phases/`. The orchestrator load
 | `--with-infra` | — | Forces Phase 5d even if architect didn't flag it |
 | `--no-mock` | Phase 5c | — |
 | `--no-review` | Phase 5.5 | Phase 5 → 6 directly |
-| `--auto-fix-mechanical` | — | Bypasses Phase 5.5 user gate when ALL critical findings are `mechanical`; gate fires normally otherwise |
+| `--auto-fix-mechanical` | — | Per-repo Phase 5.5 routing: all-`mechanical` repos pipeline their fix round (no gate, dispatched as the reviewer finishes); repos with `architectural` criticals still gate |
 | `--from-deferred[=<slug>]` | — | Loads a previous run's deferred follow-up file as the feature input. Phase 1 (product-owner) and Phase 2 (architect) still run — they refine the deferred items against current state. Phase 7 Step 7.5 marks the source file as `consumed` on success. |
 | `--with-pr` | — | Phase 8 publishes one draft PR per repo with cross-repo linking |
 | `--publish-despite-blockers` | — | Phase 8 PR publish ignores Phase 6 blocker gate |
