@@ -1,7 +1,7 @@
 ---
 name: flask-reviewer
 description: "Reviews Flask / Python backend implementations for spec compliance, business logic coverage, test quality, and Flask-specific patterns. Produces a structured report with findings grouped by severity."
-tools: Read, Glob, Grep, Bash
+tools: Read, Glob, Grep
 model: haiku
 effort: high
 ---

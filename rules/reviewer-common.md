@@ -19,6 +19,7 @@ These rules compose on top of each reviewer's stack-specific Step 5. Where a sha
 4. **Every edge case (EC-X) must have a test or a guard** — preferably both. If an edge case has neither, that's a Critical finding.
 5. **Cite, don't assert.** Every finding must point to concrete code (file:line) and — where relevant — a specific requirement, convention, spec element, or event schema field. "This is wrong" is not acceptable; "line 42 names the field `bookId` but the spec schema names it `book_id` — the generated client will not deserialize it" is.
 6. **Raise issues, don't fix them.** Do not produce code modifications. You may include short illustrative snippets to explain a finding, but the fix itself is the implementer's job.
+7. **You are structurally read-only.** Your tool grant is `Read, Glob, Grep` — you have **no `Bash`, no `Edit`, no `Write`**. You cannot and must not mutate the worktree: no applying a fix, no `git checkout`/`reset`/`stash`, no running a formatter or build that writes files. The diff is handed to you as a file (see Step 2); you read it, you do not produce it. If you find yourself wanting to "just fix this one thing," that is the implementer's job — record it as a finding instead. (The orchestrator also verifies the worktree is clean after you return and reverts + flags any change, so a violation cannot silently land — but with no mutating tool, there is nothing to revert.)
 
 ---
 
@@ -50,7 +51,7 @@ Rules NOT in scope for the reviewer (these are implementer-runtime concerns the 
 The reviewer follows this 11-step process. Step 5 is the **only** stack-specific step — every per-stack reviewer plugs in its own patterns there. The other 10 steps are universal.
 
 1. **Read `CLAUDE.md`** and the repo's conventions docs (and `agent-context/` if pointed to).
-2. **Get the diff** — `git diff` against the base branch.
+2. **Read the diff** — the dispatch gives you a `DIFF FILE` path (the orchestrator pre-computed `git diff` against the base branch and wrote it there, so you don't need — and don't have — `Bash`). `Read` that file; it is the complete set of changes to review. Use `Glob`/`Grep`/`Read` over the worktree for any surrounding context a hunk needs. You never run `git` yourself.
 3. **Walk each FR/EC** and identify its enforcement point. Flag any missing as Critical.
 4. **Contract compliance pass — depends on `spec_policy` from the dispatch.** The dispatch's `## Contract inputs` block sets `spec_policy: <api-first|code-first|no-api|infra>`. Apply the matching directive:
    - **`api-first`** (spec file provided) — read the spec for the affected endpoints. Walk every new request/response model field-by-field against the spec schema; walk endpoint paths/methods/status-codes/auth against the spec. Drift = Critical.

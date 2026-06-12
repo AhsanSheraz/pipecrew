@@ -57,7 +57,17 @@ Use the TYPE_TO_AGENT mapping:
 
 If the type has no reviewer, report "No reviewer agent for type '{type}'. Skipping." and exit cleanly.
 
-### Step 3: Dispatch the reviewer
+### Step 3: Pre-compute the diff (reviewers have no `Bash`)
+
+Reviewer agents are granted `Read, Glob, Grep` only — no `Bash` — so they cannot run `git diff` themselves (and cannot mutate the repo: the hard prevention for the reviewer-violates-read-only failure mode). Pre-compute the diff to a file first; the helper prints only a byte-count, so the diff body never enters your context:
+
+```bash
+node {plugin_dir}/scripts/write-review-diff.js --worktree={repo_path} --base={base_branch} --out={diff_out}
+```
+
+`{diff_out}` = `{workspace_root}/{workspace}/runs/review/{run_id}/{repo}.diff` when a workspace is known, otherwise an OS temp path (e.g. `{tmpdir}/pipecrew-review-{repo}-{branch-slug}.diff`). The branch under review must be checked out in `{repo_path}` (or pass `--base` such that `{base_branch}...HEAD` is the intended comparison).
+
+### Step 4: Dispatch the reviewer
 
 **Tool**: `Agent`
 **subagent_type**: `{reviewer-agent}`
@@ -70,8 +80,9 @@ Diff base: {base_branch}.
 
 Read {repo_path}/CLAUDE.md first for conventions.
 
-Get the diff:
-  cd {repo_path} && git diff {base_branch}...{branch}
+Read the diff: it is pre-computed at {diff_out} (DIFF FILE) — Read that file;
+it is the complete set of changes to review. You have no Bash and never run
+git yourself; use Read/Glob/Grep over the repo for any surrounding context.
 
 Review the diff against the repo's conventions and any OpenAPI spec
 at {spec_file} (if applicable).
@@ -79,7 +90,9 @@ at {spec_file} (if applicable).
 Produce your full report in the Output Format from your system prompt.
 ```
 
-### Step 4: Present the report
+### Step 5: Backstop + present the report
+
+**Read-only backstop:** after the reviewer returns, run `git -C {repo_path} status --porcelain`. If non-empty, the reviewer mutated the repo (a read-only violation that should be impossible with its `Read, Glob, Grep`-only grant — a stale cached agent definition). Revert (`git -C {repo_path} checkout -- . && git -C {repo_path} clean -fd`, or `git stash`), and warn the user that a reviewer mutated the tree and a `claude` restart / plugin reinstall may be needed. The findings are still valid.
 
 Show the reviewer's full report to the user. Highlight critical findings count.
 

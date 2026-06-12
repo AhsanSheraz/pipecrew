@@ -25,7 +25,13 @@ Dispatch every applicable reviewer as a **background** Agent (`run_in_background
 
 As each background reviewer completes, the harness notifies you. **Process that reviewer immediately** (Step 1.5 → Step 2 for its repo) before the others finish — do not collect them into a batch. While you are blocked on one repo's gate, the remaining reviewers keep running in the background; their completions queue and are handled in turn once the current gate resolves.
 
-The reviewer prompt templates are unchanged — only the dispatch mechanism (background) and the per-completion processing differ.
+**Pre-compute each repo's diff to a file — reviewers have no `Bash`.** Reviewers are dispatched with a `Read, Glob, Grep` tool grant only (no `Bash`, no `Edit`, no `Write`) so they are structurally incapable of mutating the worktree — that is the hard prevention for the reviewer-violates-read-only failure mode. Because they can't run `git diff` themselves, **before** each reviewer dispatch run the diff helper, which writes the diff to a file and prints only a byte-count (the diff body never enters your context):
+
+```bash
+node {plugin_dir}/scripts/write-review-diff.js --worktree={worktree_path} --out={run_dir}/review/{repo}.diff [--base={diff_base}]
+```
+
+Pass the resulting path (`{run_dir}/review/{repo}.diff`) into the reviewer prompt as its `DIFF FILE`. The reviewer `Read`s that file instead of running git. Omit `--base` to let the helper auto-resolve (origin/main → main → dev → master); pass it when the repo's base branch is non-standard.
 
 **Backend / Worker reviewer — one per affected service (spec_policy-aware)**
 
@@ -92,7 +98,7 @@ EVENT SCHEMA FILES:
 INSTRUCTIONS:
 1. Read {service_worktree_path}/CLAUDE.md and the agent-context docs it points to (conventions, error-handling, database, and for workers: event handling / idempotency).
 2. Apply the contract compliance pass from your system prompt — the directive matching `spec_policy` above tells you exactly what to walk and what to flag.
-3. Get the diff: cd into the worktree and run git diff against the appropriate base (merge-base with main or dev).
+3. Read the diff: it is pre-computed at {run_dir}/review/{repo}.diff (DIFF FILE). Read that file — it is the complete set of changes to review. You have no Bash and never run git yourself; use Read/Glob/Grep over the worktree for any surrounding context a hunk needs.
 4. Walk each FR/EC and identify its enforcement point; flag any that are not enforced as Critical.
 5. Run the craft, security, and test passes described in your system prompt.
 6. **Verify each bullet in the task file's `## Known Anti-Patterns` section was actively avoided.** Treat the section as a checklist: for each anti-pattern, either cite the file:line where the implementation handled it, or flag the bullet as a Critical or Non-critical finding depending on severity. If the section is missing, flag that itself as a process issue.
@@ -107,7 +113,7 @@ CRITICAL FOR THIS DISPATCH (do not skip — these are the rules most often forgo
 - **Classify every Critical.** Every Critical finding MUST carry `**Classification**: mechanical` or `**Classification**: architectural` in its prose entry, AND a 5th pipe field on its `critical` FINDINGS row. Missing classifications default to architectural — costs a user-gate round-trip.
 - **Self-consistency.** FINDINGS_SUMMARY counts must equal actual rows in FINDINGS: `critical_mechanical + critical_architectural == critical_total`; `non_critical_total` == non-critical rows; `scope_total` == scope rows.
 - **Apply only your system-prompt passes.** Contract / craft / security / test / scope-drift are defined in your agent system prompt. Do not invent additional checks. Do not flag findings the prompt didn't authorize.
-- **Read-only.** No Edit, no Write, no state-mutating command. Output is the report only.
+- **Read-only — structurally enforced.** Your tool grant is `Read, Glob, Grep` only: no `Bash`, no `Edit`, no `Write`. You cannot mutate the worktree, run git, apply a fix, or run a formatter/build. Output is the report only. (The orchestrator also re-checks the worktree is clean after you return.)
 
 Now: review the diff in `{service_worktree_path}` for the feature, against the requirements and contract above.
 ```
@@ -141,7 +147,7 @@ UX SPEC (to verify what was built matches what was designed):
 INSTRUCTIONS:
 1. Read {frontend_worktree_path}/CLAUDE.md and the design-system + conventions + feature docs it points to.
 2. Read the OpenAPI specs for every endpoint listed above — note the exact request/response field names, nullability, and enum values.
-3. Get the diff: cd into the worktree and run git diff against the appropriate base.
+3. Read the diff: it is pre-computed at {run_dir}/review/{repo}.diff (DIFF FILE). Read that file — it is the complete set of changes to review. You have no Bash and never run git yourself; use Read/Glob/Grep over the worktree for any surrounding context a hunk needs.
 4. Walk every new typed model field-by-field against its spec schema. Flag any drift as Critical.
 5. Walk each FR/EC and identify its implementation point; flag any that are missing as Critical.
 6. Run the framework-specific passes (typing, data fetching, routing, i18n/RTL, accessibility, tests) described in your system prompt.
@@ -157,12 +163,27 @@ CRITICAL FOR THIS DISPATCH (do not skip — these are the rules most often forgo
 - **Self-consistency.** FINDINGS_SUMMARY counts must equal actual rows in FINDINGS: `critical_mechanical + critical_architectural == critical_total`; `non_critical_total` == non-critical rows; `scope_total` == scope rows.
 - **Spec field-name fidelity.** Frontend types must match the OpenAPI spec field names byte-for-byte. Renaming a spec field (e.g., `bookId` → `id`) is a Critical type-drift finding. Walk every typed model field-by-field.
 - **Apply only your system-prompt passes.** Typing / data-fetching / routing / i18n / RTL / accessibility / tests / scope-drift are defined in your agent system prompt. Do not invent additional checks.
-- **Read-only.** No Edit, no Write, no state-mutating command. Output is the report only.
+- **Read-only — structurally enforced.** Your tool grant is `Read, Glob, Grep` only: no `Bash`, no `Edit`, no `Write`. You cannot mutate the worktree, run git, apply a fix, or run a formatter/build. Output is the report only. (The orchestrator also re-checks the worktree is clean after you return.)
 
 Now: review the diff in `{frontend_worktree_path}` for the feature, against the requirements and the spec field names above.
 ```
 
 **On completion of each reviewer**: save the report to `outputs/phase-5-5-code-review.md` (append one section per reviewed repo). Update the scratchpad with the review findings count.
+
+#### Step 1.4: Read-only backstop — assert the reviewer left the worktree clean
+
+Immediately when a reviewer returns (before Step 1.5 / Step 2 for that repo), verify it did not mutate the worktree. With reviewers granted only `Read, Glob, Grep` this should be impossible — this check is defense-in-depth that also catches any pre-existing reviewer (an older cached agent that still has `Bash`) or a recipe drift:
+
+```bash
+git -C {worktree_path} status --porcelain
+```
+
+- **Clean (empty output)** → expected. Proceed to Step 1.5.
+- **Dirty** → the reviewer mutated the tree (a violation). Revert it so the dirty state never reaches the fix-round implementer, then flag:
+  ```bash
+  git -C {worktree_path} stash --include-untracked   # or: git -C {worktree_path} checkout -- . && git -C {worktree_path} clean -fd
+  ```
+  Log to the scratchpad's Phase 5.5 row: `"⚠ {reviewer_agent} mutated {repo} during review (read-only violation) — reverted N files. Findings still consumed."` The reviewer's *findings* are still valid and proceed through Step 1.5 as normal; only its illicit edits are discarded. Surface the violation in the Phase 7 report so the agent grant can be audited (a reviewer that mutated despite a `Read, Glob, Grep`-only grant means a stale agent definition is loaded — prompt a `claude` restart / plugin reinstall).
 
 #### Step 1.5: Persist each finding as a task file (per reviewer, the moment it completes)
 
