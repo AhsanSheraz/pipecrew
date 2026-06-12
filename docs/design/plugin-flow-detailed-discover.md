@@ -273,7 +273,7 @@ The biggest phase. Five sub-steps.
 ### C.1 — Workspace `config.json`
 
 Built from Phase A repos + Phase B1 domain + B2 architect output. Schema covers:
-- `workspace.{name, slug, pipeline_dir, primary_language}`
+- `workspace.{name, slug, primary_language}`
 - `repos.{key}.{path, type, role, description, spec_file, spec_copies}`
 - `services.{key}.{repo, spec_policy, spec_file, description}` — one entry per service repo, includes both HTTP services AND workers
 - `domain.{name, primary_entities, user_roles, auth_type, i18n_languages, rtl_support, domain_notes}`

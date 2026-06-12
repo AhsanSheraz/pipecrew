@@ -20,7 +20,8 @@
         },
         "pipeline_dir": {
           "type": "string",
-          "description": "Override pipeline scratchpad location. Default: ~/.claude/pipecrew/workspaces/{slug}/pipeline"
+          "deprecated": true,
+          "description": "DEPRECATED — no longer read by any skill or script. Superseded by {workspace_root}/{slug}/runs/deliver/ (see /deliver pre-flight). Still accepted on existing configs for back-compat, but /discover no longer emits it; safe to delete."
         },
         "primary_language": {
           "type": "string",

@@ -229,7 +229,6 @@ Build it from the discovered repos + domain answers:
   "workspace": {
     "name": "{from B1 answer 1}",
     "slug": "{derived slug}",
-    "pipeline_dir": "{workspace_root}/{slug}/pipeline",
     "primary_language": "{from B1 answer 4}"
   },
   "repos": {
