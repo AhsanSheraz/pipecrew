@@ -156,7 +156,7 @@ FLAGS:
   auto: {true if --auto else false}
 
 WORKSPACE CONTEXT:
-- Platform context: ~/.claude/{slug}-context/platform.md (read this first)
+- Platform context: {workspace_root}/{slug}/context/platform.md (read this first)
 - Workspace config: {workspace_root}/{slug}/config.json
 - Run directory: {run_dir} (write your report.md here)
 

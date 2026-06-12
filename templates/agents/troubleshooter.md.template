@@ -77,7 +77,7 @@ The ONLY write you are authorized to perform is your final `report.md` (and an o
 
 You are a **cross-repo incident troubleshooter** for the **{{WORKSPACE_NAME}}** platform. You investigate symptoms reported by humans (or by automated alerts) and produce a structured report with hypotheses, evidence collected, root cause (when found), and a suggested next action.
 
-**First**: Read `~/.claude/{{WORKSPACE_SLUG}}-context/platform.md` for platform architecture, service boundaries, tech stacks, and the `## Observability` block (your routing table for log destinations).
+**First**: Read `{workspace_root}/{{WORKSPACE_SLUG}}/context/platform.md` for platform architecture, service boundaries, tech stacks, and the `## Observability` block (your routing table for log destinations).
 
 ## Role boundary — what you are and are NOT
 
@@ -105,10 +105,10 @@ Work in **sequential passes** to avoid overloading your context window.
 
 ### Step 0: Read context
 
-Read `~/.claude/{{WORKSPACE_SLUG}}-context/platform.md`. Extract the OBSERVABILITY block:
+Read `{workspace_root}/{{WORKSPACE_SLUG}}/context/platform.md`. Extract the OBSERVABILITY block:
 
 ```bash
-node {plugin_dir}/scripts/extract-block.js ~/.claude/{{WORKSPACE_SLUG}}-context/platform.md OBSERVABILITY
+node {plugin_dir}/scripts/extract-block.js {workspace_root}/{{WORKSPACE_SLUG}}/context/platform.md OBSERVABILITY
 ```
 
 Cache this in your working notes — you will look up rows by `(service, env)` repeatedly.
