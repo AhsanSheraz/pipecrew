@@ -348,4 +348,17 @@ will be missing/under-counted in the UI even though the run itself is fine.
 Emit `orch_checkpoint` at phase boundaries so the ORCHESTRATOR token counter is
 non-zero.
 
+**Background dispatches must checkpoint per-completion.** When agents are
+dispatched with `run_in_background: true` (e.g. Phase 5.5 reviewers, pipelined
+fix rounds), emit each agent's `agent_end` **the moment its completion
+notification arrives — one at a time, not batched after all of them finish.**
+The site-view is what makes staggered completion visible: card A flips to *done*
+while B/C are still *working*, the gate banner surfaces repo A's approval before
+B finishes, etc. If you hold the `agent_end` events and write them together at
+the end of the phase, every card snaps to done at once and the live pipelining
+the user is watching for collapses back into a batch on screen — even though the
+underlying work really did run concurrently. Emit `agent_start` for the whole
+batch when you launch them; emit each `agent_end` as that specific agent reports
+back.
+
 ---
