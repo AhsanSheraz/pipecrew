@@ -50,7 +50,78 @@ Phase 7: Report ────────── execution report, context refresh
 
 Live dashboard at `http://localhost:5173` shows the crew in real time.
 
-### 3. Standalone tools
+### 3. Patch small changes (lightweight)
+
+When the *what* is already known — an audit finding, a one-line config fix, a codemod, a
+mechanical migration — skip the full pipeline. `/patch` applies it from reusable **recipes**
+instead of re-running a product-owner + architect + paired reviewers.
+
+```bash
+# Fix specific audit findings from context/audit-findings.md
+/patch --findings=F1,F2,F3,F4
+
+# A described one-off change (no findings file needed)
+/patch "externalize the hardcoded API key in auth application.properties"
+
+# Codemod: run a recipe's match pattern across every repo and fix each hit
+/patch --recipe=deliteralize-aws-account-id --sweep
+
+# Apply a /troubleshoot report's root cause, and commit each repo
+/patch --from-troubleshoot=runs/troubleshoot/2026-06-12-…/report.md --commit
+
+# Preview only — match + plan + intended diff, then stop
+/patch --findings=F3 --dry-run
+```
+
+Findings and flags are just the entry points — a patch can be fed from many sources:
+
+| Feeder | Example on your repos |
+|--------|----------------------|
+| Direct request | "bump Spring Boot to 3.3 across all services", "change every prod log level to INFO", "add the `X-Request-Id` header to all controllers" |
+| A recipe, run proactively (sweep) | "apply `no-new-objectmapper` everywhere" — the recipe's match pattern is the finder; no findings doc required |
+| A review/PR comment | apply reviewer feedback as a standalone patch round (the fix-round, decoupled from `/deliver`) |
+| A remembered convention | "bring abvi-backoffice in line with our error-handling convention" — `platform.md` / `CLAUDE.md` is the spec |
+| A `/troubleshoot` report | troubleshoot finds root cause at `file:line` (read-only) → `/patch` applies the fix. Natural producer→consumer pair |
+| Memory as a work queue | "apply the ops follow-ups I recorded last run", or the deferred items from a `Minimum only` gate |
+| Mechanical migration | "stage-guard every `RemovalPolicy.DESTROY`", "field-injection → constructor-injection" |
+
+It runs a short, cheap loop with a single approval gate:
+
+```
+Load recipes (context/recipes/) → match items → apply (1 implementer per repo)
+  → read-only verify (grep / compile / cdk synth) → record + grow the recipe library
+```
+
+A **recipe** is both a fix template *and* a detector — so `--sweep` finds its own work with
+no findings doc. Recipes live in the **workspace** (`{workspace}/context/recipes/*.yml`), encode
+your team's conventions, and accumulate over time, so a class of change gets cheaper to repeat.
+Example shipped after one run on the dal-platform workspace:
+
+```yaml
+# context/recipes/externalize-committed-secret.yml
+name: externalize-committed-secret
+summary: A credential/key/password literal is committed to source config.
+match:
+  globs: ["**/*.properties", "**/*.yml", "**/*.yaml"]
+  pattern: "(api[-_]?key|password|secret|token)\\s*[:=]\\s*['\"]?[A-Za-z0-9_\\-]{16,}"
+  tags: [security, secret, credential]
+fix: >
+  Replace the literal with ${ENV_VAR}, NO committed default (fail-closed). grep the
+  literal repo-wide and fix EVERY copy (caller side + prod/regional twin profiles).
+verify:
+  - "grep -r '<literal>' src/ returns zero hits"
+  - "module compiles (mvn -q -DskipTests compile)"
+follow_up:
+  - "Inject ENV_VAR into prod (+ -eu twin) task defs before deploy."
+  - "Rotate the leaked value — it remains in git history."
+decided_in: ADR-001
+```
+
+`/patch` bounces to `/deliver` the moment a change needs requirements, UX, or a cross-repo
+contract — it's for applying decisions, not making them. See `skills/patch/SKILL.md` and
+`skills/patch/recipe-schema.md`.
+
+### 4. Standalone tools
 
 ```bash
 /review publisher-service --branch=feature/my-feature
@@ -81,6 +152,7 @@ Live dashboard at `http://localhost:5173` shows the crew in real time.
 |-------|---------|
 | `/discover` | One-time project setup |
 | `/deliver` | End-to-end feature pipeline |
+| `/patch` | Lightweight memory-backed fixes (audit findings, codemods, migrations) via reusable recipes |
 | `/review` | Standalone code review |
 | `/assess` | Cross-repo integration check |
 | `/context-refresh` | Agent-context audit/refresh |
