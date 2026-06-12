@@ -58,7 +58,7 @@ Review the backend implementation of feature "{feature_summary}" at `{service_wo
 FEATURE: {feature_summary}
 
 REQUIREMENTS TO VERIFY ENFORCEMENT OF:
-{list of FR-X and EC-X from outputs/phase-1-requirements.md that this service owns}
+{list of FR-X and EC-X — id + summary, enumerated from outputs/blocks/requirements-index.json — that this service owns}
 
 ## Contract inputs
 spec_policy: {api-first | code-first | no-api}
@@ -133,7 +133,7 @@ Review the frontend implementation of feature "{feature_summary}" at `{frontend_
 FEATURE: {feature_summary}
 
 REQUIREMENTS TO VERIFY IMPLEMENTATION OF:
-{list of FR-X and EC-X from outputs/phase-1-requirements.md that the frontend owns}
+{list of FR-X and EC-X — id + summary, enumerated from outputs/blocks/requirements-index.json — that the frontend owns}
 
 ENDPOINTS INTEGRATED:
 {list of endpoints with their EXACT spec field names — this is the most important context for the reviewer}

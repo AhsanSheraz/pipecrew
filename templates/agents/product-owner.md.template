@@ -80,7 +80,7 @@ Every FR-X and EC-X you wrote in the prose **must** appear in the JSON block wit
 - `requirements[]`: `{ id: "FR-N", summary: "<one-line restatement of the FR>" }`
 - `edge_cases[]`: `{ id: "EC-N", summary: "<one-line restatement of the EC>", applies_to: ["FR-X", "FR-Y"] }` — `applies_to` is the FR(s) this edge case modifies (optional, but include it whenever the boundary clearly modifies a specific FR).
 
-Phase 4 task generation, Phase 5.5 reviewers, and Phase 6 cross-repo assessor all extract this block via `node {plugin_dir}/scripts/extract-block.js outputs/phase-1-requirements.md REQUIREMENTS_INDEX`. If the block is missing or its IDs don't match the prose, **every downstream phase breaks**. Self-consistency check before you return: count prose FR-X entries, count JSON `requirements[]` entries — they must match. Same for EC-X. The schema doc with the full field reference lives at `{plugin_dir}/templates/blocks/block-schemas.md` § REQUIREMENTS_INDEX.
+Right after Phase 1 approval the orchestrator materializes this block into `outputs/blocks/requirements-index.json` (via `split-design.js`, the same way the architecture blocks are split). Phase 4 task planning reads that file to validate every `fr_refs` ID exists, and Phase 5.5 reviewers read it to enumerate the FR-X / EC-X each service must enforce. If the block is missing or its JSON is malformed, the split **fails at the Phase 1 gate** and you'll be re-dispatched — so emit it correctly the first time. Self-consistency check before you return: count prose FR-X entries, count JSON `requirements[]` entries — they must match. Same for EC-X. The schema doc with the full field reference lives at `{plugin_dir}/templates/blocks/block-schemas.md` § REQUIREMENTS_INDEX.
 
 ### What you don't write
 

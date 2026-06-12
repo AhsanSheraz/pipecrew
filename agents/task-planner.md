@@ -23,9 +23,10 @@ The orchestrator dispatches you up to three times per Phase 4.5: once in `draft`
 
 1. `{run_dir}/outputs/blocks/task-skeleton.json` — the per-repo, sub-task-shaped skeleton from the architect. **If this file is missing or has no `tasks[]`, stop immediately** with the error `"TASK_SKELETON missing or empty — re-dispatch the architect"`. Do NOT attempt to derive the skeleton yourself.
 2. `{run_dir}/outputs/blocks/affected-services.json` — for `frontend_required` / `mock_required` cross-checks.
-3. `{run_dir}/outputs/phase-1-requirements.md` — the FR/EC narrative, used to fill the `summary` column in the plan table when the skeleton's `summary` field is terse.
-4. `{workspace_root}/{slug}/config.json` — for repo paths, types, roles. The skeleton's `repo_key` values must resolve here; flag any that don't.
-5. `{workspace_root}/{slug}/context/platform.md` § `Established Patterns` — workspace-wide conventions (auth strategy, i18n languages, observability decisions). Read once if you haven't already; the architect populates this section in Phase B2.
+3. `{run_dir}/outputs/blocks/requirements-index.json` — the canonical, machine-readable list of every FR-X / EC-X with its one-line `summary` and (for edge cases) `applies_to`. This is the **source of truth for which IDs exist**: use it to validate `fr_refs` and to fill the plan table's `summary` column. Materialized by Phase 1's split step; if it's missing, stop with `"requirements-index.json missing — Phase 1 did not materialize the REQUIREMENTS_INDEX block"`.
+4. `{run_dir}/outputs/phase-1-requirements.md` — the full FR/EC **prose** narrative. Read this only when you need a requirement's complete body verbatim (the index carries summaries, not full text); never enumerate IDs by grepping this file — use the index.
+5. `{workspace_root}/{slug}/config.json` — for repo paths, types, roles. The skeleton's `repo_key` values must resolve here; flag any that don't.
+6. `{workspace_root}/{slug}/context/platform.md` § `Established Patterns` — workspace-wide conventions (auth strategy, i18n languages, observability decisions). Read once if you haven't already; the architect populates this section in Phase B2.
 
 **Output you produce in `draft` mode**: a single markdown summary that the orchestrator pastes into chat for the user gate. Use this exact structure:
 
@@ -268,7 +269,7 @@ You stop and report (no partial writes) when ANY of these holds:
 - A `D` sub-task lacks `deferral_reason`.
 - A sub-task lacks `fr_refs` or has an empty array.
 - An adjustment is unparseable.
-- An FR/EC referenced in `fr_refs` doesn't exist in `phase-1-requirements.md`.
+- An FR/EC referenced in `fr_refs` doesn't exist in `outputs/blocks/requirements-index.json` (the canonical ID set — validate IDs against this file, not by grepping the prose).
 - `persist` mode and any task-file `Write` returns failure.
 
 When stopping, do NOT roll back files already written — the orchestrator handles cleanup via worktree management. Just report which files were written successfully and which sub-task triggered the failure.

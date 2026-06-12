@@ -33,7 +33,7 @@ No frontend in this workspace.
 Ask clarifying questions if needed, then produce the requirements document using the four prose sections + the REQUIREMENTS_INDEX JSON block exactly as your system prompt specifies. Use the `<!-- BEGIN/END -->` section delimiters.
 
 CRITICAL FOR THIS DISPATCH (do not skip — these are the rules most often forgotten):
-- **REQUIREMENTS_INDEX JSON block is load-bearing.** Emit `<!-- BEGIN REQUIREMENTS_INDEX -->` with a fenced ```json block matching `{plugin_dir}/templates/blocks/requirements-index.example.json`. Phase 4 task generation, Phase 5.5 reviewers, and Phase 6 assessor all extract this via `extract-block.js` — missing block breaks every downstream phase.
+- **REQUIREMENTS_INDEX JSON block is load-bearing.** Emit `<!-- BEGIN REQUIREMENTS_INDEX -->` with a fenced ```json block matching `{plugin_dir}/templates/blocks/requirements-index.example.json`. Right after approval the orchestrator materializes it to `outputs/blocks/requirements-index.json` (the split step below); Phase 4 task planning reads it to validate `fr_refs` IDs and Phase 5.5 reviewers read it to enumerate the FR-X / EC-X each service owns — a missing or malformed block fails the split immediately, at this gate.
 - **Self-consistency.** Every FR-X and EC-X you wrote in the prose MUST appear in the JSON block. Count prose entries, count JSON entries — they must match exactly.
 - **WHAT not HOW.** Functional contract only. No endpoint paths, no request/response shapes, no UI layouts, no component choices, no test plans. Each of those belongs to a downstream agent (architect / ux-consultant / implementer + reviewer).
 - **FR-X is the test spec.** Write each FR so it is testable as stated — include the acceptance criterion in the sentence. The cross-repo assessor (Phase 6) builds its end-to-end checklist directly from FR-X + the wire contract; you do not need to write a separate test plan.
@@ -43,8 +43,24 @@ CRITICAL FOR THIS DISPATCH (do not skip — these are the rules most often forgo
 Now: produce the requirements document for the feature above.
 ```
 
-**After**: Present requirements to the user. Wait for approval.
+**After**: Present requirements to the user. Wait for approval. Once approved, write the full requirements document to `{pipeline_dir}/outputs/phase-1-requirements.md`.
 
-**Update scratchpad**: Set Phase 1 Status to COMPLETED. Write the full approved requirements to `outputs/phase-1-requirements.md`. Set Current Phase to "Phase 2: Architecture".
+**Materialize the requirements index.** Split the structured block out into its own file — the same pattern Phase 2 uses for the architecture blocks, reusing the same generic script:
+
+```bash
+node {plugin_dir}/scripts/split-design.js {pipeline_dir}/outputs/phase-1-requirements.md
+```
+
+This writes `{pipeline_dir}/outputs/blocks/requirements-index.json`. The prose blocks (OVERVIEW / FUNCTIONAL_REQUIREMENTS / EDGE_CASES / OUT_OF_SCOPE) have no ```json fence and are skipped silently — only REQUIREMENTS_INDEX is materialized. **Loud-fails on malformed JSON** (exit 3): the product-owner emitted an invalid REQUIREMENTS_INDEX block — do NOT proceed. Re-dispatch the product-owner via `SendMessage`: `"Your REQUIREMENTS_INDEX block is missing or invalid JSON. Re-emit it matching templates/blocks/requirements-index.example.json — same conversation, do not redo the prose."`
+
+**Verify the file exists** (mirrors Phase 2's TASK_SKELETON guard — catches an omitted block here, at the Phase 1 gate, instead of letting it surface as a confusing Phase 4 failure):
+
+```bash
+test -s {pipeline_dir}/outputs/blocks/requirements-index.json
+```
+
+If absent, the product-owner omitted the block entirely; re-dispatch as above before continuing.
+
+**Update scratchpad**: Set Phase 1 Status to COMPLETED. Set Current Phase to "Phase 2: Architecture".
 
 ---
