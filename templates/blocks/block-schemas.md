@@ -50,7 +50,7 @@ The JSON serves as the addressable index for orchestration (which repos to dispa
 ### `AFFECTED_SERVICES`
 
 **Producer**: `solution-architect` (Phase 2 design output)
-**Consumers**: Phase 3 (spec edit), Phase 4 (plan), Phase 5 (build), Phase 5.5 (review), Phase 7 (report)
+**Consumers**: Phase 3 (spec edit), Phase 4 (plan), Phase 5 (build), Phase 5.5 (review), Phase 6 (assessor spin-up decision — reads `cross_repo_integration`), Phase 7 (report)
 **File**: `{run_dir}/outputs/phase-2-architecture.md`
 **Canonical example**: [`templates/blocks/affected-services.example.json`](./affected-services.example.json) — the single source of truth for the structure. Update that file when the schema changes; this doc only carries the field reference table below.
 
@@ -68,6 +68,8 @@ The JSON serves as the addressable index for orchestration (which repos to dispa
 | `spec_edit_order` | array of names | Order to edit specs when multiple `api-first` services are affected. |
 | `frontend_required` | boolean | Drives Phase 5b skip decision. |
 | `mock_required` | boolean | Drives Phase 5c skip decision. |
+| `cross_repo_integration` | boolean | Whether this feature creates or changes an integration surface that spans repos. `true` if ANY of: `AFFECTED_CONTRACTS` non-empty (shared schema), `API_DESIGN.cross_service_calls[]` non-empty (service-to-service call), `INFRASTRUCTURE_IMPACT…cross_stack_refs[]` non-empty (cross-stack ref), `FRONTEND_ARCHITECTURE.api_integration[]` non-empty (frontend binds to a backend endpoint), OR the architect knows of any other producer/consumer coupling between modified repos — **including coupling through an existing, unedited contract**. `false` only when every modified repo changes independently with none of the above. Drives the Phase 6 assessor spin-up decision: with 2+ repos modified, Phase 6 runs only when this is `true`. |
+| `cross_repo_rationale` | string | One sentence justifying the `cross_repo_integration` value — names the integration point(s) when `true`, or states why the changes are standalone when `false`. Surfaced in the Phase 6 skip log. |
 
 ---
 

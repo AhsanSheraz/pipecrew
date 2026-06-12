@@ -24,5 +24,7 @@
   ],
   "spec_edit_order": ["publisher-service"],
   "frontend_required": true,
-  "mock_required": true
+  "mock_required": true,
+  "cross_repo_integration": true,
+  "cross_repo_rationale": "publisher-service publishes book_uploaded which notification-worker consumes, and the frontend binds to POST /books/{id}/upload — a real producer/consumer surface that spans repos. Set false only when the modified repos change independently with no shared contract, no service-to-service call, no cross-stack ref, and no frontend-to-backend binding."
 }

@@ -1,6 +1,15 @@
 ### Phase 6: Assessment (assessor)
 
-**Single-repo skip rule**: count the number of distinct repos that had COMPLETED implementation tasks. If only 1 repo was modified, **skip Phase 6 entirely** — the per-repo code reviewer in Phase 5.5 already covered it. Log: "Only 1 repo modified ({repo-name}) — Phase 6 skipped. Cross-repo assessment requires 2+ repos." Set status to SKIPPED and proceed to Phase 7.
+**Spin-up decision** — the assessor is a cross-repo integration judge (see its charter below), so it only earns its tokens when there is a cross-repo surface to judge. Two skip conditions, checked in order:
+
+1. **Single-repo skip.** Count the distinct repos that had COMPLETED implementation tasks. If only 1 repo was modified, **skip Phase 6 entirely** — the per-repo code reviewer in Phase 5.5 already covered it. Log: `"Only 1 repo modified ({repo-name}) — Phase 6 skipped. Cross-repo assessment requires 2+ repos."`
+
+2. **Standalone-scope skip (2+ repos, no integration surface).** Even with 2+ repos modified, read the architect's `cross_repo_integration` flag from the AFFECTED_SERVICES block (`node {plugin_dir}/scripts/extract-block.js {run_dir}/outputs/phase-2-architecture.md AFFECTED_SERVICES`, field `cross_repo_integration`; or read `{run_dir}/outputs/blocks/affected-services.json`). If it is `false`, **skip Phase 6** — the repos changed independently with no shared contract, no service-to-service call, no cross-stack ref, and no frontend→backend binding, so there is nothing cross-repo to assess; the per-repo Phase 5.5 reviewers already covered each repo standalone. Log: `"{N} repos modified but cross_repo_integration=false ({cross_repo_rationale}) — Phase 6 skipped. No cross-repo surface to assess."` This is the path for bundled-but-independent changes and the same maintenance applied to multiple services.
+   - **Fallback if the flag is missing** (older architect output, no `cross_repo_integration` field): do NOT skip — fall through to running the assessor. A missing flag must not silently drop integration verification. Log a warning so the architect prompt can be tightened.
+
+On either skip: set Phase 6 status to SKIPPED and proceed to Phase 7. Otherwise (2+ repos AND `cross_repo_integration` is `true` or absent) run the assessor as below.
+
+> **Routing note:** audit-finding remediation and standalone maintenance are usually better run through `/patch`, which has no assessor phase by design. If such work reaches `/deliver` and touches 2+ repos, the `cross_repo_integration=false` skip above is the safety net that keeps the assessor from spinning up on it.
 
 **MANDATORY PRE-CHECK**: Before launching the assessor, read the scratchpad's Implementation Tasks table. Check every task's status. Build a status summary:
 

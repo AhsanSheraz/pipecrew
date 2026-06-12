@@ -47,6 +47,7 @@ Produce the Technical Design Document using the required section delimiters.
 CRITICAL FOR THIS DISPATCH:
 - **Ask before guessing.** Walk the clarification-protocol dimension list in your system prompt. For every dimension not pinned by the requirements or `platform.md`, emit a clarifying question and STOP — do not silently fill gaps. Run the adversarial pass before emitting. Section markers come only after every dimension is either pinned, justifiably skipped as N/A, or captured under a top-level `## Assumptions` block.
 - Emit the AFFECTED_SERVICES section as a fenced ```json block matching `{plugin_dir}/templates/blocks/affected-services.example.json`. Downstream phases extract it programmatically — prose-only is a defect.
+- **Set `cross_repo_integration` honestly.** In AFFECTED_SERVICES, set `cross_repo_integration: true` if this feature creates or changes ANY integration surface spanning repos — a shared contract/schema, a service-to-service call (`API_DESIGN.cross_service_calls[]`), a cross-stack ref, a frontend→backend endpoint binding, OR any producer/consumer coupling you know of **including coupling through an existing, unedited contract**. Set it `false` ONLY when every modified repo changes independently with none of the above (e.g. the same maintenance applied to two services, or two unrelated changes bundled). Add a one-sentence `cross_repo_rationale`. This drives whether the Phase 6 cross-repo assessor runs at all — a wrong `false` skips integration verification the feature actually needs; a lazy `true` spends assessor tokens on nothing to check.
 - Emit the TASK_SKELETON section as a fenced ```json block matching `{plugin_dir}/templates/blocks/task-skeleton.example.json`. Phase 4.5's task-planner consumes this — without it the planner falls back to LLM-parsing RISKS prose, which is fragile. Every `D` sub-task in the skeleton must cite its corresponding RISKS sub-bullet via `deferral_reason`.
 - Include AFFECTED_CONTRACTS and CONTRACT_DESIGN sections if (and only if) any contract repo is affected.
 - Identify ALL affected services AND contracts — the user did not pre-select. Missing one breaks downstream phases.
@@ -81,6 +82,7 @@ Downstream phases (3, 4, 5) read these side files instead of the markdown. The o
 - Frontend Required = Yes if architect's design includes frontend changes AND config has a frontend repo
 - Mock Required = Yes if config has a mock-server repo AND architect didn't explicitly exclude it
 - Infra Required = Yes if architect flagged infrastructure impact AND config has an infra repo
+- Cross-Repo Integration = the architect's AFFECTED_SERVICES `cross_repo_integration` boolean (drives the Phase 6 assessor spin-up decision; store `cross_repo_rationale` alongside it for the skip log)
 
 Set Current Phase to "Phase 3a: Contract Edit" if contracts are affected, otherwise "Phase 3b: Spec Edit".
 

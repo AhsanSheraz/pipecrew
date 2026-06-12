@@ -112,7 +112,7 @@ End-to-end feature pipeline. Orchestrates work across API service repos, fronten
     | 5d (Infra) | config has repos with `role: "infrastructure"` AND architect flags it | `--with-infra` forces |
     | 5.5 (Review) | any Phase 5 task ran | `--no-review` skips |
     | 5.75 (Security) | keyword trigger or `--force-security-review` | `--no-security` skips |
-    | 6 (Assess) | **2+ repos were modified** during Phase 5. If only 1 repo changed, the reviewer already covers it — skip Phase 6 and note "single-repo pipeline, Phase 6 skipped". | — |
+    | 6 (Assess) | **2+ repos modified during Phase 5 AND the architect's `cross_repo_integration` flag is `true`** (or absent — conservative fallback). Skip if only 1 repo changed (the reviewer covers it) OR if 2+ repos changed but `cross_repo_integration=false` (standalone scope — nothing cross-repo to assess; e.g. bundled-independent changes or the same maintenance applied to several services). Note the skip reason. See phase-6-assess.md spin-up decision. | — |
     | 7 (Report) | always | — |
     | 8 (Publish + Wrap-up) | always (Step 8.6 feedback offering); PR publish steps within Phase 8 only if `--with-pr` AND no Phase 6 blockers | `--with-pr` enables PR publish; `--publish-despite-blockers` overrides blocker gate; `--no-feedback-prompt` skips Step 8.6 |
 

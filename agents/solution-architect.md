@@ -312,6 +312,9 @@ One line per service explaining why it's involved. The JSON above carries the da
 
 ## Frontend / Mock notes
 [Any context the `frontend_required` / `mock_required` booleans don't capture. Otherwise `N/A`.]
+
+## Cross-repo integration
+Set the `cross_repo_integration` boolean and `cross_repo_rationale` in the JSON above. It is `true` if this feature creates or changes ANY integration surface spanning repos — a shared contract/schema, a service-to-service call (`cross_service_calls`), a cross-stack ref, a frontend→backend endpoint binding, or any producer/consumer coupling you know of **including coupling through an existing, unedited contract**. It is `false` ONLY when every modified repo changes independently with none of those (e.g. the same maintenance applied to two services, or two unrelated changes bundled). This flag alone decides whether the Phase 6 cross-repo assessor runs — a wrong `false` skips integration verification the feature needs; a lazy `true` burns assessor tokens on nothing to check.
 <!-- END AFFECTED_SERVICES -->
 
 <!-- BEGIN ARCHITECTURE_DECISION -->
