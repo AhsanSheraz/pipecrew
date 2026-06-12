@@ -17,16 +17,19 @@ cd {frontend.path} && (
 )
 ```
 
-**Step 2: If design system signals found** → dispatch a discovery agent:
+**Step 2: If design system signals found** → dispatch the **ux-consultant in discovery mode**. Use the base plugin `ux-consultant` (the workspace `{slug}-ux-consultant` is not generated until Phase C, so it does not exist yet at B3 — this is exactly how B2 uses the base `solution-architect` in `MODE: discovery`). The UX specialist authoring the design system keeps `/discover` symmetric with `/deliver`, where the same agent consumes it. The agent's **Discovery Mode** section defines the canonical output structure; the questions below are the specifics for this dispatch.
 
 **Tool**: `Agent`
+**subagent_type**: `ux-consultant`
 **description**: `"Design system discovery — {frontend-repo-name}"`
 **prompt**:
 
 ```
-Read the frontend repository at {frontend.path}. Start with CLAUDE.md if it exists.
+MODE: discovery
 
-Discover the design system and answer these questions with specific file paths and component names:
+repo_path: {frontend.path}
+
+Catalogue this frontend repo's design system per your Discovery Mode section and return the DESIGN_SYSTEM.md document. Start with CLAUDE.md if it exists. Cover these with specific file paths and component names:
 
 1. COMPONENT LIBRARY: which one? (MUI, Ant Design, Radix, Chakra, Mantine, custom, none)
    - Version? (e.g., MUI v5 vs v6 matters for API)
