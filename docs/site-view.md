@@ -57,24 +57,32 @@ Pre-flight Step 6 launches the server in the background with `run_in_background:
 
 ## Data sources
 
-The server reads **three files** per run and merges them into a single state JSON. All live under `{workspace_root}/{slug}/runs/deliver/{run_id}/`.
+The server reads **four files** per run and merges them into a single state JSON. All live under `{workspace_root}/{slug}/runs/deliver/{run_id}/`.
 
-| File | Primary / Secondary | Role |
-|------|---------------------|------|
-| `scratchpad.md` | Primary | The already-reduced "current state" view — Phase Status table, Implementation Tasks table, Agent Dispatch Log table |
-| `checkpoints.jsonl` | Enrichment | Orchestrator-overhead tokens + retry markers |
-| `awaiting_input.json` | Presence-only flag | Drives the yellow "waiting for input" banner |
+The merge is **layered, not single-primary**: each source is authoritative for the things it records most reliably. The guiding split is **lifecycle vs. planning**.
 
-### Why scratchpad is primary (not checkpoints)
+| File | Authoritative for | Role |
+|------|-------------------|------|
+| `checkpoints.jsonl` | **Lifecycle** — which agents ran, per-repo identity, status, tokens, duration, fix-round re-dispatches | Append-only event stream, emitted programmatically at every dispatch boundary |
+| `scratchpad.md` | **Planning / context** — the pre-run ghosted roster (Architecture Flags), worktree paths, files-changed, and inline-only roles that never spawn a sub-agent | The orchestrator's hand-maintained in-flight summary (Phase Status / Implementation Tasks / Agent Dispatch Log tables) |
+| `awaiting_input.json` | Pipeline gate state | Presence-only flag — drives the yellow "waiting for input" banner |
+| `awaiting_claude_approval.json` | Claude Code's own tool-permission pause | Presence-only flag — written by `notify-hook.js`, drives the Claude-approval banner |
 
-Scratchpad is the orchestrator's in-flight state summary — tables already aggregate per-phase and per-task. Checkpoints are the raw event stream (append-only) which would require event replay to compute the same view. Replay is lossier (no worktree paths, no "files changed" columns) and more complex. Scratchpad stays primary.
+### Why lifecycle is checkpoint-authoritative (not scratchpad)
 
-### What the server pulls from checkpoints.jsonl
+The scratchpad's Agent Dispatch Log is hand-written by the orchestrator mid-run, so it is only as complete as orchestrator discipline. In practice it is frequently sparse or empty — and when it is, anything that lives *only* in that table (per-repo reviewers, the assessor, fix-round re-dispatches, per-agent token/duration) becomes invisible in the UI even though the run itself succeeded. `checkpoints.jsonl` does not have that failure mode: `agent_start` / `agent_end` are emitted programmatically at the exact dispatch boundaries and carry `agent_type`, `phase`, `description`, `task`, `tokens`, and `duration_ms`. So the server treats checkpoints as the source of truth for the lifecycle layer and *reconciles* it into the character roster.
 
-Only two things the scratchpad doesn't carry:
+### What the server derives from checkpoints.jsonl
 
-1. **Orchestrator overhead tokens** — sum of `orch_since_last.{input_tokens, output_tokens, cache_read_tokens}` across every `orch_checkpoint` event. Surfaces in the header's ORCHESTRATOR counter.
-2. **Retry indicators** — `retry` events that have no matching follow-up `agent_end` with `status: ok` flag the affected character as `retrying: true`.
+1. **Per-`(role, repo)` character cards** — `agent_end` events are grouped by role (`agentToRole(agent_type)`) and a repo hint parsed from `description`. Each group upgrades an existing card, repurposes a repo-less preseed (e.g. the single phase-status `crit` becomes the first per-repo reviewer), or adds a new card (the 2nd–4th reviewers). This is what makes four parallel reviewers show as four repo-labelled cards instead of one "cross-repo" card.
+2. **Status** — a group with an open `agent_start` (no matching `agent_end`) is `working`; otherwise the most-recent `agent_end` status (`completed` / `completed_with_violation` → done, fail/error/timeout → failed). A re-dispatch in a `5.5-fix` phase flips a previously-done implementer back to `working`/adds a `fix-r1` chip.
+3. **Tokens + duration** — summed per card across all its dispatches (impl → fix → addendum). The schema field is **`tokens`** (not `total_tokens`). These feed both the per-card readout and the header's total.
+4. **Orchestrator overhead tokens** — sum of `orch_since_last.{input_tokens, output_tokens, cache_read_tokens}` across every `orch_checkpoint` event. Header ORCHESTRATOR counter. (Zero if the orchestrator emits no `orch_checkpoint` events.)
+5. **Retry indicators** — a `retry` event with no following completing `agent_end` flags the character `retrying: true`.
+
+### What still comes only from the scratchpad
+
+The architect (and any phase-level role that runs in-orchestrator and emits no `agent_end`) is recorded *only* by its Phase Status row — so the Phase Status table still drives those cards' completion. Worktree paths, files-changed columns, and the pre-run ghosted roster (from Architecture Flags) have no checkpoint equivalent and remain scratchpad-only. Phase Status cells may carry trailing prose (`COMPLETED (awaiting gate)`, `SKIPPED (skip product owner)`) — the status parser matches the leading literal, so annotations no longer strand a card as `queued`.
 
 ### What the server pulls from awaiting_input.json
 

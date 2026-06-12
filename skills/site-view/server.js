@@ -751,8 +751,15 @@ function mapStatus(raw) {
   // to 'queued' (which makes the Polish-round-6 promotion loop roll up
   // to 'working' and spawn ghost duplicate cards like pip-2).
   const head = s.split(/[\s\u2014\-:—]/)[0];
-  if (head === 'SUCCESS' || head === 'OK' || head === 'COMPLETE') return 'done';
-  if (head === 'FAIL' || head === 'ERROR' || head === 'TIMEOUT') return 'failed';
+  // Also recognise the literal phase-status keywords when they carry trailing
+  // prose, e.g. "COMPLETED (awaiting gate)" / "SKIPPED (skip product owner)" /
+  // "COMPLETED (1 fix round)". The exact-match branch above only catches the
+  // bare literal; a parenthetical annotation used to fall through to 'queued',
+  // which stranded archie/judge/crit as never-completing and starved the pyramid.
+  if (head === 'COMPLETED' || head === 'DONE' || head === 'SUCCESS' || head === 'OK' || head === 'COMPLETE') return 'done';
+  if (head === 'SKIPPED' || head === 'SKIP') return 'skipped';
+  if (head === 'FAILED' || head === 'BLOCKED' || head === 'FAIL' || head === 'ERROR' || head === 'TIMEOUT') return 'failed';
+  if (head === 'IN_PROGRESS' || head === 'RUNNING' || head === 'WORKING') return 'working';
   return 'queued';
 }
 
@@ -777,8 +784,20 @@ function parseTable(content, sectionHeader) {
   return rows;
 }
 
+// Map an agent_end `status` (checkpoint schema) to a character lifecycle
+// status. The observability schema uses `completed` (not `ok`); a reviewer
+// that tripped the read-only guard reports `completed_with_violation` — still
+// a completion, not a failure. Anything fail/error/timeout-ish → failed.
+function mapEndStatus(raw) {
+  const s = String(raw || '').toLowerCase();
+  if (!s) return 'done';
+  if (s.startsWith('complete') || s === 'ok' || s.startsWith('success') || s === 'done') return 'done';
+  if (s.startsWith('fail') || s.startsWith('error') || s.startsWith('timeout') || s === 'blocked') return 'failed';
+  return 'done';
+}
+
 // ─── Checkpoints enrichment ──────────────────────────────────
-// Returns { orchestratorTokens, retryingAgents: Set<string>, agentMetrics: {agent_type: {tokens, duration}} }.
+// Returns { orchestratorTokens, retryingAgents: Set<string>, agentMetrics: {agent_type: {tokens, duration}}, instances: [...] }.
 // orchestratorTokens = sum of orch_since_last.{input,output,cache_read}_tokens
 //   across all orch_checkpoint events.
 // retryingAgents = agent_type strings that have an unmatched retry event
@@ -791,12 +810,21 @@ function readCheckpoints() {
     orchestratorTokens: 0,
     retryingAgents: new Set(),
     agentMetrics: {},
+    instances: [],
   };
   if (!file || !fs.existsSync(file)) return result;
   try {
     const lines = fs.readFileSync(file, 'utf8').split('\n').filter(Boolean);
     const pendingRetries = new Map(); // agent_type → last retry event
     const startTs = new Map(); // agent_type → last agent_start ts (for duration fallback)
+    // Pair agent_start/agent_end into discrete lifecycle instances. The key is
+    // agent_type + task + description so two same-type dispatches (e.g. two
+    // spring-boot-implementers on different services, or the same implementer
+    // re-run in a 5.5-fix round) stay distinct. A start with no matching end is
+    // still in flight (open → working). Many runs emit ONLY agent_end (no
+    // agent_start) — those become already-completed instances. Both supported.
+    const openByKey = new Map(); // key → instance ref in result.instances
+    const instKey = (e) => `${e.agent_type || '?'}|${e.task || ''}|${e.description || ''}`;
     for (const line of lines) {
       let evt;
       try { evt = JSON.parse(line); } catch (_) { continue; }
@@ -809,13 +837,35 @@ function readCheckpoints() {
       } else if (evt.event === 'retry') {
         pendingRetries.set(evt.agent_type, evt);
       } else if (evt.event === 'agent_start') {
-        if (evt.ts && evt.agent_type) startTs.set(evt.agent_type, evt.ts);
+        if (evt.agent_type) {
+          if (evt.ts) startTs.set(evt.agent_type, evt.ts);
+          const inst = {
+            agentType: evt.agent_type,
+            phase: evt.phase != null ? String(evt.phase) : '',
+            description: evt.description || '',
+            task: evt.task || '',
+            tokens: 0,
+            durationMs: 0,
+            status: 'working',
+            ended: false,
+            ts: evt.ts || null,
+          };
+          result.instances.push(inst);
+          openByKey.set(instKey(evt), inst);
+        }
       } else if (evt.event === 'agent_end') {
-        if (evt.status === 'ok') pendingRetries.delete(evt.agent_type);
+        // Schema uses `completed` / `completed_with_violation`; treat any
+        // completion as resolving a pending retry.
+        const ended = mapEndStatus(evt.status);
+        if (ended !== 'failed') pendingRetries.delete(evt.agent_type);
         const agent = evt.agent_type;
+        // Token field: the checkpoint schema emits `tokens`; older code looked
+        // for `total_tokens` only, so EVERY token reading was silently zero.
+        const tok = typeof evt.tokens === 'number' ? evt.tokens
+                  : typeof evt.total_tokens === 'number' ? evt.total_tokens : 0;
         if (agent) {
           const m = result.agentMetrics[agent] || (result.agentMetrics[agent] = { tokens: 0, duration_ms: 0 });
-          if (typeof evt.total_tokens === 'number') m.tokens += evt.total_tokens;
+          m.tokens += tok;
           if (typeof evt.duration_ms === 'number') m.duration_ms += evt.duration_ms;
           else if (evt.ts && startTs.has(agent)) {
             const delta = new Date(evt.ts).getTime() - new Date(startTs.get(agent)).getTime();
@@ -823,6 +873,31 @@ function readCheckpoints() {
           }
           startTs.delete(agent);
         }
+        // Close the matching open instance, or synthesise a completed one when
+        // no agent_start was emitted.
+        const key = instKey(evt);
+        let inst = openByKey.get(key);
+        if (inst) {
+          openByKey.delete(key);
+        } else {
+          inst = {
+            agentType: evt.agent_type,
+            phase: evt.phase != null ? String(evt.phase) : '',
+            description: evt.description || '',
+            task: evt.task || '',
+            tokens: 0,
+            durationMs: 0,
+            status: 'done',
+            ended: false,
+            ts: evt.ts || null,
+          };
+          result.instances.push(inst);
+        }
+        inst.ended = true;
+        inst.status = ended;
+        inst.tokens += tok;
+        if (typeof evt.duration_ms === 'number') inst.durationMs += evt.duration_ms;
+        if (evt.ts) inst.ts = evt.ts;
       }
     }
     for (const a of pendingRetries.keys()) result.retryingAgents.add(a);
@@ -873,8 +948,10 @@ function mapPhaseToLabel(phase) {
   if (p === '5.75') return { label: 'security', category: 'security' };
   // Assessment (phase 6)
   if (p === '6') return { label: 'assess', category: 'assess' };
-  // Implementation (5, 5a, 5b, 5c, 5d, …)
-  if (/^5[a-z]?$/.test(p)) return { label: 'impl', category: 'impl' };
+  // Implementation (5, 5a, 5b, 5c, 5d, plus ad-hoc suffixes like 5d-addendum).
+  // 5.5 / 5.5-fix / 5.75 are dotted and already handled above, so a bare
+  // 5-prefix with an optional letter + optional "-suffix" is always impl work.
+  if (/^5[a-z]?(-[a-z0-9]+)*$/.test(p)) return { label: 'impl', category: 'impl' };
   // Misc early phases — muted grey neutral.
   if (p === '1')   return { label: 'requirements', category: 'neutral' };
   if (p === '2')   return { label: 'arch',         category: 'neutral' };
@@ -916,6 +993,30 @@ function repoMatches(extracted, charRepo) {
   const a = String(extracted).toLowerCase();
   const b = String(charRepo).toLowerCase();
   return a === b || a.includes(b) || b.includes(a);
+}
+
+// Derive a repo token from a checkpoint instance's free-form `description`.
+// Implementer/reviewer descriptions lead with the repo short-name in practice
+// ("auth review", "infra F3", "notifications F4", "workflow F1b+F2"). We take
+// the first whitespace token, strip the `abvi-` prefix, and return it ONLY when
+// it loosely matches a known repo label (gathered from Implementation-Tasks
+// rows + Architecture Flags) — normalising to that label so a reviewer's "auth"
+// lands on the same repo string as the implementer's "auth-service" card.
+//
+// We deliberately do NOT fall back to the raw leading token: phase-level
+// singleton roles carry prose descriptions ("requirements document",
+// "technical design", "cross-repo assessment", "execution report") whose first
+// word is repo-shaped but is not a repo — returning it would mislabel those
+// cards. An unrecognised leading token → null (the card stays repo-less, or
+// the instance matches its role's existing card by role-only fallback).
+function repoHintFromDescription(desc, knownRepos) {
+  if (!desc || !knownRepos) return null;
+  const first = String(desc).trim().split(/\s+/)[0].toLowerCase().replace(/^abvi-/, '');
+  if (!first || !/^[a-z][a-z0-9-]{1,}$/.test(first)) return null;
+  for (const r of knownRepos) {
+    if (repoMatches(first, r)) return r;
+  }
+  return null;
 }
 
 // Append a phase chip to the character's ordered phase list, deduping the
@@ -1393,19 +1494,106 @@ function parseScratchpad(content) {
     }
   }
 
-  // Checkpoints enrichment — orchestrator tokens + retry flags + agent metrics fallback
-  const { orchestratorTokens, retryingAgents, agentMetrics: cpMetrics } = readCheckpoints();
+  // Checkpoints enrichment — orchestrator tokens + retry flags + agent metrics + lifecycle instances
+  const { orchestratorTokens, retryingAgents, agentMetrics: cpMetrics, instances } = readCheckpoints();
 
-  // Per-character metric resolution. Prefer scratchpad (orchestrator's canonical
-  // summary with round-descriptor granularity). Fall back to role-level scratchpad
-  // aggregation for name-mismatches, then finally to checkpoints agent_end events.
+  // ─── Checkpoints reconciliation (lifecycle is checkpoint-authoritative) ──
+  // checkpoints.jsonl is emitted programmatically at every dispatch boundary,
+  // so it is the reliable record of WHICH agents ran, their per-repo identity,
+  // tokens, duration, and fix-round re-dispatches — exactly the lifecycle facts
+  // the hand-maintained scratchpad dispatch-log table routinely lacks (an empty
+  // dispatch log is why per-repo reviewers, fix-round re-runs, and token counts
+  // were all invisible). We fold each (role, repo) group of instances into
+  // characters[]: upgrading an existing card, repurposing a repo-less preseed,
+  // or adding a new card (e.g. the 2nd–4th per-repo reviewer). The scratchpad
+  // stays authoritative for the pre-run ghosted roster, worktree paths, and
+  // inline-only roles (e.g. an architect that never spawned a sub-agent and so
+  // emits no agent_end — its phase-status row is the only record it finished).
+  const cpCharMetrics = {}; // charId → { tokens, durationMs, dispatches, status }
+  if (instances && instances.length) {
+    const knownRepos = new Set();
+    for (const c of characters) if (c.repo) knownRepos.add(c.repo);
+    for (const s of flags.affectedServices) { const r = shortRepo(s); if (r) knownRepos.add(r); }
+
+    // Group instances by (role, repoHint). Same (role,repo) across phases
+    // (impl → 5.5-fix → addendum) collapses to one card: tokens sum, phase
+    // chips accumulate, status = working if any instance is still open, else
+    // the most-recent ended status.
+    const groups = new Map();
+    for (const inst of instances) {
+      const role = agentToRole(inst.agentType);
+      if (!role) continue;
+      const repo = repoHintFromDescription(inst.description, knownRepos);
+      const key = role + '::' + (repo || '');
+      let g = groups.get(key);
+      if (!g) { g = { role, repo, tokens: 0, durationMs: 0, dispatches: 0, phases: [], anyOpen: false, lastTs: null, lastStatus: 'done' }; groups.set(key, g); }
+      g.tokens += inst.tokens || 0;
+      g.durationMs += inst.durationMs || 0;
+      g.dispatches += 1;
+      if (!inst.ended) g.anyOpen = true;
+      else {
+        const t = inst.ts ? new Date(inst.ts).getTime() : 0;
+        if (g.lastTs === null || t >= g.lastTs) { g.lastTs = t; g.lastStatus = inst.status; }
+      }
+      const mapped = mapPhaseToLabel(inst.phase);
+      if (mapped) g.phases.push(mapped);
+    }
+
+    const claimed = new Set();
+    for (const g of groups.values()) {
+      const finalStatus = g.anyOpen ? 'working' : (g.lastStatus || 'done');
+      // Resolve the target card: (1) an existing same-role card whose repo
+      // matches; (2) an unclaimed repo-less card of the role to repurpose
+      // (e.g. the single phase-status `crit` becomes the first per-repo
+      // reviewer); (3) a brand-new card (the remaining per-repo reviewers).
+      let target = null;
+      if (g.repo) {
+        target = characters.find(c => c.role === g.role && c.repo && repoMatches(g.repo, c.repo) && !claimed.has(c.id));
+        if (!target) {
+          const reusable = characters.find(c => c.role === g.role && !c.repo && !claimed.has(c.id));
+          if (reusable) { reusable.repo = g.repo; target = reusable; }
+        }
+      } else {
+        target = characters.find(c => c.role === g.role && !claimed.has(c.id));
+      }
+      if (!target) {
+        let k = characters.filter(c => c.role === g.role).length;
+        let id = k === 0 ? g.role : `${g.role}-${k + 1}`;
+        while (seen.has(id)) { k++; id = `${g.role}-${k + 1}`; }
+        const sib = characters.find(c => c.role === g.role);
+        target = {
+          id, role: g.role,
+          phase: sib?.phase || '5',
+          agent: sib?.agent || DEFAULT_AGENT_NAME[g.role] || g.role,
+          repo: g.repo || null,
+          status: 'queued',
+        };
+        seen.add(id);
+        characters.push(target);
+      }
+      claimed.add(target.id);
+      // Lifecycle is checkpoint-authoritative — cp status wins (it is always
+      // working/done/failed, never queued, so this never downgrades a card).
+      target.status = finalStatus;
+      cpCharMetrics[target.id] = { tokens: g.tokens, durationMs: g.durationMs, dispatches: g.dispatches, status: finalStatus };
+      for (const p of g.phases) pushPhaseChip(phasesByCharId, target.id, p.label, p.category);
+    }
+  }
+
+  // Per-character metric resolution. Prefer the per-card checkpoint instance
+  // totals (most accurate, per-repo). Fall back to scratchpad dispatch-log
+  // metrics by name, then role-level aggregation, then agent_type-keyed
+  // checkpoint metrics.
   for (const c of characters) {
     const norm = normalizeAgentName(c.agent);
     const byName = agentMetrics[norm];
     const byRole = roleMetrics[c.role];
     const cp = cpMetrics[norm] || cpMetrics[c.agent];
+    const cpc = cpCharMetrics[c.id];
     let tokens = 0, duration = '', dispatches = 0;
-    if (byName && byName.totalTokens > 0) {
+    if (cpc && cpc.tokens > 0) {
+      tokens = cpc.tokens; duration = formatDurationMs(cpc.durationMs); dispatches = cpc.dispatches;
+    } else if (byName && byName.totalTokens > 0) {
       tokens = byName.totalTokens; duration = byName.totalDuration; dispatches = byName.dispatches;
     } else if (byRole && byRole.totalTokens > 0) {
       tokens = byRole.totalTokens; duration = byRole.totalDuration; dispatches = byRole.dispatches;

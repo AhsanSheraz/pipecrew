@@ -41,11 +41,15 @@ Both banners share: persistent 4-second beep via Web Audio, stronger pulsing glo
   - Tab title now flashes between `⏸ {base}` and `{base}` every 2 s (`startTitleFlash` / `stopTitleFlash`).
   - Ticker now updates both `#ai-since` and `#ca-since` every second so the "waiting Xs" counters keep climbing even without SSE updates.
 
-### User settings
+### Hook registration (auto — no manual settings edit)
 
-- **`~/.claude/settings.json`** — added:
-  - `permissions.allow` entries to auto-approve `gate.js` without a prompt (see below).
-  - `hooks.Notification`, `hooks.UserPromptSubmit`, `hooks.PostToolUse` pointing at `notify-hook.js`.
+> **As of the plugin-hooks change, the `Notification` / `UserPromptSubmit` / `PostToolUse` hooks are registered by the plugin itself** in `.claude-plugin/hooks/hooks.json` (alongside the troubleshooter bash guard). They auto-load when the plugin is installed — **you no longer hand-edit `~/.claude/settings.json` to wire `notify-hook.js`.** The `~/.claude/settings.json` section below is retained only as historical reference / for installs that predate plugin-hook support. `notify-hook.js` self-gates on active run dirs, so the globally-registered hooks are a fast no-op whenever no `/deliver` run is live. After installing/upgrading the plugin, **restart `claude`** and confirm via `/hooks`.
+
+### User settings (historical / pre-plugin-hooks)
+
+- **`~/.claude/settings.json`** — formerly added by hand:
+  - `permissions.allow` entries to auto-approve `gate.js` without a prompt (see below). *(Still useful — these are permission rules, not hooks.)*
+  - `hooks.Notification`, `hooks.UserPromptSubmit`, `hooks.PostToolUse` pointing at `notify-hook.js`. **Now superseded by the plugin's `hooks.json` — don't duplicate them in `settings.json` or the hook will fire twice.**
 
 ## `permissions.allow` entries added
 

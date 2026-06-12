@@ -71,7 +71,7 @@ const RUN_IDS = {
 
 // ─── Filesystem helpers ───────────────────────────────────────
 function mkdirp(p) { fs.mkdirSync(p, { recursive: true }); }
-function write(p, body) { fs.writeFileSync(p, body); }
+function write(p, body) { fs.mkdirSync(path.dirname(p), { recursive: true }); fs.writeFileSync(p, body); }
 function writeJson(p, obj) { fs.writeFileSync(p, JSON.stringify(obj, null, 2) + '\n'); }
 function appendJsonl(p, ev) { fs.appendFileSync(p, JSON.stringify(ev) + '\n'); }
 

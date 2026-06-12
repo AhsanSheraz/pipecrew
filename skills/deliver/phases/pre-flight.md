@@ -314,16 +314,38 @@ Continue anyway? (yes / no)
 
 If `stats-cache.json` doesn't exist or has no data for today, skip the gate silently.
 
-**Step 6: Auto-start the live pipeline view.**
+**Step 6: Auto-start the live pipeline view. (MANDATORY — do not skip.)**
 
-Launch the `pipeline-view` server in the background so the user can watch the crew queue in real time. Use `Bash` with `run_in_background: true`:
+This is not optional and not "if you remember". Every `/deliver` run launches the
+site-view server during pre-flight, **before Phase 1**, so the user can watch the
+crew from the first dispatch. Skipping it is the #1 reported site-view defect
+("it didn't start automatically"). Launch it with `Bash` + `run_in_background: true`:
 
 ```bash
 node {plugin_dir}/skills/site-view/server.js --workspace={workspace_slug} --run-id={run_id}
 ```
 
-The server auto-opens the browser at `http://127.0.0.1:5173`, watches `{pipeline_dir}/active.md`, and stays running until the user closes the terminal.
+Then, in chat, print exactly one line so the user knows where to look:
+
+```
+[site-view ▶] http://127.0.0.1:{port}  (watching {run_id})
+```
+
+Read the launch log (the background task's output) to get the actual `{port}` —
+it auto-increments from 5173 on `EADDRINUSE`, so it may not be 5173. The server
+auto-opens the browser, reads `scratchpad.md` + `checkpoints.jsonl` +
+`awaiting_input.json` from `{run_dir}`, and stays up until the terminal closes.
 
 Do not wait for the server process to finish. Continue immediately to Phase 1.
+
+**Why checkpoints discipline matters for the UI:** the site-view derives the
+agent lifecycle (which agents ran, per-repo identity, tokens, duration,
+fix-round re-dispatches) primarily from `checkpoints.jsonl`, not the scratchpad
+tables. Emit `agent_start` / `agent_end` (with `tokens`, `duration_ms`, `phase`,
+`description`, `task`) per `rules/observability.md` for **every** dispatch —
+including reviewers, the assessor, and fix-round re-dispatches — or those cards
+will be missing/under-counted in the UI even though the run itself is fine.
+Emit `orch_checkpoint` at phase boundaries so the ORCHESTRATOR token counter is
+non-zero.
 
 ---
