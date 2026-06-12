@@ -298,7 +298,7 @@ The summary is pre-computed by the reviewer so the orchestrator's gate decision 
 
 **Producer**: `scripts/extract-observability.js` during `/discover` Phase B (deterministic IaC parse), curated by the LLM with the user to fill the parts no parser can extract (trace correlation header, dashboard URLs, runbook pointers).
 **Consumers**: `{slug}-troubleshooter` agent (selects a row by `service` + `env`, formats `query` with `{since}` / `{filter}` placeholders, runs via Bash), `scripts/validate-observability.js` (required-fields check at end of Phase B and start of `/troubleshoot`)
-**File**: `{workspace_root}/{slug}/context/platform.md` under the `## Observability` H2 section
+**File**: `{workspace_root}/{slug}/context/observability.json` — a standalone JSON sidecar (the source of truth). `platform.md § Observability` only carries a pointer + human prose, not the JSON. (Legacy: workspaces discovered before the split kept the JSON inline in platform.md between `<!-- BEGIN/END OBSERVABILITY -->`; `--refresh-observability` migrates those to the sidecar. Consumers and `validate-observability.js` still accept the inline block for back-compat.)
 **Canonical example**: [`templates/blocks/observability.example.json`](./observability.example.json) — single source of truth for the structure. Update that file when the schema changes; this doc only carries the field reference table below.
 
 **Field reference:**

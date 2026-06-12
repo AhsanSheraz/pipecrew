@@ -1,8 +1,8 @@
 ## Phase B2.6: Observability Extraction
 
-Populate the `## Observability` section of `platform.md` with the OBSERVABILITY block. The block is the routing table the future `{slug}-troubleshooter` agent reads to know which log destination to query for a given `(service, env)` pair, plus operator dashboards and runbook pointers. Schema lives at [`templates/blocks/block-schemas.md#observability`](../../../templates/blocks/block-schemas.md) and the canonical example at [`templates/blocks/observability.example.json`](../../../templates/blocks/observability.example.json).
+Populate the workspace's observability **routing table** — the standalone sidecar `{workspace_root}/{slug}/context/observability.json` — and point `platform.md § Observability` at it (the JSON no longer lives inline in platform.md; this mirrors how the architecture diagrams are split out). The routing table is what the future `{slug}-troubleshooter` agent reads to know which log destination to query for a given `(service, env)` pair, plus operator dashboards and runbook pointers. Schema lives at [`templates/blocks/block-schemas.md#observability`](../../../templates/blocks/block-schemas.md) and the canonical example at [`templates/blocks/observability.example.json`](../../../templates/blocks/observability.example.json).
 
-**Skip if**: the workspace has no repo with `role: "infrastructure"` AND no `mock-server` repo with a `docker-compose.yml`. In that case write an empty block (`{"log_destinations": [], "trace": {}, "dashboards": [], "runbooks": {}}`) and proceed to B3 — the troubleshooter still works (it'll ask the user to paste logs) but its routing table is empty.
+**Skip if**: the workspace has no repo with `role: "infrastructure"` AND no `mock-server` repo with a `docker-compose.yml`. In that case write an empty sidecar `{workspace_root}/{slug}/context/observability.json` (`{"log_destinations": [], "trace": {}, "dashboards": [], "runbooks": {}}`), substitute the `{{OBSERVABILITY_PROSE}}` placeholder in platform.md with a one-line "no infra repo — routing table empty" note, and proceed to B3 — the troubleshooter still works (it'll ask the user to paste logs) but its routing table is empty.
 
 ---
 
@@ -10,8 +10,8 @@ Populate the `## Observability` section of `platform.md` with the OBSERVABILITY 
 
 This phase is normally entered after B2 in a fresh `/discover` run. It can also be entered standalone via `/discover --refresh-observability --workspace=<slug>` to:
 
-- **First-time backfill** — populate the OBSERVABILITY block for a workspace that was discovered before this phase existed (the block is missing from `platform.md`).
-- **Drift refresh** — re-extract from current IaC and reconcile against the existing OBSERVABILITY block (additions / removals / renames after IaC has evolved).
+- **First-time backfill** — create `context/observability.json` for a workspace that was discovered before this routing table existed (no sidecar and no inline block).
+- **Drift refresh** — re-extract from current IaC and reconcile against the existing `observability.json` (or a legacy inline block, which is migrated to the sidecar): additions / removals / renames after IaC has evolved.
 
 The phase logic below (Steps 1–5) is identical in either entry path — only the entry conditions and Step 4's write strategy differ.
 
@@ -22,13 +22,10 @@ The phase logic below (Steps 1–5) is identical in either entry path — only t
    - If `--workspace=<slug>` was passed, use it.
    - Otherwise scan `{workspace_root}/*/config.json` — if exactly one workspace exists, use it; if multiple, ask the user.
 3. Validate `{workspace_root}/{slug}/config.json` with `node {plugin_dir}/scripts/validate-config.js {config-path}`. Halt on errors.
-4. Detect current state of the OBSERVABILITY block in `platform.md`:
-   ```bash
-   node {plugin_dir}/scripts/extract-block.js {workspace_root}/{slug}/context/platform.md OBSERVABILITY
-   ```
-   - Exit code 0 → block exists. **Mode: drift refresh.** Save the parsed JSON for diffing in Step 4.
-   - Exit code 2 (block markers absent) → block missing. **Mode: first-time backfill.**
-   - Exit code 3/4 → malformed block. Surface the parse error to the user and halt — they should hand-fix or `rm` the block before re-running.
+4. Detect current state of the observability routing table:
+   - If `{workspace_root}/{slug}/context/observability.json` exists → **Mode: drift refresh.** Parse it (if it's malformed JSON, surface the error and halt — the user should hand-fix or `rm` it). Save the parsed JSON for diffing in Step 4.
+   - Else if a legacy inline block exists in `platform.md` (`node {plugin_dir}/scripts/extract-block.js {workspace_root}/{slug}/context/platform.md OBSERVABILITY` exits 0) → **Mode: drift refresh + migrate.** Parse the extracted block for diffing; Step 4 will write the new sidecar and replace the inline block in platform.md with a pointer. (extract-block exit 3/4 = malformed inline block → surface and halt.)
+   - Else → **Mode: first-time backfill.**
 5. Confirm with the user before proceeding.
 
    **Drift refresh confirmation:**
@@ -43,28 +40,28 @@ The phase logic below (Steps 1–5) is identical in either entry path — only t
 
    **First-time backfill confirmation:**
    ```
-   Workspace "{slug}" was discovered before the OBSERVABILITY block existed.
-   This will run the IaC extractor and add the block to platform.md, then
-   prompt you for the operational fields the extractor can't infer
-   (trace correlation header, dashboards, runbooks).
+   Workspace "{slug}" was discovered before the observability routing table existed.
+   This will run the IaC extractor and write context/observability.json (and
+   point platform.md at it), then prompt you for the operational fields the
+   extractor can't infer (trace correlation header, dashboards, runbooks).
 
    Continue? (yes / no)
    ```
 
 6. Create a refresh run dir: `{workspace_root}/{slug}/runs/discover/{run_id}/` with `run_id = {YYYY-MM-DD-HHMMSS}-refresh-obs-{slug}`. Emit `run_start` to `checkpoints.jsonl` with `event_subtype: "refresh-observability"` so reporter agents can distinguish refresh runs from full discoveries. Skip the rest of Phase A/B1/B2/B3/C/D.
 7. Proceed to Step 1 below.
-8. After Step 4 (block written and validated), emit `run_end` to `checkpoints.jsonl` and skip Phase D's full verification (the workspace is already verified).
+8. After Step 4 (sidecar written and validated), emit `run_end` to `checkpoints.jsonl` and skip Phase D's full verification (the workspace is already verified).
 
 **End-of-run summary line:**
 
 For first-time backfill:
 ```
-[backfill obs ✔] OBSERVABILITY block written to {workspace_root}/{slug}/context/platform.md ({N} destinations, {mm:ss}, {Xk} tokens)
+[backfill obs ✔] observability.json written to {workspace_root}/{slug}/context/observability.json ({N} destinations, {mm:ss}, {Xk} tokens)
 ```
 
 For drift refresh:
 ```
-[refresh obs ✔] OBSERVABILITY block updated in {workspace_root}/{slug}/context/platform.md (+{A} -{R} ~{M} rows, {mm:ss}, {Xk} tokens)
+[refresh obs ✔] observability.json updated in {workspace_root}/{slug}/context/observability.json (+{A} -{R} ~{M} rows, {mm:ss}, {Xk} tokens)
 ```
 
 ---
@@ -104,29 +101,21 @@ Apply the user's answers to the draft JSON. The user may also flag missing rows 
 
 **Step 3: Validate**
 
+Write the curated draft to the sidecar (Step 4 below), then validate the sidecar file **directly** (the validator parses `.json` straight; no extract-block step):
+
 ```bash
-# Render the draft into platform.md first (Step 4), then validate the rendered file
-node {plugin_dir}/scripts/validate-observability.js {workspace_root}/{slug}/context/platform.md
+node {plugin_dir}/scripts/validate-observability.js {workspace_root}/{slug}/context/observability.json
 ```
 
 If the validator exits non-zero, the error list will name `log_destinations[N]: missing X`. Fix and re-validate. Do NOT proceed to B3 until the validator returns 0.
 
-**Step 4: Write the block into platform.md**
+**Step 4: Write the sidecar + the platform.md pointer**
 
-`platform.md` can be in one of three states. Detect which, then apply the matching write strategy:
+The routing table is its **own file** — `{workspace_root}/{slug}/context/observability.json` — and `platform.md § Observability` only *points* at it (same pattern the architecture diagrams use). This keeps the troubleshooter's routing-table read cheap and makes validation a direct file parse.
 
-**State (a) — placeholder present** (fresh `/discover` run; the architect generated `platform.md` from the current template). Detect with:
+**4a — Write the sidecar.** On a **first-time backfill** or a fresh run, write the curated JSON (pretty-printed, 2-space indent) straight to `{workspace_root}/{slug}/context/observability.json` (overwrite).
 
-```bash
-grep -n '{{OBSERVABILITY_BLOCK}}' {workspace_root}/{slug}/context/platform.md
-```
-
-If a match is found, substitute placeholders globally (use `Edit` with `replace_all: true`):
-
-- `{{OBSERVABILITY_BLOCK}}` → the curated JSON, pretty-printed (2-space indent)
-- `{{OBSERVABILITY_PROSE}}` → a 1–2 sentence human note describing anything the table can't say (e.g., "All services log to CloudWatch under `/aws/ecs/{service}-{env}`. Trace IDs propagate via `X-Request-Id`. The Datadog dashboards above are the on-call entry points.")
-
-**State (b) — block already exists** (drift refresh path; OBSERVABILITY block was extractable in the refresh entry checklist). The block is bracketed by `<!-- BEGIN OBSERVABILITY --> ... <!-- END OBSERVABILITY -->`. Compute the diff between the existing parsed JSON and the curated draft:
+On a **drift refresh** (the sidecar — or a legacy inline block — already had content), compute the diff between the existing parsed JSON and the curated draft first:
 
 - `+ added` rows (in draft, not in existing)
 - `- removed` rows (in existing, not in draft, and `source` did NOT start with `user-supplied`)
@@ -147,38 +136,42 @@ Observability drift detected:
 Apply all? (yes / review-each / no)
 ```
 
-On `yes` (or after `review-each` resolves): replace the block contents between the BEGIN/END markers with the curated draft. Keep `user-supplied` rows from the existing block intact (do not let the extractor remove them). Keep the `trace`, `dashboards`, and `runbooks` sections from the existing block UNLESS the user updated them in Step 2 — those are LLM-curated, not extractor-derived, and should not be wiped on a refresh just because the extractor doesn't fill them.
+On `yes` (or after `review-each` resolves): write the merged result to `observability.json`. Keep `user-supplied` rows from the existing file intact (do not let the extractor remove them). Keep the existing `trace`, `dashboards`, and `runbooks` sections UNLESS the user updated them in Step 2 — those are LLM-curated, not extractor-derived, and should not be wiped on a refresh.
 
-**State (c) — no placeholder, no block** (first-time backfill path; workspace was discovered before B2.6 existed). Insert the entire `## Observability` section just before `## Established Patterns (all agents must know these)`:
+**4b — Ensure `platform.md § Observability` is a pointer (not an inline block).** Detect the section's state and normalize it to the pointer form:
+
+- **Placeholder present** (fresh `/discover` from the current template — `grep -n '{{OBSERVABILITY_PROSE}}' platform.md` matches): substitute `{{OBSERVABILITY_PROSE}}` (use `Edit`, `replace_all: true`) with a 1–2 sentence human note describing anything the table can't say (e.g., "All services log to CloudWatch under `/aws/ecs/{service}-{env}`. No request-ID correlation header — correlate by timestamp."). The template already renders the pointer to `observability.json`; there is **no** `{{OBSERVABILITY_BLOCK}}` to fill any more.
+- **Legacy inline block present** (`<!-- BEGIN OBSERVABILITY --> … <!-- END OBSERVABILITY -->`, from a workspace discovered before the split): replace the entire block region — and the old "JSON block below is the source of truth" callout — with the pointer form below.
+- **No section at all** (older backfill): insert the pointer section just before `## Established Patterns (all agents must know these)`.
+
+Pointer form (used for the legacy-replace and no-section cases):
 
 ```markdown
 ## Observability
 
-> Log destinations, trace propagation, dashboards, and runbook pointers. The JSON block below is the source of truth (machine-readable); the prose under it is human commentary. Producer: `scripts/extract-observability.js` during `/discover` Phase B, curated with the user. Consumer: `{slug}-troubleshooter` agent. Schema: see [`templates/blocks/block-schemas.md`](.../templates/blocks/block-schemas.md#observability) and [`templates/blocks/observability.example.json`](.../templates/blocks/observability.example.json).
+> The machine-readable routing table — log destinations, trace propagation, dashboards, and runbook pointers — lives in [`observability.json`](./observability.json) (source of truth, consumed by the `{slug}-troubleshooter`). The prose below is human commentary. Producer: `scripts/extract-observability.js` during `/discover` Phase B, curated with the user.
 
-<!-- BEGIN OBSERVABILITY -->
-```json
-{curated draft, pretty-printed}
-```
+The routing table is in [`observability.json`](./observability.json) alongside this file. Read it directly when you only need log destinations / trace propagation; you do not need to load this whole file for that.
+
 {1-2 sentence prose note}
-<!-- END OBSERVABILITY -->
-
 ```
 
-After the write (any state), run the validator (Step 3) and clean up the draft:
+**4c — Validate + clean up the draft:**
 
 ```bash
-node {plugin_dir}/scripts/validate-observability.js {workspace_root}/{slug}/context/platform.md
+node {plugin_dir}/scripts/validate-observability.js {workspace_root}/{slug}/context/observability.json
 rm {workspace_root}/{slug}/.observability-draft.json
 ```
 
-**Step 5: Cleanup placeholders + verify markers**
+**Step 5: Verify the sidecar + pointer**
 
 ```bash
-grep -n '{{OBSERVABILITY' {workspace_root}/{slug}/context/platform.md
-grep -cE '<!-- (BEGIN|END) OBSERVABILITY -->' {workspace_root}/{slug}/context/platform.md
+test -s {workspace_root}/{slug}/context/observability.json && echo "sidecar OK"
+grep -c 'observability.json' {workspace_root}/{slug}/context/platform.md          # pointer present? (≥1)
+grep -cE '<!-- (BEGIN|END) OBSERVABILITY -->' {workspace_root}/{slug}/context/platform.md   # must be 0 — no inline block left
+grep -n '{{OBSERVABILITY' {workspace_root}/{slug}/context/platform.md             # must be empty — no unsubstituted placeholders
 ```
 
-The first command must report no matches (no unsubstituted placeholders). The second must report exactly `2` (one BEGIN, one END). If either fails, fix before continuing.
+`observability.json` must be non-empty and valid; `platform.md` must contain the `observability.json` pointer, **zero** `<!-- BEGIN/END OBSERVABILITY -->` markers (the inline block is gone or was never there), and no unsubstituted `{{OBSERVABILITY...}}` placeholders. If any check fails, fix before continuing.
 
 **Update scratchpad**: write a `## Observability Extraction` summary to `scratchpad.md` listing the count of rows extracted automatically vs. user-supplied (or for refresh runs: `+A -R ~M` row counts). Set Phase B2.6 status to COMPLETED. Set Current Phase to "B3. Design System Discovery" — UNLESS this was a `--refresh-observability` standalone run, in which case proceed directly to `run_end` per the refresh-mode checklist above.

@@ -1,14 +1,19 @@
 #!/usr/bin/env node
 /**
- * OBSERVABILITY block validator.
+ * OBSERVABILITY validator.
  *
- * Reads platform.md, pipes the OBSERVABILITY block out via extract-block.js,
- * and verifies every log_destinations[] row carries the fields its `type`
- * requires. Trace, dashboards, and runbooks are advisory — only their shape
- * is checked, never their presence (a freshly-discovered workspace can
- * legitimately have no dashboards).
+ * Validates the observability routing table and verifies every
+ * log_destinations[] row carries the fields its `type` requires. Trace,
+ * dashboards, and runbooks are advisory — only their shape is checked, never
+ * their presence (a freshly-discovered workspace can legitimately have none).
  *
- * Usage:  node validate-observability.js <platform.md path>
+ * Two input modes:
+ *   - `context/observability.json` (preferred) — the standalone sidecar; parsed directly.
+ *   - `context/platform.md` (back-compat) — a legacy platform.md with an inline
+ *     OBSERVABILITY block; the block is pulled out via extract-block.js.
+ * Mode is chosen by file extension (`.json` → direct, anything else → extract-block).
+ *
+ * Usage:  node validate-observability.js <observability.json | platform.md path>
  *
  * Exit codes:
  *   0 — block is valid
@@ -27,7 +32,7 @@ const { spawnSync } = require('child_process');
 
 const filePath = process.argv[2];
 if (!filePath) {
-  console.error('Usage: node validate-observability.js <platform.md path>');
+  console.error('Usage: node validate-observability.js <observability.json | platform.md path>');
   process.exit(2);
 }
 
@@ -36,16 +41,22 @@ if (!fs.existsSync(filePath)) {
   process.exit(1);
 }
 
-const extractScript = path.join(__dirname, 'extract-block.js');
-const r = spawnSync('node', [extractScript, filePath, 'OBSERVABILITY'], { encoding: 'utf8' });
-if (r.status !== 0) {
-  console.error(`extract-block.js failed (exit ${r.status}): ${r.stderr.trim()}`);
-  process.exit(1);
-}
-
 let block;
-try { block = JSON.parse(r.stdout); }
-catch (e) { console.error(`OBSERVABILITY block is not valid JSON: ${e.message}`); process.exit(1); }
+if (/\.json$/i.test(filePath)) {
+  // Preferred: the standalone observability sidecar — parse it directly.
+  try { block = JSON.parse(fs.readFileSync(filePath, 'utf8')); }
+  catch (e) { console.error(`observability.json is not valid JSON: ${e.message}`); process.exit(1); }
+} else {
+  // Back-compat: legacy inline OBSERVABILITY block in platform.md.
+  const extractScript = path.join(__dirname, 'extract-block.js');
+  const r = spawnSync('node', [extractScript, filePath, 'OBSERVABILITY'], { encoding: 'utf8' });
+  if (r.status !== 0) {
+    console.error(`extract-block.js failed (exit ${r.status}): ${r.stderr.trim()}`);
+    process.exit(1);
+  }
+  try { block = JSON.parse(r.stdout); }
+  catch (e) { console.error(`OBSERVABILITY block is not valid JSON: ${e.message}`); process.exit(1); }
+}
 
 const errors = [];
 const REQUIRED_BY_TYPE = {

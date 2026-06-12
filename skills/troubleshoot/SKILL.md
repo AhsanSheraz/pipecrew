@@ -156,7 +156,8 @@ FLAGS:
   auto: {true if --auto else false}
 
 WORKSPACE CONTEXT:
-- Platform context: {workspace_root}/{slug}/context/platform.md (read this first)
+- Observability routing table: {workspace_root}/{slug}/context/observability.json (read this FIRST — small standalone file; back-compat: inline OBSERVABILITY block in platform.md if absent)
+- Platform context: {workspace_root}/{slug}/context/platform.md (load lazily — only when you need architecture / call graph for cross-repo tracing)
 - Workspace config: {workspace_root}/{slug}/config.json
 - Run directory: {run_dir} (write your report.md here)
 
