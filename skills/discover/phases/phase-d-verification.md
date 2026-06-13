@@ -29,10 +29,10 @@ Check that the three domain agents were generated:
 ```bash
 ls {workspace_root}/{slug}/agents/product-owner.md
 ls {workspace_root}/{slug}/agents/assessor.md
-ls {workspace_root}/{slug}/agents/ux-consultant.md
+ls {workspace_root}/{slug}/agents/troubleshooter.md
 ```
 
-If any are missing, regenerate from the template.
+If any are missing, regenerate from the template. (There is no workspace `ux-consultant.md` — the UX consultant uses the base `pipecrew:ux-consultant`.)
 
 ### Step 4: Verify platform context exists
 

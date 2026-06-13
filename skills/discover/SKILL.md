@@ -10,7 +10,7 @@ One-time workspace initialization. Scans parent directories for repos, detects t
 After `/discover` completes, you have:
 - `{workspace_root}/{slug}/config.json` — workspace config
 - `{workspace_root}/{slug}/context/platform.md` — domain architecture context
-- `{workspace_root}/{slug}/agents/` — domain-specific agents (product-owner, assessor, ux-consultant)
+- `{workspace_root}/{slug}/agents/` — domain-specific agents (product-owner, assessor, troubleshooter; the UX consultant uses the base `pipecrew:ux-consultant`)
 - `CLAUDE.md` in each repo (generated or pre-existing)
 - Optional `agent-context/` in repos where complexity warrants it
 

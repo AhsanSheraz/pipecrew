@@ -85,7 +85,7 @@ End-to-end feature pipeline. Orchestrates work across API service repos, fronten
      • CLAUDE.md per repo    — implementer orientation (soft; skip → 3-5× token cost per dispatch)
      • agent-context/ per repo — deep architecture docs (soft; skip → implementer re-reads code each run)
      • context/audit-findings.md — real bugs spotted during onboarding (soft; skip → Phase 4.5 has fewer anti-patterns to inject)
-     • Workspace agents ({slug}-product-owner, assessor, ux-consultant) — tailored to your domain
+     • Workspace agents ({slug}-product-owner, assessor, troubleshooter) — tailored to your domain
 
    You can hand-write config.json + context/platform.md and run /deliver
    against them directly, but the other artifacts are soft-optional and
@@ -145,7 +145,7 @@ End-to-end feature pipeline. Orchestrates work across API service repos, fronten
 **Rollback on rejection**: if the user rejects at the Phase 3 approval gate, the orchestrator runs `git checkout <spec-file>` for each modified spec in each affected service repo to revert, then either stops the pipeline or re-dispatches `openapi-spec-editor` with updated instructions based on the user's feedback. The agent does not handle rollback itself — that's strictly an orchestrator responsibility.
 10. **In-session Agent tool dispatch — NEVER `claude -p`.** See `phases/dispatch-rules.md` for the full TYPE_TO_AGENT mapping table, worktree creation steps, and parallel dispatch rules. Load that file before Phase 4.5.
     - **Worktrees default ON.** Phase 3 creates worktrees for spec-owning repos; Phase 5 reuses them and creates more for repos not touched in Phase 3. Agents always work in the worktree path — never the main repo checkout. `--no-worktrees` opts out (see flag table).
-    - **Workspace agents:** Phase 1 / Phase 5b UX / Phase 6 dispatch by slug-prefixed name (`{slug}-product-owner`, `{slug}-ux-consultant`, `{slug}-assessor`). Onboarding Phase C Step 3 publishes these to `~/.claude/agents/` so they resolve as first-class `subagent_type`s. If not found, phases fall back to `general-purpose` with a preamble that reads the canonical copy at `{workspace_root}/{slug}/agents/{role}.md`.
+    - **Workspace agents:** Phase 1 / Phase 6 dispatch by slug-prefixed name (`{slug}-product-owner`, `{slug}-assessor`; `{slug}-troubleshooter` for `/troubleshoot`). Onboarding Phase C Step 3 publishes these to `~/.claude/agents/` so they resolve as first-class `subagent_type`s. If not found, phases fall back to `general-purpose` with a preamble that reads the canonical copy at `{workspace_root}/{slug}/agents/{role}.md`. **Phase 5b UX** is the exception — it dispatches the base `pipecrew:ux-consultant` (not workspace-generated), the same agent that authored the design system at discovery.
 11. **Context hygiene** — after dispatching Phase 5 agents, do NOT re-reference Phase 1/2 outputs from conversation history. Use the scratchpad output files when Phase 6 needs them.
 12. **Agent naming** — name agents by their role, not their phase number. E.g., "Backend implementer — publisher-service" not "Phase 5a: Backend implementation".
 13. **SendMessage for follow-ups** — if an agent returns incomplete output, use `SendMessage` to continue the existing agent rather than spawning a new one.

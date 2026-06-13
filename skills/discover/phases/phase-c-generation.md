@@ -173,8 +173,9 @@ Parallel dispatch: send ALL Agent tool calls in a single orchestrator message (o
 Read the template files from the plugin:
 - `{plugin_dir}/templates/agents/product-owner.md.template`
 - `{plugin_dir}/templates/agents/assessor.md.template`
-- `{plugin_dir}/templates/agents/ux-consultant.md.template`
 - `{plugin_dir}/templates/agents/troubleshooter.md.template`
+
+> **No workspace ux-consultant.** The UX consultant is **not** workspace-generated — it uses the rich, framework-agnostic base plugin agent `pipecrew:ux-consultant` everywhere (B3 discovery mode + `/deliver` Phase 5b design mode), exactly like `solution-architect`. It reads the workspace's design system + `platform.md` at dispatch time, so it needs no baked-in workspace copy. Do not re-add a `{slug}-ux-consultant`.
 
 Replace placeholders using data from B1 + B2:
 
@@ -195,7 +196,6 @@ mkdir -p {workspace_root}/{slug}/agents
 Write:
 - `{workspace_root}/{slug}/agents/product-owner.md`
 - `{workspace_root}/{slug}/agents/assessor.md`
-- `{workspace_root}/{slug}/agents/ux-consultant.md`
 - `{workspace_root}/{slug}/agents/troubleshooter.md`
 
 #### Publish to user-level agents directory (B1)
@@ -208,7 +208,7 @@ After writing the three workspace-local files, also publish them to `~/.claude/a
 mkdir -p ~/.claude/agents
 ```
 
-For each of (`product-owner`, `assessor`, `ux-consultant`, `troubleshooter`):
+For each of (`product-owner`, `assessor`, `troubleshooter`):
 
 1. **Conflict check (B2)**: before copying, check whether `~/.claude/agents/{slug}-{role}.md` already exists.
    - If it does **and** the `name:` frontmatter value already matches `{slug}-{role}`, it's our own file from a prior onboarding — overwrite silently.
@@ -223,12 +223,12 @@ For each of (`product-owner`, `assessor`, `ux-consultant`, `troubleshooter`):
    cp {workspace_root}/{slug}/agents/{role}.md ~/.claude/agents/{slug}-{role}.md
    ```
 
-After all four publish, verify Claude Code can see them:
+After all three publish, verify Claude Code can see them:
 ```bash
-ls ~/.claude/agents/{slug}-{product-owner,assessor,ux-consultant,troubleshooter}.md
+ls ~/.claude/agents/{slug}-{product-owner,assessor,troubleshooter}.md
 ```
 
-Print a one-liner to the user: `Workspace agents published: {slug}-product-owner, {slug}-assessor, {slug}-ux-consultant, {slug}-troubleshooter — downstream pipeline phases will dispatch them by name.`
+Print a one-liner to the user: `Workspace agents published: {slug}-product-owner, {slug}-assessor, {slug}-troubleshooter — downstream pipeline phases will dispatch them by name. (UX consultant uses the base pipecrew:ux-consultant.)`
 
 #### Placeholder substitution discipline
 
@@ -240,7 +240,7 @@ Placeholders may appear more than once in a template (e.g., a shared slug refere
 After writing each agent file, verify zero placeholders remain:
 
 ```bash
-grep -c '{{' {workspace_root}/{slug}/agents/{product-owner,assessor,ux-consultant,troubleshooter}.md
+grep -c '{{' {workspace_root}/{slug}/agents/{product-owner,assessor,troubleshooter}.md
 ```
 
 Every file must report `0`. If any file reports ≥1, halt, run `grep -n '{{' <file>` to list remaining placeholders by line, and fix before continuing. Do **not** ship an agent file with an unfilled placeholder — it will produce confusing behavior at runtime when the agent reads its own system prompt.
@@ -317,7 +317,7 @@ Self-check before returning:
 **On agent return**:
 1. Write the returned content to `{workspace_root}/{slug}/agents/{type}-implementer.md`
 2. Verify zero `{{` remain: `grep -c '{{' {workspace_root}/{slug}/agents/{type}-implementer.md` must print `0`. If not, surface the offending lines and re-dispatch.
-3. Publish to `~/.claude/agents/{workspace_slug}-{type}-implementer.md` (same conflict-check pattern as the workspace product-owner/assessor/ux-consultant publish in Step 3 above — if a file with that name already exists under a different `name:` frontmatter value, stop and ask the user before overwriting).
+3. Publish to `~/.claude/agents/{workspace_slug}-{type}-implementer.md` (same conflict-check pattern as the workspace product-owner/assessor/troubleshooter publish in Step 3 above — if a file with that name already exists under a different `name:` frontmatter value, stop and ask the user before overwriting).
 4. Log one line: `Generated workspace implementer: {workspace_slug}-{type}-implementer (for {repo_list})`.
 
 **Idempotency**: if `{workspace_root}/{slug}/agents/{type}-implementer.md` already exists (re-run or hand-edited), show a diff after regeneration and ask the user to keep/overwrite/merge. Default to KEEP — a hand-edited agent is load-bearing and must not be silently clobbered.

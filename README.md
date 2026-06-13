@@ -249,7 +249,7 @@ The pipeline dispatches two kinds of agents via the `Agent` tool's `subagent_typ
 
 **Plugin agents** live at `{plugin_dir}/agents/` and ship with the plugin. They are framework-agnostic and loaded into Claude Code at install time. Examples: `pipecrew:spring-boot-implementer`, `pipecrew:react-implementer`, `pipecrew:openapi-spec-editor`. Pipeline phases that dispatch these reference them by their plugin-qualified name.
 
-**Workspace agents** are generated per-workspace by `/discover` from templates in `{plugin_dir}/templates/agents/`. Three roles are produced: `product-owner`, `assessor`, `ux-consultant`. The filled files live at two paths:
+**Workspace agents** are generated per-workspace by `/discover` from templates in `{plugin_dir}/templates/agents/`. Three roles are produced: `product-owner`, `assessor`, `troubleshooter`. (The UX consultant is **not** workspace-generated — it uses the rich base `pipecrew:ux-consultant`, like the `solution-architect`, since it reads the workspace's design system at dispatch time.) The filled files live at two paths:
 
 1. **Canonical copy**: `{workspace_root}/{slug}/agents/{role}.md` — version-controlled alongside workspace config; hand-editable between onboardings.
 2. **Published copy**: `~/.claude/agents/{slug}-{role}.md` — published by Phase C Step 3 of `/discover` so Claude Code's `Agent` tool resolves `subagent_type: {slug}-assessor` directly.
@@ -258,7 +258,7 @@ Pipeline phases that dispatch these use the slug-prefixed published name (`dal-a
 
 **To refresh workspace agents after hand-editing the canonical copy**: re-run `/discover --resume --workspace={slug}` — the publish step re-copies and conflict-checks.
 
-**Naming convention**: `{workspace-slug}-{role}` — e.g., `dal-assessor`, `dal-product-owner`, `dal-ux-consultant`. This keeps multiple workspaces non-conflicting under one user's `~/.claude/agents/` dir.
+**Naming convention**: `{workspace-slug}-{role}` — e.g., `dal-assessor`, `dal-product-owner`, `dal-troubleshooter`. This keeps multiple workspaces non-conflicting under one user's `~/.claude/agents/` dir.
 
 ## Approval-free operation
 

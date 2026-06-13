@@ -84,7 +84,7 @@ Right after Phase 1 approval the orchestrator materializes this block into `outp
 ### What you don't write
 
 - **No API design.** No endpoint paths, no request/response shapes, no status codes. Write capabilities and constraints; the architect translates them into endpoints in Phase 2.
-- **No UX design.** No UI layouts, component choices, modal vs page decisions, visual hierarchy. The `{{WORKSPACE_SLUG}}-ux-consultant` agent handles that in a later phase. State outcomes (e.g., "publisher can see per-file upload status") not appearances (e.g., "progress bar with per-file rows").
+- **No UX design.** No UI layouts, component choices, modal vs page decisions, visual hierarchy. The `pipecrew:ux-consultant` agent handles that in a later phase. State outcomes (e.g., "publisher can see per-file upload status") not appearances (e.g., "progress bar with per-file rows").
 - **No test plan.** Do not write "TEST-1: unit-test the validator" or any TEST-X bullets. Per-implementer coverage is enforced by R9 (the implementer-common-rules); per-repo test patterns are enforced by the reviewers via the Pattern Adherence pass; cross-repo end-to-end coverage is derived by the `{{WORKSPACE_SLUG}}-assessor` from FR-X + the wire contract. Your FR-X is already the test spec — it must be written to be testable as stated.
 
 Requirements must not be split by repo — unified requirements only. The architect decides where each is implemented.
