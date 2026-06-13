@@ -26,7 +26,7 @@ Every `/deliver` invocation gets its own dir. Same skeleton for every workspace.
 ├── agents/                              ← workspace-specific agents (published to ~/.claude/agents)
 │   ├── {slug}-product-owner.md
 │   ├── {slug}-assessor.md
-│   └── {slug}-ux-consultant.md
+│   └── {slug}-troubleshooter.md
 ├── agent-memory/
 │   └── solution-architect/              ← rare architect-private notes (thin)
 └── runs/
@@ -308,7 +308,7 @@ TYPE_TO_AGENT (from phases/dispatch-rules.md):
   contract                   → schema-implementer
 ```
 
-Workspace-specific agents resolve by slug-prefix: `{slug}-product-owner`, `{slug}-ux-consultant`, `{slug}-assessor`. Published to `~/.claude/agents/` by `/discover` Phase C Step 3. **Fallback** if not found: `general-purpose` with a preamble that reads the canonical copy at `{workspace_root}/{slug}/agents/{role}.md`.
+Workspace-specific agents resolve by slug-prefix: `{slug}-product-owner`, `{slug}-assessor`, `{slug}-troubleshooter`. Published to `~/.claude/agents/` by `/discover` Phase C Step 3. **Fallback** if not found: `general-purpose` with a preamble that reads the canonical copy at `{workspace_root}/{slug}/agents/{role}.md`. The UX consultant is **not** slug-prefixed — it dispatches the base `pipecrew:ux-consultant` directly.
 
 ### Task file contract (Phase 4.5 → Phase 5)
 

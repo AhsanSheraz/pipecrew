@@ -145,7 +145,7 @@ One character per pipeline role. The agent's reported name (from scratchpad's Ag
 | Archie | Architect | `solution-architect` |
 | Yara | Spec Editor | `openapi-spec-editor`, `spec-editor` |
 | Shield | Security Consultant | `security-consultant`, `security-reviewer`, `security-auditor` |
-| Tya | UX Consultant | `ux-consultant`, `ux-reviewer`, `ux-designer`, `dal-ux-consultant` |
+| Tya | UX Consultant | `ux-consultant`, `pipecrew:ux-consultant`, `ux-reviewer`, `ux-designer` |
 | Bruno | Backend Implementer | `spring-boot-implementer`, `nestjs-implementer`, `fastapi-implementer`, … |
 | Pixel | Frontend Implementer | `react-implementer`, `nextjs-implementer`, `frontend-implementer` |
 | Echo | Mock Implementer | `mock-implementer`, `node-mock-implementer` |

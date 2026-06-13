@@ -58,8 +58,8 @@ You can invoke any of these with the `Agent` tool from anywhere — `subagent_ty
 | Agent | What it needs |
 |-------|--------------|
 | `{slug}-product-owner` | Published by `/discover` to `~/.claude/agents/`. Needs the workspace slug to exist. |
-| `{slug}-ux-consultant` | Same — workspace-specific UX consultant published by `/discover`. |
 | `{slug}-assessor` | Same — workspace-specific cross-repo assessor. |
+| `{slug}-troubleshooter` | Same — workspace-specific cross-repo incident triage. |
 
 These are **per-workspace customizations** of the generic plugin agents. They carry domain-specific instructions discovered during onboarding. You can use the **plugin-shipped fallbacks** (`pipecrew:product-brainstormer`, `pipecrew:ux-consultant`) without a workspace.
 

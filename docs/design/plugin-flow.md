@@ -8,7 +8,7 @@ Two main pipelines, with a feedback loop.
 - **Phase B1** — interrogate domain (questions to user)
 - **Phase B2** — `solution-architect` reads code, writes `platform.md`
 - **Phase B2.6** — observability extraction (IaC scan)
-- **Phase C** — generate `CLAUDE.md` per repo + workspace agents (`{slug}-product-owner`, `{slug}-assessor`, `{slug}-ux-consultant`)
+- **Phase C** — generate `CLAUDE.md` per repo + workspace agents (`{slug}-product-owner`, `{slug}-assessor`, `{slug}-troubleshooter`; UX consultant uses the base `pipecrew:ux-consultant`)
 - **Phase D** — final report
 
 Output: `config.json`, `platform.md`, per-repo `CLAUDE.md`, domain agents.

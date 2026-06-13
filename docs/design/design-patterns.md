@@ -51,7 +51,7 @@ Per-stack anti-patterns live in the plugin (`anti-patterns/{type}.md`). The `tas
 
 ## 9. Workspace agents as system-prompt baked
 
-`{slug}-product-owner`, `{slug}-ux-consultant`, `{slug}-assessor`, `{slug}-troubleshooter` — domain context is **baked into the system prompt at agent-publish time** (Phase C). Subsequent dispatches don't re-inject domain. Prompt-cache benefits across the run, plus the agent's identity carries the workspace's vocabulary without per-call data injection.
+`{slug}-product-owner`, `{slug}-assessor`, `{slug}-troubleshooter` — domain context is **baked into the system prompt at agent-publish time** (Phase C). (The UX consultant is the exception: it uses the base `pipecrew:ux-consultant`, which reads the workspace design system at dispatch rather than baking it in.) Subsequent dispatches don't re-inject domain. Prompt-cache benefits across the run, plus the agent's identity carries the workspace's vocabulary without per-call data injection.
 
 ## 10. Scratchpad (state) vs checkpoints.jsonl (event log)
 

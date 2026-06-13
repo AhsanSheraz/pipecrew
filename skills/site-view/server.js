@@ -659,7 +659,7 @@ function readHookErrors() {
 
 // ─── Agent name → character role ─────────────────────────────
 // Matches both plugin-qualified names (pipecrew:spring-boot-implementer)
-// and workspace-published names (dal-product-owner, dal-assessor, dal-ux-consultant).
+// and workspace-published names (dal-product-owner, dal-assessor, dal-troubleshooter).
 // Matching strategy: substring / suffix match on the role name.
 // Order matters: more-specific patterns must come before generic ones that
 // would substring-match them (e.g., 'security-consultant' must beat the

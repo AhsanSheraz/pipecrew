@@ -44,7 +44,6 @@ Every command operates against a **workspace** — a directory under a configura
 │
 ├── agents/                                        workspace-tailored agent definitions
 │   ├── {slug}-product-owner.md                    dispatched in /deliver Phase 1
-│   ├── {slug}-ux-consultant.md                    dispatched in /deliver Phase 5b
 │   ├── {slug}-assessor.md                         dispatched in /deliver Phase 6 + /assess
 │   ├── {slug}-troubleshooter.md                   dispatched in /troubleshoot (read-only)
 │   └── {slug}-{type}-implementer.md               (optional — only if a stack has no plugin agent;
@@ -155,9 +154,8 @@ Every command operates against a **workspace** — a directory under a configura
 │
 ├── agents/                                        Claude Code's user-level agents dir
 │   ├── {slug}-product-owner.md                    ┐  copy of {workspace_root}/{slug}/agents/{role}.md
-│   ├── {slug}-ux-consultant.md                    │  published by /discover Phase C step 3 so
-│   ├── {slug}-assessor.md                         │  Claude Code's `subagent_type` resolves
-│   └── {slug}-troubleshooter.md                   ┘
+│   ├── {slug}-assessor.md                         │  published by /discover Phase C step 3 so
+│   └── {slug}-troubleshooter.md                   ┘  Claude Code's `subagent_type` resolves
 │
 ├── stats-cache.json                               daily token aggregates per model (read by reporter for budget gates)
 │
@@ -228,7 +226,7 @@ Phase B2.6  observability extraction (CDK/Terraform/k8s/compose) → OBSERVABILI
   ↓
 Phase B3    design system discovery (frontend repos only) (~20–40k Sonnet)
   ↓
-Phase C     generate config.json → commit platform.md → publish workspace agents (slug-product-owner / -ux-consultant / -assessor / -troubleshooter to ~/.claude/agents/) → CLAUDE.md per repo (parallel) → optional agent-context per repo (parallel)
+Phase C     generate config.json → commit platform.md → publish workspace agents (slug-product-owner / -assessor / -troubleshooter to ~/.claude/agents/) → CLAUDE.md per repo (parallel) → optional agent-context per repo (parallel)
   ↓
 Phase D     verify, validate checkpoints, write report.md
 ```
@@ -256,7 +254,7 @@ Phase 4.5 Implementation plan        task-planner agent (3 modes: draft / adjust
                          + optional deferred follow-up file
 Phase 5   PARALLEL DISPATCH (one Agent message, multiple tool calls):
             5a backend     spring-boot- / nestjs- / fastapi- / flask- / django- / python-worker-implementer (one per service)
-            5b frontend    {slug}-ux-consultant → user gate → react- / nextjs-feature-implementer
+            5b frontend    pipecrew:ux-consultant → user gate → react- / nextjs-feature-implementer
             5c mock        mock-implementer
             5d infra       cdk-stack-implementer / terraform-implementer (worktrees per repo by default)
 Phase 5.5 Per-repo code review — {type}-reviewer per touched repo, parallel

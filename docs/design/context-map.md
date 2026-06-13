@@ -25,7 +25,7 @@ Eleven distinct artifacts, three tiers.
 | **architecture.mmd** | `context/diagrams/architecture.mmd` | Detailed topology — every service, DB, queue, Lambda, with edge labels | Phase B2 |
 | **learn-log.md** | `history/learn-log.md` | Initialized empty; populated by `/learn` over time as a durable history of what the workspace has learned from feedback. Lives under `history/` (NOT `context/`) so it isn't auto-loaded into agent context windows. | Phase C (creates the empty file) |
 | **{slug}-product-owner.md** | `agents/{slug}-product-owner.md` | Workspace-tailored requirements agent (knows domain entities, user roles, business rules) | Phase C step 3 from `templates/agents/product-owner.md.template` |
-| **{slug}-ux-consultant.md** | `agents/{slug}-ux-consultant.md` | Workspace-tailored UX agent (knows i18n languages, RTL policy, design system path) | Phase C step 3 |
+| **pipecrew:ux-consultant** | `{plugin_dir}/agents/ux-consultant.md` | Framework-agnostic UX agent — **not workspace-generated**. Authors `DESIGN_SYSTEM.md` in B3 (discovery mode) and consumes it in Phase 5b (design mode); reads the repo's design system + `platform.md` at dispatch. | Ships with the plugin |
 | **{slug}-assessor.md** | `agents/{slug}-assessor.md` | Workspace-tailored cross-repo verifier (knows entity map, integration patterns) | Phase C step 3 |
 | **{slug}-troubleshooter.md** | `agents/{slug}-troubleshooter.md` | Workspace-tailored read-only triage agent (knows OBSERVABILITY routing) | Phase C step 3 |
 
@@ -69,7 +69,7 @@ Rows = artifact. Columns = agent. ✓ = primary read. • = optional / condition
 | **architecture.mmd / architecture-overview.mmd** | — | • (cross-check) | — | — | — | — | — | — | — | — | — | — |
 | **learn-log.md** | — | — | — | — | — | — | — | ✓ | — | — | — | — |
 | **{slug}-product-owner.md** | — | — | — | — | — | — | — | — | — | — | — | (it IS this agent) |
-| **{slug}-ux-consultant.md** | — | — | — | — | — | (it IS this agent) | — | — | — | — | — | — |
+| **pipecrew:ux-consultant** (base) | — | — | — | — | — | (it IS this agent) | — | — | — | — | — | — |
 | **{slug}-assessor.md** | — | — | — | — | — | — | (it IS this agent) | — | — | — | — | — |
 | **{slug}-troubleshooter.md** | — | — | — | — | — | — | — | — | — | (it IS this agent) | — | — |
 | **{repo}/CLAUDE.md** | ✓ (the discoverer reads CLAUDE.md first if present, before sampling code) | ✓ (selective cross-check) | ✓ | ✓ (R1) | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | — | • |
@@ -101,7 +101,7 @@ These agents synthesize across the workspace. They load multiple artifacts and r
 - audit-findings.md (filters per repo)
 - `{plugin_dir}/anti-patterns/{type}.md` (per affected stack — pre-injects into task files)
 
-**ux-consultant** (`{slug}-ux-consultant`, Phase 5b)
+**ux-consultant** (`pipecrew:ux-consultant`, Phase 5b)
 - platform.md (domain, user roles, i18n languages)
 - Frontend repo's CLAUDE.md + agent-context
 - Frontend repo's DESIGN_SYSTEM.md

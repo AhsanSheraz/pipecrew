@@ -26,7 +26,7 @@ After `/discover` completes, you get:
 ├── agents/
 │   ├── {slug}-product-owner.md      ← workspace-tailored agents
 │   ├── {slug}-assessor.md
-│   └── {slug}-ux-consultant.md
+│   └── {slug}-troubleshooter.md
 ├── agent-memory/
 │   └── solution-architect/          ← rare architect-private notes (thin)
 └── runs/discover/{run_id}/
@@ -229,7 +229,7 @@ Skipped if no frontend repo. For frontends, scans:
 - Layout patterns (page templates, list/detail conventions)
 - i18n setup (key namespaces, RTL handling)
 
-Produces `context/design-system/{component-catalog,tokens,patterns}.md` and `agent-context/design-system.md` per frontend repo. The `{slug}-ux-consultant` agent reads these in `/deliver` Phase 5b before the implementer runs.
+Produces `context/design-system/{component-catalog,tokens,patterns}.md` and `agent-context/design-system.md` per frontend repo. The base `pipecrew:ux-consultant` agent reads these in `/deliver` Phase 5b before the implementer runs (the same agent authors them here in B3 discovery mode).
 
 ---
 
@@ -311,7 +311,8 @@ Three workspace-specific agents materialized from plugin templates:
 |---|---|---|
 | `agents/templates/product-owner.md` | `{workspace}/agents/{slug}-product-owner.md` | Phase 1 of `/deliver` — translates feature ideas → FR/EC |
 | `agents/templates/assessor.md` | `{workspace}/agents/{slug}-assessor.md` | Phase 6 of `/deliver` — cross-repo verification |
-| `agents/templates/ux-consultant.md` | `{workspace}/agents/{slug}-ux-consultant.md` | Phase 5b of `/deliver` — design spec before implementation |
+| `agents/templates/troubleshooter.md` | `{workspace}/agents/{slug}-troubleshooter.md` | `/troubleshoot` — cross-repo incident triage |
+| `agents/ux-consultant.md` (base — not templated) | — (dispatched as `pipecrew:ux-consultant`) | B3 discovery (authors DESIGN_SYSTEM.md) + Phase 5b design spec |
 
 Templates contain `{{placeholders}}` filled from B1 + B2 outputs (workspace name, primary entities, user roles, i18n config).
 
