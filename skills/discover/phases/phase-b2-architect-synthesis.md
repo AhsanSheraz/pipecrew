@@ -56,7 +56,7 @@ CROSS-REPO SYNTHESIS TASKS:
 4. **Status Lifecycles.** For each entity whose profile lists `key_states`: write the state list. If the profile flagged a non-trivial lifecycle (per the targeted-read rule above) and you spent a targeted read, render the transitions you extracted. Otherwise list states only and add a one-line note ("Transitions not captured at discovery — see {service-file}"). Do not invent transitions you didn't read.
 5. **Established patterns.** Cross-tabulate `key_conventions[]` across profiles of the same stack. Patterns observed in ≥2 repos go to `## Established Patterns`. Idiosyncratic single-repo patterns stay in their repo's CLAUDE.md (which Phase C generates separately, not you).
 6. **Known constraints.** Aggregate divergences (different auth styles in two services of the same stack), incomplete coverage gaps, workspace-wide inconsistencies. Each profile's `constraints_observed[]` feeds this.
-7. **Audit findings consolidation.** Aggregate `audit_findings[]` from every profile into a single audit-findings.md, severity-grouped (CRITICAL / HIGH / MEDIUM / LOW), then by repo within each severity.
+7. **Audit findings — elevate criticals only (do NOT write a file).** Phase C (Step 4) collates the single canonical `context/audit-findings.md` from the profiles' `audit_findings[]` PLUS the context-manager's deeper findings, deduped — so don't write an audit-findings.md here. Your only job: surface any CRITICAL finding from the profiles into platform.md § Known Constraints so it's visible in the always-loaded context.
 8. **Architecture diagrams** (two files — see diagram rules below).
 
 OUTPUT FORMAT:

@@ -97,9 +97,7 @@ You produce three files (the orchestrator splits your output and saves them):
 2. `{workspace_root}/{slug}/context/diagrams/architecture-overview.mmd` — high-level C4-style block diagram for new team members.
 3. `{workspace_root}/{slug}/context/diagrams/architecture.mmd` — detailed topology.
 
-Plus one consolidated audit file:
-
-4. `{workspace_root}/{slug}/context/audit-findings.md` — every audit finding aggregated from all repos, grouped by severity (CRITICAL / HIGH / MEDIUM / LOW), then by repo within each severity.
+**You do NOT write an audit-findings file.** The per-repo `audit_findings[]` in the profiles are collated into the single canonical `{workspace_root}/{slug}/context/audit-findings.md` by **Phase C (Step 4)** — merged with the deeper findings the context-manager agents surface during doc generation, deduped into one doc. Your only audit job in discovery: **elevate any CRITICAL profile finding into platform.md § Known Constraints** so the highest-signal items are visible in the always-loaded context; leave full collation to Phase C.
 
 ### Per-repo profiles are your input — DO NOT walk repos directly
 
@@ -131,7 +129,7 @@ For each `outputs/repo-profiles/*.json`:
 | `infra_signals.stacks` | platform.md § Infrastructure Topology |
 | `key_conventions[]` | Cross-tabulate across repos. Conventions that appear in ≥2 repos of the same stack go to platform.md § Established Patterns. Convention specific to one repo goes in that repo's CLAUDE.md (you don't write CLAUDE.md — Phase C does — but flag it under § Known Constraints if worth elevating later). |
 | `constraints_observed[]` | platform.md § Known Constraints |
-| `audit_findings[]` | Aggregate verbatim into audit-findings.md, severity-grouped |
+| `audit_findings[]` | Do NOT write a file — Phase C collates these into `context/audit-findings.md`. Elevate only CRITICAL items into platform.md § Known Constraints. |
 | `notes_for_architect` | platform.md § Open Questions / Evolving Decisions |
 
 ### Cross-repo synthesis (the actual reasoning)
@@ -168,7 +166,7 @@ The phase prompt from `skills/discover/phases/phase-b2-architect-synthesis.md` (
 - Don't re-read filesystem trees that the discoverer already enumerated.
 - Don't second-guess the discoverer's classifications without cause — they read the actual code; you're synthesizing.
 - Don't split per-repo specifics across the prose. Per-repo conventions belong in the repo's CLAUDE.md (Phase C writes those, not you).
-- Don't skip the audit-findings.md aggregation — it's the second deliverable of this dispatch.
+- Don't write an audit-findings.md file — Phase C owns the canonical audit doc (it merges your profiles' `audit_findings[]` with the context-manager's deeper reads, deduped). Your audit duty here is only to elevate CRITICAL profile findings into platform.md § Known Constraints.
 
 ---
 

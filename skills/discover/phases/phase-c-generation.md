@@ -378,7 +378,12 @@ On `no`: skip. Note in the Phase D summary: "settings.local.json skipped per use
 
 ### Step 4: Collate audit findings
 
-Assemble `{workspace_root}/{slug}/context/audit-findings.md` from the per-agent `## Audit Findings` sections captured during Step 2 (merged CLAUDE.md + agent-context generation). Skip this step entirely if no agent reported any finding.
+Assemble the **single canonical** `{workspace_root}/{slug}/context/audit-findings.md` by merging **two sources**, deduped by `file:line + description` (this is the only audit-findings file — the architect no longer writes a separate one):
+
+1. **Phase B2.0 repo-discoverer findings** — the `audit_findings[]` arrays in each profile at `{run_dir}/outputs/repo-profiles/{repo}.json` (a broad, fast structured scan). Read each profile and collect its findings.
+2. **Phase C Step 2 context-manager findings** — the `## Audit Findings` sections the doc-generation agents returned (deeper, full code reads).
+
+When the same `file:line + description` appears in both, keep one entry. When two findings touch the same `file:line` but describe different problems, keep both. Skip this step entirely only if **both** sources are empty.
 
 **File structure:**
 
@@ -396,7 +401,7 @@ Surfaced during /discover on {date}. Each bullet is a real observation from code
 | low | N |
 
 ## {repo-name-1}
-*Source: {agent-type} during Phase C Step 2 (merged docs generation)*
+*Sources: repo-discoverer (Phase B2.0 profile) + context-manager (Phase C Step 2 deep read)*
 
 - [severity] file:line — description (evidence: ...)
 - ...
@@ -406,7 +411,7 @@ Surfaced during /discover on {date}. Each bullet is a real observation from code
 ```
 
 **Rules:**
-- One H2 section per source repo (deduplicate findings by `file:line + description`).
+- One H2 section per source repo, holding the **merged + deduped** findings from both passes (B2.0 profile `audit_findings[]` and the Phase C context-manager `## Audit Findings`).
 - Sort findings within each section by severity descending (critical first).
 - Do NOT editorialize or summarize findings — copy verbatim from the agent response. The agents already committed to the format.
 - If any finding has severity `critical`, the final Phase D summary MUST surface it prominently (see phase-d-verification.md Step 6).
