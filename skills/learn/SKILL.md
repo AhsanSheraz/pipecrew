@@ -109,6 +109,8 @@ If `--workspace=<slug>` is provided, use `{workspace_root}/{slug}/config.json`. 
 
 Validate the resolved config via `node {plugin_dir}/scripts/validate-config.js {config-path}`. Halt on errors.
 
+**Step 1.5 — pull shared memory** (only if `config.workspace.memory.enabled`): before comparing the signal against the workspace's durable docs, read the team's latest so findings are proposed against current canon — `node {plugin_dir}/scripts/sync-memory.js pull {workspace_root}/{slug}`. Warn-only (dirty tree / fetch failure → uses local copy, never blocks `/learn`). Skip silently when memory is off.
+
 ### Step 2: Collect the signal
 
 Branch on the source mode. Each produces the same output shape: a `signal` bundle containing raw material for the learner.
@@ -590,6 +592,16 @@ If the doc applies succeeded but the fix-round prompt was declined / `--no-fix` 
 ```
 
 ---
+
+### Step 7.4: Sync workspace memory to GitHub (only if `config.workspace.memory.enabled` AND ≥1 finding applied)
+
+If the workspace opted into GitHub-backed memory and this run **changed** any durable doc (≥1 finding applied to `platform.md` / repo `CLAUDE.md` / `agent-context` / `DESIGN_SYSTEM.md` / `audit-findings.md`), persist it:
+
+```bash
+node {plugin_dir}/scripts/sync-memory.js {workspace_root}/{slug} --message "learn: {N} updates — {source}" --checkpoint=learn
+```
+
+Skip when `memory.enabled` is absent/false, or when 0 findings were applied (nothing to sync). The script redacts secrets, commits the durable docs, rebases onto the team's latest, and publishes per `config.workspace.memory.sync_mode` — `commit` pushes straight to `main`; `hybrid`/`pr` open a `memory/*` PR when the change touches `platform.md` / an ADR (a rebase conflict always routes through a PR). Push/PR failures warn but never fail `/learn`. See `docs/design/github-memory.md`. **Note:** workspace-level findings update `{workspace_root}/{slug}/context/*` (synced here); repo-level findings update files *inside the code repos* (committed in those repos' own git, not here).
 
 ### Step 7.5: Finalize — update parent /deliver dispatch log (only when `--run` was supplied)
 

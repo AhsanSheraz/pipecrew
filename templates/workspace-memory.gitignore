@@ -1,0 +1,29 @@
+# pipecrew workspace memory repo — .gitignore
+# Versions the DURABLE workspace memory (context/, agents/, history/,
+# config.portable.json). Everything below is local-only / machine-specific /
+# run noise and must NOT be pushed. See docs/design/github-memory.md.
+
+# --- machine-specific config (absolute repo paths) ---
+config.json
+config.local.json
+
+# --- run artifacts (scratchpads, checkpoints, outputs, reports) ---
+# Large + churny; token trends come from the reporter locally, not git.
+runs/
+
+# --- transient / in-flight markers ---
+.observability-draft.json
+.in_use/
+awaiting_input.json
+*.autoapprove
+.autoapprove-*
+
+# --- local Claude Code settings (may contain machine paths / allow-rules) ---
+.claude/settings.local.json
+.claude/worktrees/
+
+# --- OS / editor cruft ---
+.DS_Store
+Thumbs.db
+*.swp
+*~

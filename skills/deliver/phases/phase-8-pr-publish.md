@@ -270,6 +270,16 @@ Choice?
 
 ---
 
+#### Step 8.65: Sync workspace memory to GitHub (only if `config.workspace.memory.enabled` AND this run changed workspace-level context)
+
+If the workspace opted into GitHub-backed memory and this `/deliver` run wrote any **workspace-level** durable doc under `{workspace_root}/{slug}/context/` — most commonly a new ADR from the Phase 2 ADR gate (`context/adrs/`), or an audit-findings update — persist it:
+
+```bash
+node {plugin_dir}/scripts/sync-memory.js {workspace_root}/{slug} --message "deliver: {feature-slug} (context updates)" --checkpoint=deliver
+```
+
+Skip when `memory.enabled` is absent/false, or when this run touched no `context/` doc (a pure code-change feature with no ADR). The script rebases onto the team's latest then publishes per `config.workspace.memory.sync_mode` — note a **new ADR is structural**, so under `hybrid`/`pr` this sync opens a `memory/*` PR (the durable decision gets a reviewer) rather than committing to `main`; an audit-findings-only update commits directly. **Do not double-sync:** if Step 8.6 dispatched `/learn` and it already synced (its Step 7.4), and no further `context/` change happened after, this is a no-op — `sync-memory.js` commits nothing when the tree is clean, so it's safe to call regardless. Feature *code* changes live in the code repos' own git (Steps 8.1–8.5), not the memory repo. See `docs/design/github-memory.md`.
+
 #### Step 8.7: Final run_end emission + status
 
 Emit the final `run_end` event to `{run_dir}/checkpoints.jsonl`:

@@ -29,6 +29,8 @@ End-to-end feature pipeline. Orchestrates work across API service repos, fronten
 | `--with-infra` | Force infra phase |
 | `--no-mock` | Skip mock |
 | `--no-review` | Skip Phase 5.5 code review |
+| `--browser-verify` | Force Phase 6 Step 6.5 live frontend verification — drive a real Chrome (chrome-devtools MCP) against the running app to exercise the new UI and verify its network calls hit the backend with the spec-shaped body + expected status. Runs **automatically** when the feature has frontend impact; this flag forces it even if auto-detection is unsure. If the MCP isn't installed, the step offers to install it (a fresh install needs a `claude` restart to load). |
+| `--no-browser-verify` | Skip Phase 6 Step 6.5 live browser verification even when there is frontend impact. |
 | `--auto-fix-mechanical` | Phase 5.5 routes fix rounds **per repo**: a repo whose criticals are all `mechanical` (the reviewer tags each critical `mechanical` or `architectural`) skips the gate and its fix round dispatches the moment its reviewer finishes — pipelined, without waiting for sibling reviewers. Repos with any `architectural` critical still gate — but each gets its own focused gate as its reviewer finishes (per phase-5.5 Step 2), not a consolidated end-of-phase prompt. Use to tighten the loop on small features where reviewer findings are predictable (missing field, wrong status code, missing i18n key). |
 | `--force-security-review` | Force security review |
 | `--no-security` | Skip security review |
@@ -120,6 +122,7 @@ End-to-end feature pipeline. Orchestrates work across API service repos, fronten
     Store the derived phase plan in the scratchpad's Architecture Flags section. Log: "Auto-detected phases: {list}. Skipped: {list with reasons}."
 
 3. **Pre-flight check** — verify all repo paths from the config exist on disk. Report missing repos and stop.
+3.5. **Pull shared memory** (only if `config.workspace.memory.enabled`) — read the team's latest workspace knowledge before planning: `node {plugin_dir}/scripts/sync-memory.js pull {workspace_root}/{slug}`. Warn-only: a dirty tree or fetch failure skips the pull (the run uses the local copy) and never blocks `/deliver`. Skip silently when memory is off.
 4. **Per-run isolation.** Each feature run has its own directory under the workspace:
    ```
    {workspace_root}/{slug}/runs/deliver/
@@ -266,6 +269,8 @@ Each pipeline phase lives in its own file under `phases/`. The orchestrator load
 | `--with-infra` | — | Forces Phase 5d even if architect didn't flag it |
 | `--no-mock` | Phase 5c | — |
 | `--no-review` | Phase 5.5 | Phase 5 → 6 directly |
+| `--browser-verify` | — | Forces Phase 6 Step 6.5 live browser verification (chrome-devtools MCP) even if frontend-impact detection is unsure |
+| `--no-browser-verify` | Phase 6 Step 6.5 | Skips live browser verification even on frontend impact |
 | `--auto-fix-mechanical` | — | Per-repo Phase 5.5 routing: all-`mechanical` repos pipeline their fix round (no gate, dispatched as the reviewer finishes); repos with `architectural` criticals still gate |
 | `--from-deferred[=<slug>]` | — | Loads a previous run's deferred follow-up file as the feature input. Phase 1 (product-owner) and Phase 2 (architect) still run — they refine the deferred items against current state. Phase 7 Step 7.5 marks the source file as `consumed` on success. |
 | `--with-pr` | — | Phase 8 publishes one draft PR per repo with cross-repo linking |

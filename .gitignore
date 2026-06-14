@@ -8,3 +8,6 @@ Thumbs.db
 *.swo
 .env
 .env.local
+
+# runtime in-use markers (PID locks written by the plugin at run time)
+.in_use/

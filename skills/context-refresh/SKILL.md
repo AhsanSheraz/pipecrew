@@ -62,6 +62,8 @@ description: "Audit or refresh PipeCrew context docs at three scopes: a single r
 
 **Step 1.2 — load + validate config**: load `{workspace_root}/{slug}/config.json` and validate via `node {plugin_dir}/scripts/validate-config.js {path}`. Halt on errors.
 
+**Step 1.2b — pull shared memory** (only if `config.workspace.memory.enabled`): `node {plugin_dir}/scripts/sync-memory.js pull {workspace_root}/{slug}` so the audit/refresh runs against the team's latest platform.md. Warn-only (dirty tree / fetch failure → uses local copy); skip silently when memory is off.
+
 **Step 1.3 — flag check**: no scope-narrowing flags exist for the workspace pass — it always refreshes platform.md.
 
 ---
@@ -367,6 +369,16 @@ Emit the standard one-line phase-done status per scope. Include fast/full path c
 For `--mode=audit`: print the full staleness report grouped by file, no modifications.
 
 For `--mode=refresh`: print a concise summary — files modified, sections touched, `Last Updated` bumped. Offer to diff before/after if the user wants.
+
+### Step 6: Sync workspace memory to GitHub (only if `config.workspace.memory.enabled` AND `--mode=refresh` changed workspace-level docs)
+
+If the workspace opted into GitHub-backed memory and this refresh touched any **workspace-level** durable doc under `{workspace_root}/{slug}/context/` (platform.md, observability.json, audit-findings.md, adrs, diagrams), persist it:
+
+```bash
+node {plugin_dir}/scripts/sync-memory.js {workspace_root}/{slug} --message "context-refresh: {scope} ({N} files)" --checkpoint=context-refresh
+```
+
+Skip for `--mode=audit` (read-only, nothing changed) and when `memory.enabled` is absent/false. Per-repo doc refreshes (CLAUDE.md / agent-context inside the code repos) are committed in those repos' own git, not the memory repo. The script redacts secrets, commits, rebases onto the team's latest, and publishes per `config.workspace.memory.sync_mode` — a `platform.md` refresh under `hybrid`/`pr` opens a `memory/*` PR; an observability/audit-findings refresh commits directly. Push/PR failures warn but never fail the refresh. See `docs/design/github-memory.md`.
 
 ---
 

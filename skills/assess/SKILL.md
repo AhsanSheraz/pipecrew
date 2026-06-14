@@ -14,6 +14,8 @@ description: "Standalone cross-repo assessment. Checks a feature branch across a
 | `--branch` | yes | — | Feature branch to assess (must exist in at least 2 repos) |
 | `--workspace` | no | auto-detect | Workspace slug — reads config for repo list |
 | `--requirements` | no | — | Path to a requirements doc (if not from a pipeline run) |
+| `--browser-verify` | no | auto on frontend impact | Drive a real Chrome (chrome-devtools MCP) against the running app to verify frontend use-cases + backend integration. Auto-runs when a frontend repo is in the branch set; `--no-browser-verify` skips it. |
+| `--no-browser-verify` | no | — | Skip the live browser verification step even when there is frontend impact. |
 
 ### Examples
 ```
@@ -83,6 +85,18 @@ Focus on CROSS-REPO integration:
 Produce your assessment report with an overall score (PASS / PARTIAL / FAIL)
 and fix assignments per repo.
 ```
+
+### Step 4.5: Live frontend verification (browser, via chrome-devtools MCP)
+
+Run this when the branch set includes a repo with `role: "frontend"` (frontend impact) and `--no-browser-verify` was not passed; `--browser-verify` forces it. It mirrors `/deliver` Phase 6 Step 6.5 — read that step for the full contract. In brief:
+
+1. **Ensure the MCP**: `node {plugin_dir}/scripts/ensure-mcp.js status --name=chrome-devtools`.
+   - `present+connected` → proceed.
+   - missing → inform the user, ask to install (`node {plugin_dir}/scripts/ensure-mcp.js install --name=chrome-devtools --cmd="npx -y chrome-devtools-mcp@latest" --scope=local`). The install needs a Claude Code restart to load — tell the user and let them choose: continue without browser verification this run (re-run `/assess --branch={branch} --browser-verify` after restarting), or restart now and re-run. Do not install silently.
+   - `cli_available:false` → skip with a one-line note.
+2. **Run the app**: read an optional `config.workspace.frontend_verify` block (frontend_cmd / base_url / backend=mock|backend / mock_cmd / ready_path / routes); else infer the frontend `dev` command + the mock `start` command from each repo's `package.json` / `CLAUDE.md`. Start them as background processes against the branch's checkouts and poll `base_url` until ready (cap ~60s). If the run command can't be determined or the app won't start, skip with a recorded reason.
+3. **Dispatch the assessor in browser-verification mode** with the live `Frontend:`/`Backend:` URLs and an FR→use-case list — it uses the chrome-devtools MCP tools (`navigate_page`, `click`, `fill`, `take_screenshot`, `list_console_messages`, `list_network_requests`) to exercise each use-case, asserting no error-level console messages and that each action's network call hits the right path with the spec-shaped body and the expected status (a happy-path 4xx/5xx is a CRITICAL gap).
+4. **Tear down** the servers you started. Fold the verdict (`VERIFIED` / `ISSUES-FOUND` / `COULD-NOT-VERIFY`) into the final report; `ISSUES-FOUND` with a happy-path 4xx/5xx or white-screen means the score cannot be PASS.
 
 ### Step 5: Present the report
 

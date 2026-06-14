@@ -27,6 +27,18 @@
           "type": "string",
           "default": "en",
           "description": "Primary UI language (en, ar, etc.)"
+        },
+        "memory": {
+          "type": "object",
+          "description": "Opt-in GitHub-backed workspace memory. Absent ⇒ feature off (workspace dir stays local-only, current default). When enabled, the durable docs are committed (redacted) + pushed to a PRIVATE repo at the learning checkpoints. See docs/design/github-memory.md.",
+          "properties": {
+            "enabled": { "type": "boolean", "default": false, "description": "Master switch. When true, /discover bootstraps the repo and the learning skills sync via scripts/sync-memory.js." },
+            "remote": { "type": "string", "description": "Git remote URL of the private memory repo (set at bootstrap, e.g. git@github.com:org/{slug}-memory.git)." },
+            "repo_name": { "type": "string", "description": "Repo name to create at bootstrap if no remote is given (default: {slug}-memory)." },
+            "visibility": { "type": "string", "enum": ["private"], "default": "private", "description": "MUST be private — the memory may reference secrets even after redaction. Bootstrap refuses any other value." },
+            "sync_mode": { "type": "string", "enum": ["commit", "pr", "hybrid"], "default": "commit", "description": "How sync-memory.js publishes. 'commit' (default, solo): pull --rebase then commit straight to main. 'pr': always push a memory/<checkpoint> branch + open a PR for review. 'hybrid' (recommended for team-shared repos): structural changes (context/platform.md or context/adrs/**) open a PR; bookkeeping (audit-findings, observability, learn-log, config.portable) commits directly. A rebase conflict in any mode falls back to PR. See docs/design/github-memory.md." }
+          },
+          "required": ["enabled"]
         }
       }
     },
