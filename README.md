@@ -107,7 +107,7 @@ per-repo `CLAUDE.md`, and domain-specialized agents. Run it once per project.
 ### 2. Ship a feature — `/deliver`
 
 ```bash
-/deliver "publishers can choose contract type" --workspace=dal
+/deliver "publishers can choose contract type"
 ```
 
 Seven phases run automatically — **the contract lands before any code is written**:
