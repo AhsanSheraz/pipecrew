@@ -297,9 +297,23 @@ Parse with:
 
 Split the captured body by newlines, parse each `key: value` pair, coerce numeric values to integers. Copy whatever keys are present into the `agent_end` event (normalize key names to snake_case).
 
-> **Token field name:** emit the grand total as `total_tokens` (the name the `<usage>` block uses). Some older logs carry it as bare `tokens`; consumers (e.g. the site-view) MUST accept either `total_tokens` or `tokens` so per-agent and total token counts populate regardless of the producer's vintage.
+> **Token field name:** emit the grand total as `total_tokens` (the name the `<usage>` block uses). Some older logs carry it as bare `tokens`; consumers (e.g. the site-view) MUST accept either `total_tokens` or `tokens` so per-agent and total token counts populate regardless of the producer's vintage. **Likewise always emit the agent identity as `agent_type`** (never bare `agent`) — a run that writes `agent` makes its whole per-agent breakdown vanish in strict consumers.
 
-If `<usage>` is absent (tool error before usage was reported), emit `agent_end` with `status: "failed"` and no token fields — but keep `agent_type`, `description`, `phase`, `stage`, `duration_ms` if you have them.
+### `<usage>` is often ABSENT now — use `toolUseResult` (current Claude Code)
+
+Current Claude Code (v2.1.x+) dispatches sub-agents **asynchronously**: the inline `Agent` tool result is a *launch acknowledgement* ("Async agent launched successfully. agentId: …") with **no `<usage>` footer**. The old regex finds nothing, so **do not treat a missing `<usage>` block as failure** — that silently zeroes per-agent tokens.
+
+Instead, source the numbers from the **structured `toolUseResult`** object attached to the `Agent` tool_result line, which carries the sub-agent's own totals:
+
+| `toolUseResult` field | → `agent_end` field |
+|---|---|
+| `totalTokens` | `total_tokens` |
+| `totalDurationMs` | `duration_ms` |
+| `status` (`completed` / `failed` / …) | `status` (map to the enum below) |
+| `agentType` | `agent_type` (if not already known) |
+| `usage.{input,output,cache_*}_tokens` | the per-type token fields |
+
+**Capture order for `agent_end`:** (1) if the result has a `<usage>` block, parse it (synchronous agents / older CC); (2) else read `toolUseResult.totalTokens` / `totalDurationMs`; (3) else, as a last resort, read the sub-agent transcript at `~/.claude/projects/{project}/{session}/subagents/agent-{agentId}.jsonl` and sum `message.usage` across its `assistant` lines. Only emit `status: "failed"` with no token fields when the agent genuinely errored (not merely because `<usage>` was absent).
 
 ## Retry interaction
 

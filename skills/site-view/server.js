@@ -260,14 +260,14 @@ function readDeliverRunDetail(runsDir, runId) {
         let ev;
         try { ev = JSON.parse(line); } catch (_) { continue; }
         if (ev.event !== 'agent_end') continue;
-        if (ev.status && ev.status !== 'ok') continue;
+        if (mapEndStatus(ev.status) === 'failed') continue;   // accept ok/completed/…, skip only failures
         const phase = ev.phase || 'unknown';
         if (!byPhase.has(phase)) {
           byPhase.set(phase, { tokens: 0, duration_ms: 0, agent_count: 0, stage: ev.stage || null });
           phaseOrder.push(phase);
         }
         const row = byPhase.get(phase);
-        row.tokens += ev.total_tokens || 0;
+        row.tokens += ev.total_tokens || ev.tokens || 0;
         row.duration_ms += ev.duration_ms || 0;
         row.agent_count += 1;
       }
@@ -362,8 +362,8 @@ function readLearnRunDetail(runsDir, runId) {
         let ev;
         try { ev = JSON.parse(line); } catch (_) { continue; }
         if (ev.event !== 'agent_end') continue;
-        if (ev.status && ev.status !== 'ok') continue;
-        detail.total_tokens += ev.total_tokens || 0;
+        if (mapEndStatus(ev.status) === 'failed') continue;
+        detail.total_tokens += ev.total_tokens || ev.tokens || 0;
         detail.total_agents += 1;
       }
     } catch (_) {}
@@ -497,14 +497,14 @@ function readWorkspaceOverview() {
             let ev;
             try { ev = JSON.parse(line); } catch (_) { continue; }
             if (ev.event !== 'agent_end') continue;
-            if (ev.status && ev.status !== 'ok') continue;  // skip failed/deferred
+            if (mapEndStatus(ev.status) === 'failed') continue;  // accept ok/completed/…, skip only failures
             const phase = ev.phase || 'unknown';
             if (!byPhase.has(phase)) {
               byPhase.set(phase, { tokens: 0, duration_ms: 0, agent_count: 0, stage: ev.stage || null });
               phaseOrder.push(phase);
             }
             const row = byPhase.get(phase);
-            row.tokens += ev.total_tokens || 0;
+            row.tokens += ev.total_tokens || ev.tokens || 0;
             row.duration_ms += ev.duration_ms || 0;
             row.agent_count += 1;
           }
@@ -599,11 +599,26 @@ function readWorkspaceOverview() {
 // waiting for a user answer. The file shape is:
 //   { since: "ISO8601", phase: "3", gate: "approval", question: "...", context_summary?: "..." }
 // Returns null when not waiting.
+// A flag whose `since` is older than maxAgeMs is a zombie — the run crashed or
+// a clearing hook misfired and never removed it. Prevents a permanently-stuck
+// banner without false-clearing a realistic wait.
+function isStaleFlag(since, maxAgeMs) {
+  if (!since) return false;
+  const t = new Date(since).getTime();
+  if (isNaN(t)) return false;
+  return (Date.now() - t) > maxAgeMs;
+}
+
 function readAwaitingInput() {
   const p = awaitingInputPath();
   if (!p || !fs.existsSync(p)) return null;
   try {
-    return JSON.parse(fs.readFileSync(p, 'utf8'));
+    const data = JSON.parse(fs.readFileSync(p, 'utf8'));
+    // Pipeline gates can legitimately wait a long time for a human, so use a
+    // generous 24h backstop — only drops flags from crashed/abandoned runs that
+    // never called `gate.js close`.
+    if (isStaleFlag(data.since, 24 * 60 * 60 * 1000)) return null;
+    return data;
   } catch (_) {
     return { parseError: true, rawPath: p };
   }
@@ -617,7 +632,11 @@ function readClaudeApproval() {
   const p = awaitingClaudeApprovalPath();
   if (!p || !fs.existsSync(p)) return null;
   try {
-    return JSON.parse(fs.readFileSync(p, 'utf8'));
+    const data = JSON.parse(fs.readFileSync(p, 'utf8'));
+    // A Claude Code permission prompt open for >1h is almost certainly a missed
+    // clear (the UserPromptSubmit/PostToolUse hook didn't fire) — treat it stale.
+    if (isStaleFlag(data.since, 60 * 60 * 1000)) return null;
+    return data;
   } catch (_) {
     return { parseError: true, rawPath: p };
   }
@@ -830,6 +849,13 @@ function readCheckpoints() {
     for (const line of lines) {
       let evt;
       try { evt = JSON.parse(line); } catch (_) { continue; }
+      // Producer variance: some runs emit `agent` / `tokens` instead of the
+      // canonical `agent_type` / `total_tokens`. Normalise once so every
+      // downstream read (all keyed on agent_type) works regardless — this closes
+      // the field-name gap that silently vanished an entire run's per-agent
+      // metrics when it used bare `agent`.
+      if (!evt.agent_type && typeof evt.agent === 'string') evt.agent_type = evt.agent;
+      if (evt.total_tokens == null && typeof evt.tokens === 'number') evt.total_tokens = evt.tokens;
       // Track run wall-clock span across every timestamped event.
       if (evt.ts) {
         if (!result.firstTs || evt.ts < result.firstTs) result.firstTs = evt.ts;

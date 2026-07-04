@@ -150,7 +150,15 @@ Now: produce UX recommendations for the feature in `{frontend.path}` and emit th
 
 **After**: Present UX summary to user. Wait for approval.
 
-**UX Approval Gate**: Show key UX decisions, deviations from standard patterns, and anything the user should weigh in on. Ask: "Approve UX recommendations to proceed with frontend implementation?"
+**UX Approval Gate**: Show key UX decisions, deviations from standard patterns, and anything the user should weigh in on. Wrap the wait in a gate (CRITICAL RULE 5) so the site-view banner lights:
+
+```bash
+node {plugin_dir}/scripts/gate.js open --run-dir={run_dir} --phase=5b --gate=approval --question="Approve UX recommendations to proceed with frontend implementation?"
+# … present the UX summary, wait for the user's decision …
+node {plugin_dir}/scripts/gate.js close --run-dir={run_dir}
+```
+
+Ask: "Approve UX recommendations to proceed with frontend implementation?"
 
 **Step 2.5**: Refine frontend sub-tasks in the scratchpad if the UX spec introduced new components or changes.
 
