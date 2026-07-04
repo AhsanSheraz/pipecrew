@@ -826,7 +826,8 @@ function mapEndStatus(raw) {
 function readCheckpoints() {
   const file = checkpointsPath();
   const result = {
-    orchestratorTokens: 0,
+    orchestratorTokens: 0,   // legacy: sum of orch_checkpoint deltas (usually 0 — see sessionId)
+    sessionId: null,         // from run_start; enables accurate orch overhead from the session JSONL
     retryingAgents: new Set(),
     agentMetrics: {},
     instances: [],
@@ -860,6 +861,11 @@ function readCheckpoints() {
       if (evt.ts) {
         if (!result.firstTs || evt.ts < result.firstTs) result.firstTs = evt.ts;
         if (!result.lastTs || evt.ts > result.lastTs) result.lastTs = evt.ts;
+      }
+      // The run's Claude session — recorded on run_start (v1.2.1+) so we can
+      // compute orchestrator overhead accurately from the session transcript.
+      if (evt.event === 'run_start' && (evt.session_id || evt.sessionId)) {
+        result.sessionId = evt.session_id || evt.sessionId;
       }
       if (evt.event === 'orch_checkpoint' && evt.orch_since_last) {
         const o = evt.orch_since_last;
@@ -1005,6 +1011,27 @@ function mapPhaseToLabel(phase) {
 // server-side (below, in getState) so the UI consumes an authoritative value
 // rather than re-deriving it from heuristics.
 const { resolveStage } = require('../../scripts/stages.js');
+
+// Orchestrator overhead is derived from the run's Claude session transcript
+// (see scripts/orch-tokens.js) — the old inline orch_checkpoint offset-diff was
+// never done reliably, so this is now the authoritative source. Cached by the
+// session file's mtime so a live run doesn't re-sum a large transcript every tick.
+const orchTokensLib = require('../../scripts/orch-tokens.js');
+const _orchCache = new Map(); // sessionId → { mtime, total }
+function orchTokensForSession(sessionId) {
+  if (!sessionId) return null;
+  try {
+    const jsonl = orchTokensLib.resolveSessionJsonl(sessionId);
+    if (!jsonl) return null;
+    const mtime = fs.statSync(jsonl).mtimeMs;
+    const hit = _orchCache.get(sessionId);
+    if (hit && hit.mtime === mtime) return hit.total;
+    const t = orchTokensLib.computeFromFile(jsonl);
+    const total = t ? t.total : null;
+    _orchCache.set(sessionId, { mtime, total });
+    return total;
+  } catch (_) { return null; }
+}
 
 // ─── Dispatch-log Agent column → repo token (Polish round 8 follow-up) ──
 // The Agent column carries a parenthesised qualifier that is usually the
@@ -1557,7 +1584,11 @@ function parseScratchpad(content) {
   }
 
   // Checkpoints enrichment — orchestrator tokens + retry flags + agent metrics + lifecycle instances
-  const { orchestratorTokens, retryingAgents, agentMetrics: cpMetrics, instances, firstTs, lastTs } = readCheckpoints();
+  const { orchestratorTokens: legacyOrchTokens, sessionId, retryingAgents, agentMetrics: cpMetrics, instances, firstTs, lastTs } = readCheckpoints();
+  // Prefer the session-derived orchestrator overhead (accurate); fall back to
+  // the legacy orch_checkpoint sum for old runs without a recorded session_id.
+  const sessionOrch = orchTokensForSession(sessionId);
+  const orchestratorTokens = (sessionOrch != null) ? sessionOrch : legacyOrchTokens;
 
   // ─── Checkpoints reconciliation (lifecycle is checkpoint-authoritative) ──
   // checkpoints.jsonl is emitted programmatically at every dispatch boundary,

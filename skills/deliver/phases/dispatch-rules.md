@@ -135,42 +135,14 @@ See `rules/observability.md` for the exact shape of both events.
 
 **Approval gates** → no manual emission needed. `scripts/gate.js open`/`close` (which you already call to drive the site-view banner — CRITICAL RULE 5) now also appends `gate_open` / `gate_close` events to `checkpoints.jsonl`, so every gate the run paused at is in the audit trail and the reporter can show gate wait-times.
 
-**Orchestrator overhead tracking** — the orchestrator itself consumes tokens (loading skills, reading files, approval gates, scratchpad updates). Capture this with the `orch_checkpoint` event at every phase boundary:
+**Orchestrator overhead tracking** — the orchestrator itself consumes tokens (loading skills, reading files, approval gates, scratchpad updates, and reading agent results): 20-40% of total run cost. **You no longer hand-compute this.** Byte-offset diffing was too error-prone and got skipped (empty `orch_checkpoint`s → overhead showed as 0). Instead:
 
-1. **Record the session JSONL byte-offset**:
-   ```bash
-   wc -c < "~/.claude/projects/{project}/{sessionId}.jsonl"
-   ```
-   Store as `jsonl_offset`.
+1. **Record `session_id` on `run_start`** (Pre-flight Step 4) from `$CLAUDE_CODE_SESSION_ID`. That's the only orchestrator responsibility.
+2. Overhead is then **derived deterministically** from the session transcript by `scripts/orch-tokens.js` (sum of the session's own `assistant` `message.usage`; sub-agent tokens are in separate transcripts, so nothing to subtract). The site-view and the Phase-7 `reporter` compute it from `session_id` — no offset math, no per-phase `orch_checkpoint` emission required.
 
-2. **Compute `orch_since_last`** — the orchestrator-only delta since the previous `orch_checkpoint`:
-   - Read the session JSONL from `previous_offset` to `current_offset`.
-   - Sum the per-line `"usage"` fields: `input_tokens`, `output_tokens`, `cache_read_input_tokens`.
-   - Subtract any agent-dispatch tokens that landed in this range (already captured in `agent_end` events for this phase).
-   - The remainder is orchestrator overhead.
-
-3. **Emit the event**:
-   ```json
-   {
-     "ts": "2026-04-15T14:27:44Z",
-     "event": "orch_checkpoint",
-     "skill": "deliver",
-     "run_id": "2026-04-15-142744-book-upload",
-     "phase": "2",
-     "stage": "Architecture",
-     "jsonl_offset": 284500,
-     "orch_since_last": { "input_tokens": 1240, "output_tokens": 3100, "cache_read_tokens": 42000 }
-   }
-   ```
-
-**Finding the session JSONL path**: the current session's JSONL is the most recently modified `.jsonl` under `~/.claude/projects/`:
 ```bash
-ls -t ~/.claude/projects/*/*.jsonl | head -1
+# What consumers run (you don't need to — informational):
+node {plugin_dir}/scripts/orch-tokens.js --run-dir={run_dir}   # or --session=$CLAUDE_CODE_SESSION_ID
 ```
-Cache this path at Pre-flight — it won't change during the run.
 
-**First `orch_checkpoint`** of the run: emit at Pre-flight completion with `previous_offset = 0`. This captures the baseline before any agents run.
-
-**Update the Phase Status table** in the scratchpad alongside each `orch_checkpoint` — include `Orch Tokens` so humans see the overhead too. The `reporter` agent reads both scratchpad and checkpoints.jsonl at Phase 7 but checkpoints is the authoritative source.
-
-**Why this matters**: on a typical pipeline run, the orchestrator consumes 50-100K tokens (reading specs, loading phase files, approval conversations) — 20-40% of the total run cost. Without `orch_checkpoint` events, optimization efforts focus only on agent prompts while the orchestrator's overhead grows silently.
+Emitting `orch_checkpoint` events is now **optional/legacy** (consumers still sum any `orch_since_last` deltas as a fallback for runs lacking `session_id`). See `rules/observability.md` → "Orchestrator overhead".

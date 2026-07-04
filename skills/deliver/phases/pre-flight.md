@@ -293,7 +293,7 @@ Proceed on "yes" — multiple runs can execute simultaneously. Each has isolated
 **Step 4: Create the per-run directory.**
 
 1. `mkdir -p {run_dir}/outputs {run_dir}/tasks {run_dir}/review {run_dir}/fix-rounds`
-2. Emit the first `run_start` event to `{run_dir}/checkpoints.jsonl` with `skill: "deliver"`, `workspace_slug`, `args`, and ISO8601 `ts`.
+2. Emit the first `run_start` event to `{run_dir}/checkpoints.jsonl` with `skill: "deliver"`, `workspace_slug`, `args`, ISO8601 `ts`, and **`session_id`** (the value of the `$CLAUDE_CODE_SESSION_ID` env var — `echo "$CLAUDE_CODE_SESSION_ID"`). Recording it lets the site-view / reporter compute orchestrator-overhead tokens accurately from the session transcript (see `rules/observability.md` and `scripts/orch-tokens.js`); without it that overhead can't be attributed and shows as 0.
 3. Write `{run_dir}/scratchpad.md` from the template in this phase file.
 4. Set: Feature, Run ID, Workspace, Flags, Started date, Current Phase: "Phase 1: Requirements", Status: IN_PROGRESS.
 5. **If `--auto-approve` was passed**, turn on the opt-in auto-approve marker so the plugin's hook stops prompting for safe implementer tool calls:

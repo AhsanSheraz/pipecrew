@@ -30,6 +30,14 @@ Watch the [repo Releases](https://github.com/pipecrew-ai/pipecrew/releases) (Wat
   `/deliver` dispatch rules now source per-agent tokens/duration from the
   structured `toolUseResult` (with the sub-agent transcript as a fallback), so
   new runs stop dropping agent tokens.
+- **Orchestrator overhead was always 0.** The `orch_checkpoint` mechanism (the
+  orchestrator inline byte-offset-diffing its own session JSONL) was never done
+  in practice — real runs emitted empty checkpoints — so the site-view
+  under-reported total run cost by the orchestrator's 20-40% share. Runs now
+  record `session_id` on `run_start`, and orchestrator overhead is derived
+  deterministically from the session transcript by the new `scripts/orch-tokens.js`
+  (verified end-to-end: 0 → ~19.6M on a real session). The old `orch_checkpoint`
+  offset math is deprecated to an optional fallback.
 - **Approval banners at more gates.** Phases 2 (architecture), 3 (spec/contract),
   and 5b (UX) now call `gate.js`, so the site-view "awaiting" banner lights at
   those gates — not only at phases 1 / 4.5 / 5.5.

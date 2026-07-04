@@ -89,11 +89,12 @@ A `/deliver` run's phases group into six ordered chapters: **understand → cont
   "skill": "discover",
   "run_id": "2026-04-15-091234-dal",
   "workspace_slug": "dal",
-  "args": "--workspace=dal --greenfield"
+  "args": "--workspace=dal --greenfield",
+  "session_id": "2ed98d97-4d59-4e46-bc11-ae9ef54e1bd2"
 }
 ```
 
-Extra fields: `workspace_slug` (always), `args` (CLI args passed), `claude_code_version` (if detectable).
+Extra fields: `workspace_slug` (always), `args` (CLI args passed), `session_id` (the value of `$CLAUDE_CODE_SESSION_ID` — records which Claude session ran the orchestrator so orchestrator-overhead tokens can be derived from its transcript; see `orch_checkpoint` below), `claude_code_version` (if detectable).
 
 #### `run_end` — last line of every log
 
@@ -186,30 +187,25 @@ Required: `agent_type`, `description`, `status`, `duration_ms`, and the token fi
 
 `status` enum: `ok` | `retry` | `failed` | `deferred`.
 
-#### `orch_checkpoint` — orchestrator-overhead delta since last checkpoint
+#### Orchestrator overhead — derived from the session transcript (not hand-emitted)
 
-Captures the tokens the **orchestrator itself** burned between agent dispatches (reading files, approvals, scratchpad updates, tool-call overhead). Critical for attribution — on a typical run, orchestrator overhead is 20-40% of total cost and invisible without this event.
+The tokens the **orchestrator itself** burns (loading skills, reading files/specs, scratchpad updates, approval gates, and reading agent RESULTS) are 20-40% of total run cost and must be attributed.
+
+**This is now DERIVED, not hand-computed.** The old approach — the orchestrator inline byte-offset-diffing its own session JSONL and emitting an `orch_checkpoint` per phase — was too complex and was skipped in practice (real runs emitted empty `orch_checkpoint`s, so overhead showed as 0). Instead:
+
+- **`run_start` records `session_id`** (`$CLAUDE_CODE_SESSION_ID`).
+- **`scripts/orch-tokens.js`** computes overhead deterministically = the sum of the session transcript's own `assistant` `message.usage` (`input` + `output` + `cache_creation`). Sub-agent tokens live in **separate** `subagents/agent-*.jsonl` transcripts, so they are NOT in the parent session's usage — **no subtraction**. cache-read is excluded (re-reads of the growing context).
+- The **site-view** and **reporter** call it (keyed on `session_id`) — no orchestrator math required.
+
+`orch_checkpoint` events remain **optional/legacy**: consumers still sum any `orch_since_last` deltas as a fallback for runs with no `session_id`, but new runs should rely on `session_id` + `orch-tokens.js` rather than hand-emitting them.
 
 ```json
 {
-  "ts": "2026-04-15T09:18:10Z",
-  "event": "orch_checkpoint",
-  "skill": "discover",
-  "run_id": "2026-04-15-091234-dal",
-  "phase": "B2",
-  "stage": "Architect Discovery",
-  "jsonl_offset": 284500,
-  "orch_since_last": {
-    "input_tokens": 1240,
-    "output_tokens": 3100,
-    "cache_read_tokens": 42000
-  }
+  "ts": "2026-04-15T09:18:10Z", "event": "orch_checkpoint", "skill": "discover",
+  "run_id": "2026-04-15-091234-dal", "phase": "B2", "stage": "Architect Discovery",
+  "orch_since_last": { "input_tokens": 1240, "output_tokens": 3100, "cache_creation_tokens": 900 }
 }
 ```
-
-Required: `jsonl_offset` (byte offset into `~/.claude/projects/{project}/{session}.jsonl` at emission time), `orch_since_last` (delta from previous `orch_checkpoint` in this run).
-
-How to compute `orch_since_last`: read the session JSONL from `previous_offset` to `current_offset`, sum `usage.{input_tokens,output_tokens,cache_read_input_tokens}` per line, then subtract any `agent_end` tokens that fell in this range (already accounted separately). First `orch_checkpoint` of a run uses `previous_offset = 0`.
 
 #### `bash_slow` — any Bash call with `duration_ms > 5000`
 
