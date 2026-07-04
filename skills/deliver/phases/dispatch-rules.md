@@ -55,8 +55,7 @@ The orchestrator:
 
 The scratchpad tracks duration and token usage at three granularities, all derived from one source: the **Agent Dispatch Log**.
 
-**Per agent dispatch** — every time an Agent tool call returns, the orchestrator:
-- Reads `duration_ms` / `total_tokens` from a legacy `<usage>` footer **if one is present**; otherwise leaves them blank. Current Claude Code exposes per-agent tokens only in `toolUseResult` **metadata the orchestrator can't see**, so the site-view / reporter derive them from the session transcript — do not try to parse them inline. See `rules/observability.md`.
+**Per agent dispatch** — every time an Agent tool call returns, the orchestrator appends a dispatch-log row with what it can see (phase, agent, task, outcome). It does **not** record tokens/duration: those aren't visible to the orchestrator (Claude Code keeps them in `toolUseResult` metadata, not the tool-result content), so the site-view / reporter derive them from the session transcript. Leave token/duration cells as `—`. See `rules/observability.md`.
 - Appends a row to `## Agent Dispatch Log` in the scratchpad: sequence number, phase, agent name, task ID (or `—`), duration (`Xm Ys`), tokens (`XK`), outcome (`COMPLETED`|`FAILED`|`PARTIAL`)
 
 **Per phase** — the `## Phase Status` table rolls up dispatches per phase (sum of duration and tokens). For orchestrator-only phases (spec sync), duration is wall-clock and tokens are `—`.
@@ -70,7 +69,7 @@ The task body has a `## Work Log` section. After every dispatch, append one line
 ```
 
 **Sequence per agent return**:
-1. Read `duration_ms` / `total_tokens` from a legacy `<usage>` footer **if present**; otherwise leave blank — current Claude Code hides them in `toolUseResult` metadata the orchestrator can't read, so consumers derive them from the session transcript (see `rules/observability.md`)
+1. Append the Agent Dispatch Log row (phase, agent, task, outcome). Do **not** try to read tokens/duration — they aren't visible to the orchestrator; the site-view / reporter derive them from the session transcript (see `rules/observability.md`). Scratchpad token/duration cells stay `—`.
 2. Append row to `## Agent Dispatch Log`
 3. If agent worked on a task: Edit task file (bump frontmatter metrics, append to Work Log)
 4. Edit Implementation Tasks table row (refresh Duration and Tokens)
@@ -123,7 +122,7 @@ All events go to `{run_dir}/checkpoints.jsonl` in the unified schema defined at 
 
 **Agent dispatches** → emit `agent_start` **immediately before** every `Agent` tool call, then `agent_end` after it returns. This applies to **every** dispatch — the parallel background agents (Phase 5a/5c/5d implementers, Phase 5.5 reviewers) *and* the agents the orchestrator runs inline (Phase 1 product-owner, Phase 2 solution-architect, Phase 3 openapi-spec-editor, Phase 5b ux-consultant). Without the leading `agent_start` the live site-view never shows the agent in its "working" state — it appears only after it has already finished, and its tokens attach only at completion.
 - `agent_start`: include `agent_type`, `description`, `phase`, `stage` (and `task` when task-scoped). For per-repo agents the `description` MUST encode the repo (e.g. `Backend implementer — publisher-service`, `Code review — publisher-service`) so the view keys each instance to its repo instead of collapsing them into one "cross-repo" card.
-- `agent_end`: emit the **structure** the orchestrator knows — `agent_type` (never bare `agent`), the **same** repo-encoded `description` as the `agent_start` (+ `task` if it carried one) so consumers can match it, `phase`/`stage`, and `status`. Copy `total_tokens` / `duration_ms` **only if a legacy `<usage>` footer is present**; current Claude Code hides per-agent tokens in `toolUseResult` metadata the orchestrator can't read, so the site-view / reporter derive them from the session transcript and match by `description` (see `rules/observability.md`).
+- `agent_end`: emit the **structure** the orchestrator knows — `agent_type` (never bare `agent`), the **same** repo-encoded `description` as the `agent_start` (+ `task` if it carried one) so consumers can match it, `phase`/`stage`, and `status`. Do **not** include token/duration fields — they aren't visible to the orchestrator; the site-view / reporter derive them from the session transcript, matched by `description` (see `rules/observability.md`).
 
 See `rules/observability.md` for the exact shape of both events.
 

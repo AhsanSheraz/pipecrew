@@ -272,9 +272,13 @@ Required: `phase`, `gate`, `question`. `gate` enum: `approval` | `clarify` | `fi
 
 Required: none beyond the common fields. Optional: `duration_ms` (how long the gate was open — `gate.js close` computes it from the open flag's `since`). Pairs with the preceding `gate_open`.
 
-## Parsing the `<usage>` block
+## Per-agent tokens & duration
 
-Every `Agent` tool response ends with a footer:
+> **Current Claude Code (v2.1.x+): the orchestrator can't capture these — skip to
+> "consumer-DERIVED" below.** The `<usage>`-footer path here is **legacy** (older
+> CC only) and is documented for backward-compat with historical logs.
+
+**(Legacy)** older `Agent` tool responses ended with a footer the orchestrator could parse:
 
 ```
 agentId: a692490f10491aee9 (use SendMessage with to: 'a692490f10491aee9' to continue this agent)
@@ -301,7 +305,7 @@ Current Claude Code (v2.1.x+) does **not** put a `<usage>` footer in the `Agent`
 
 Therefore per-agent tokens/duration are **derived by consumers** (the site-view and the `reporter`) from the session transcript — exactly like orchestrator overhead. Each `Agent` dispatch's `toolUseResult.totalTokens` / `totalDurationMs` is read from `~/.claude/projects/{project}/{session}.jsonl` (resolved via the `session_id` on `run_start`) and matched to the run's `agent_end` events by `description`.
 
-What the orchestrator still emits in `agent_end`: the **structure** it knows — `agent_type` (never bare `agent`), `description` (repo-encoded, so consumers can match it), `phase`, `stage`, `status`, and `task` when present. The `total_tokens` / `duration_ms` fields are **best-effort**: populate them only if a legacy `<usage>` footer is actually present (older CC); otherwise omit them and let the consumer fill them from the transcript. A missing token field is **not** a failure — only emit `status: "failed"` when the agent genuinely errored.
+What the orchestrator still emits in `agent_end`: the **structure** it knows — `agent_type` (never bare `agent`), `description` (repo-encoded, so consumers can match it), `phase`, `stage`, `status`, and `task` when present. It does **not** emit `total_tokens` / `duration_ms` — those aren't visible to it; consumers fill them from the transcript. (Older logs may carry `<usage>`-derived token fields on `agent_end`; consumers still honor them when present, but nothing produces them now.) A missing token field is **not** a failure — only emit `status: "failed"` when the agent genuinely errored.
 
 ## Retry interaction
 
