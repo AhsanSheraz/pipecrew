@@ -5,7 +5,7 @@ const assert = require('assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { orchFromLines, resolveSessionJsonl, readSessionIdFromRunDir } = require('./orch-tokens.js');
+const { orchFromLines, agentsFromLines, resolveSessionJsonl, readSessionIdFromRunDir } = require('./orch-tokens.js');
 
 let passed = 0;
 function ok(name, fn) { fn(); passed++; console.log(`  ✓ ${name}`); }
@@ -51,6 +51,26 @@ ok('readSessionIdFromRunDir reads run_start.session_id', () => {
   assert.strictEqual(readSessionIdFromRunDir(tmp), 'abc-999');
   fs.rmSync(tmp, { recursive: true, force: true });
   assert.strictEqual(readSessionIdFromRunDir('/no/such/dir'), null);
+});
+
+ok('agentsFromLines pairs Agent dispatch → toolUseResult tokens/duration', () => {
+  const lines = [
+    { type: 'assistant', message: { content: [
+      { type: 'tool_use', id: 'toolu_1', name: 'Agent', input: { subagent_type: 'spring-boot-implementer', description: 'Backend — publisher-service' } },
+    ] } },
+    { type: 'user', toolUseResult: { totalTokens: 51234, totalDurationMs: 90000, agentId: 'ag-1' },
+      message: { content: [{ type: 'tool_result', tool_use_id: 'toolu_1', content: 'done' }] } },
+    // a dispatch with no result yet → excluded (no tokens)
+    { type: 'assistant', message: { content: [
+      { type: 'tool_use', id: 'toolu_2', name: 'Task', input: { subagent_type: 'Explore', description: 'still running' } },
+    ] } },
+  ];
+  const agents = agentsFromLines(lines);
+  assert.strictEqual(agents.length, 1);
+  assert.strictEqual(agents[0].description, 'Backend — publisher-service');
+  assert.strictEqual(agents[0].tokens, 51234);
+  assert.strictEqual(agents[0].durationMs, 90000);
+  assert.strictEqual(agents[0].agentId, 'ag-1');
 });
 
 console.log(`\n${passed} tests passed.`);

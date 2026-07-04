@@ -940,6 +940,30 @@ function readCheckpoints() {
       }
     }
     for (const a of pendingRetries.keys()) result.retryingAgents.add(a);
+
+    // Per-agent tokens/duration are consumer-DERIVED (the orchestrator can't read
+    // toolUseResult). Fill any instance the orchestrator couldn't measure from the
+    // session transcript, matched by description; additive, so it never overwrites
+    // a real captured value and can only fill zeros (no regression on old runs).
+    if (result.sessionId) {
+      const derived = sessionDerived(result.sessionId);
+      if (derived && derived.agentsByDesc && derived.agentsByDesc.size) {
+        const pools = new Map();
+        for (const [k, arr] of derived.agentsByDesc) pools.set(k, arr.slice());
+        for (const inst of result.instances) {
+          if (inst.tokens && inst.tokens > 0) continue;
+          const pool = pools.get(normDesc(inst.description));
+          if (!pool || !pool.length) continue;
+          const a = pool.shift();
+          if (a.tokens != null) {
+            inst.tokens = a.tokens;
+            const m = result.agentMetrics[inst.agentType] || (result.agentMetrics[inst.agentType] = { tokens: 0, duration_ms: 0 });
+            m.tokens += a.tokens;
+            if (a.durationMs != null) { if (!inst.durationMs) inst.durationMs = a.durationMs; m.duration_ms += a.durationMs; }
+          }
+        }
+      }
+    }
   } catch (_) {}
   return result;
 }
@@ -1012,24 +1036,34 @@ function mapPhaseToLabel(phase) {
 // rather than re-deriving it from heuristics.
 const { resolveStage } = require('../../scripts/stages.js');
 
-// Orchestrator overhead is derived from the run's Claude session transcript
-// (see scripts/orch-tokens.js) — the old inline orch_checkpoint offset-diff was
-// never done reliably, so this is now the authoritative source. Cached by the
-// session file's mtime so a live run doesn't re-sum a large transcript every tick.
+// Both orchestrator overhead AND per-agent tokens are derived from the run's
+// Claude session transcript (see scripts/orch-tokens.js). The orchestrator model
+// can't read `toolUseResult` (it's line-metadata, not tool-result content), so
+// it can't emit either reliably — the transcript is the authoritative source.
+// One cached read per session (keyed by the file's mtime) serves both.
 const orchTokensLib = require('../../scripts/orch-tokens.js');
-const _orchCache = new Map(); // sessionId → { mtime, total }
-function orchTokensForSession(sessionId) {
+const _sessionCache = new Map(); // sessionId → { mtime, orchTotal, agentsByDesc }
+function normDesc(s) { return String(s || '').trim().toLowerCase(); }
+function sessionDerived(sessionId) {
   if (!sessionId) return null;
   try {
     const jsonl = orchTokensLib.resolveSessionJsonl(sessionId);
     if (!jsonl) return null;
     const mtime = fs.statSync(jsonl).mtimeMs;
-    const hit = _orchCache.get(sessionId);
-    if (hit && hit.mtime === mtime) return hit.total;
-    const t = orchTokensLib.computeFromFile(jsonl);
-    const total = t ? t.total : null;
-    _orchCache.set(sessionId, { mtime, total });
-    return total;
+    const hit = _sessionCache.get(sessionId);
+    if (hit && hit.mtime === mtime) return hit;
+    const sum = orchTokensLib.sessionSummaryFromFile(jsonl);
+    if (!sum) return null;
+    const agentsByDesc = new Map();
+    for (const a of sum.agents) {
+      const k = normDesc(a.description);
+      if (!k) continue;
+      if (!agentsByDesc.has(k)) agentsByDesc.set(k, []);
+      agentsByDesc.get(k).push(a);
+    }
+    const entry = { mtime, orchTotal: sum.orch ? sum.orch.total : null, agentsByDesc };
+    _sessionCache.set(sessionId, entry);
+    return entry;
   } catch (_) { return null; }
 }
 
@@ -1587,7 +1621,8 @@ function parseScratchpad(content) {
   const { orchestratorTokens: legacyOrchTokens, sessionId, retryingAgents, agentMetrics: cpMetrics, instances, firstTs, lastTs } = readCheckpoints();
   // Prefer the session-derived orchestrator overhead (accurate); fall back to
   // the legacy orch_checkpoint sum for old runs without a recorded session_id.
-  const sessionOrch = orchTokensForSession(sessionId);
+  const derived = sessionDerived(sessionId);
+  const sessionOrch = derived ? derived.orchTotal : null;
   const orchestratorTokens = (sessionOrch != null) ? sessionOrch : legacyOrchTokens;
 
   // ─── Checkpoints reconciliation (lifecycle is checkpoint-authoritative) ──

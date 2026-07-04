@@ -295,21 +295,13 @@ Split the captured body by newlines, parse each `key: value` pair, coerce numeri
 
 > **Token field name:** emit the grand total as `total_tokens` (the name the `<usage>` block uses). Some older logs carry it as bare `tokens`; consumers (e.g. the site-view) MUST accept either `total_tokens` or `tokens` so per-agent and total token counts populate regardless of the producer's vintage. **Likewise always emit the agent identity as `agent_type`** (never bare `agent`) — a run that writes `agent` makes its whole per-agent breakdown vanish in strict consumers.
 
-### `<usage>` is often ABSENT now — use `toolUseResult` (current Claude Code)
+### The orchestrator can NO LONGER read per-agent tokens — they are consumer-DERIVED
 
-Current Claude Code (v2.1.x+) dispatches sub-agents **asynchronously**: the inline `Agent` tool result is a *launch acknowledgement* ("Async agent launched successfully. agentId: …") with **no `<usage>` footer**. The old regex finds nothing, so **do not treat a missing `<usage>` block as failure** — that silently zeroes per-agent tokens.
+Current Claude Code (v2.1.x+) does **not** put a `<usage>` footer in the `Agent` tool result content. The real numbers live in a `toolUseResult` object (`totalTokens`, `totalDurationMs`, `agentId`, `prompt`, …) — but that object is **metadata on the transcript JSONL line, NOT in the tool-result content the orchestrator model receives.** So the orchestrator **cannot** parse per-agent tokens/duration inline (same limitation that made `orch_checkpoint` unreliable). Do not instruct it to.
 
-Instead, source the numbers from the **structured `toolUseResult`** object attached to the `Agent` tool_result line, which carries the sub-agent's own totals:
+Therefore per-agent tokens/duration are **derived by consumers** (the site-view and the `reporter`) from the session transcript — exactly like orchestrator overhead. Each `Agent` dispatch's `toolUseResult.totalTokens` / `totalDurationMs` is read from `~/.claude/projects/{project}/{session}.jsonl` (resolved via the `session_id` on `run_start`) and matched to the run's `agent_end` events by `description`.
 
-| `toolUseResult` field | → `agent_end` field |
-|---|---|
-| `totalTokens` | `total_tokens` |
-| `totalDurationMs` | `duration_ms` |
-| `status` (`completed` / `failed` / …) | `status` (map to the enum below) |
-| `agentType` | `agent_type` (if not already known) |
-| `usage.{input,output,cache_*}_tokens` | the per-type token fields |
-
-**Capture order for `agent_end`:** (1) if the result has a `<usage>` block, parse it (synchronous agents / older CC); (2) else read `toolUseResult.totalTokens` / `totalDurationMs`; (3) else, as a last resort, read the sub-agent transcript at `~/.claude/projects/{project}/{session}/subagents/agent-{agentId}.jsonl` and sum `message.usage` across its `assistant` lines. Only emit `status: "failed"` with no token fields when the agent genuinely errored (not merely because `<usage>` was absent).
+What the orchestrator still emits in `agent_end`: the **structure** it knows — `agent_type` (never bare `agent`), `description` (repo-encoded, so consumers can match it), `phase`, `stage`, `status`, and `task` when present. The `total_tokens` / `duration_ms` fields are **best-effort**: populate them only if a legacy `<usage>` footer is actually present (older CC); otherwise omit them and let the consumer fill them from the transcript. A missing token field is **not** a failure — only emit `status: "failed"` when the agent genuinely errored.
 
 ## Retry interaction
 

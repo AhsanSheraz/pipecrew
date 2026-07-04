@@ -25,11 +25,16 @@ Watch the [repo Releases](https://github.com/pipecrew-ai/pipecrew/releases) (Wat
   now normalizes both field names. The per-stage / drawer token aggregations also
   now accept `tokens` and `completed` statuses, so they no longer compute to zero
   for those runs.
-- **Token capture under current Claude Code.** Sub-agents are now dispatched
-  asynchronously with no inline `<usage>` block. The observability contract and
-  `/deliver` dispatch rules now source per-agent tokens/duration from the
-  structured `toolUseResult` (with the sub-agent transcript as a fallback), so
-  new runs stop dropping agent tokens.
+- **Per-agent tokens under current Claude Code — now consumer-derived.** The
+  orchestrator can no longer read per-agent token counts: they live in
+  `toolUseResult` metadata (and the sub-agent transcript), which is **not** in
+  the tool-result content the orchestrator model receives — so it can't emit
+  them, and new runs recorded 0. The site-view now **derives** per-agent
+  tokens/duration from the session transcript (resolved via `run_start.session_id`)
+  and matches them to `agent_end` events by `description` — covering both
+  synchronous (`toolUseResult`) and async (sub-agent transcript) dispatches. The
+  observability contract + dispatch rules were corrected to reflect this
+  (the orchestrator emits structure only; tokens are filled downstream).
 - **Orchestrator overhead was always 0.** The `orch_checkpoint` mechanism (the
   orchestrator inline byte-offset-diffing its own session JSONL) was never done
   in practice — real runs emitted empty checkpoints — so the site-view

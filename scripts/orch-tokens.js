@@ -77,6 +77,74 @@ function orchFromLines(lines) {
   return t;
 }
 
+// Per-agent tokens/duration from the session transcript. Each Agent/Task
+// dispatch pairs to its tool_result's `toolUseResult` (totalTokens /
+// totalDurationMs) — metadata the orchestrator model CANNOT see, so it's
+// derived here. Returns [{ subagentType, description, tokens, durationMs, agentId }].
+function agentsFromLines(lines) {
+  const byId = new Map();
+  for (const o of Array.isArray(lines) ? lines : []) {
+    if (!o) continue;
+    if (o.type === 'assistant' && o.message && Array.isArray(o.message.content)) {
+      for (const c of o.message.content) {
+        if (c && c.type === 'tool_use' && (c.name === 'Agent' || c.name === 'Task') && c.id) {
+          byId.set(c.id, {
+            subagentType: (c.input && c.input.subagent_type) || 'agent',
+            description: (c.input && c.input.description) || '',
+            tokens: null, durationMs: null, agentId: null,
+          });
+        }
+      }
+    } else if (o.type === 'user' && o.message && Array.isArray(o.message.content)) {
+      const tur = o.toolUseResult;
+      for (const c of o.message.content) {
+        if (!c || c.type !== 'tool_result' || !byId.has(c.tool_use_id)) continue;
+        const a = byId.get(c.tool_use_id);
+        // Synchronous agents: totals are on the tool_result line's toolUseResult.
+        if (tur) {
+          if (typeof tur.totalTokens === 'number') a.tokens = tur.totalTokens;
+          if (typeof tur.totalDurationMs === 'number') a.durationMs = tur.totalDurationMs;
+          if (tur.agentId) a.agentId = tur.agentId;
+        }
+        // Async agents: the inline result is a launch ack carrying "agentId: X";
+        // capture it so we can read the sub-agent transcript for its tokens.
+        if (!a.agentId) {
+          const txt = typeof c.content === 'string' ? c.content
+            : (Array.isArray(c.content) ? c.content.map((b) => (b && b.text) || '').join(' ') : '');
+          const m = txt.match(/agentId:\s*([A-Za-z0-9]+)/);
+          if (m) a.agentId = m[1];
+        }
+      }
+    }
+  }
+  // Keep any agent we can attribute — has tokens, or an agentId to look up.
+  return [...byId.values()].filter((a) => a.tokens != null || a.durationMs != null || a.agentId);
+}
+
+// One transcript read → both orchestrator overhead and the per-agent list.
+// For async agents (no inline totals), fall back to their own sub-agent
+// transcript under {session}/subagents/agent-{agentId}.jsonl and sum its usage.
+function sessionSummaryFromFile(sessionJsonl) {
+  let text;
+  try { text = fs.readFileSync(sessionJsonl, 'utf8'); } catch (_) { return null; }
+  const lines = [];
+  for (const l of text.split(/\r?\n/)) { const s = l.trim(); if (!s) continue; try { lines.push(JSON.parse(s)); } catch (_) {} }
+  const orch = orchFromLines(lines);
+  const agents = agentsFromLines(lines);
+  const subDir = path.join(String(sessionJsonl).replace(/\.jsonl$/i, ''), 'subagents');
+  for (const a of agents) {
+    if (a.tokens != null || !a.agentId) continue;
+    try {
+      const sub = fs.readFileSync(path.join(subDir, 'agent-' + a.agentId + '.jsonl'), 'utf8');
+      const sl = [];
+      for (const l of sub.split(/\r?\n/)) { const s = l.trim(); if (!s) continue; try { sl.push(JSON.parse(s)); } catch (_) {} }
+      const st = orchFromLines(sl);            // the sub-agent's own assistant usage = its token cost
+      if (st.total) a.tokens = st.total;
+    } catch (_) { /* transcript absent (older/cleaned run) — leave null */ }
+  }
+  return { orch, agents };
+}
+
 // Read the session id a run recorded in its run_start checkpoint (if any).
 function readSessionIdFromRunDir(runDir) {
   try {
@@ -108,6 +176,8 @@ function computeFromFile(sessionJsonl) {
 module.exports = {
   resolveSessionJsonl,
   orchFromLines,
+  agentsFromLines,
+  sessionSummaryFromFile,
   readSessionIdFromRunDir,
   computeFromFile,
   defaultProjectsDir,
@@ -128,6 +198,7 @@ if (require.main === module) {
     console.error('orch-tokens: could not resolve the session JSONL — pass --session=<id|path>, ensure $CLAUDE_CODE_SESSION_ID is set, or that run_start recorded session_id.');
     process.exit(1);
   }
-  process.stdout.write(JSON.stringify(computeFromFile(jsonl), null, 2));
+  const summary = sessionSummaryFromFile(jsonl);
+  process.stdout.write(JSON.stringify({ orchestrator: summary.orch, agents: summary.agents }, null, 2));
   process.exit(0);
 }
