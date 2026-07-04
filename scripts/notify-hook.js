@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /**
  * notify-hook.js — Claude Code hook wired into Notification / UserPromptSubmit /
- * PostToolUse events, configured in ~/.claude/settings.json.
+ * PostToolUse events via the plugin's `.claude-plugin/hooks/hooks.json` (NOT
+ * ~/.claude/settings.json — plugin hooks are auto-registered on install).
  *
  * Purpose: when Claude Code pauses for user permission on a tool call, the user
  * often misses the inline prompt if the pipeline-view UI is on a second monitor.
@@ -125,11 +126,32 @@ function activeRunDirs() {
       if (!fs.existsSync(scratchpad)) continue;
       try {
         const mtime = fs.statSync(scratchpad).mtimeMs;
-        if (now - mtime <= ACTIVE_WINDOW_MS) out.push(runDir);
+        if (now - mtime <= ACTIVE_WINDOW_MS) out.push({ dir: runDir, mtime });
       } catch (_) {}
     }
   }
-  return out;
+  // Most-recently-active first, so callers can scope to a single run.
+  out.sort((a, b) => b.mtime - a.mtime);
+  return out.map((x) => x.dir);
+}
+
+// Classify a notification message: is Claude waiting on the user, or is this
+// just an informational "done" ping? Exported for tests. Default (empty /
+// unrecognized) → treat as waiting, since a missed approval is worse than a
+// transient false banner (which clears the moment the user responds).
+function classifyMessage(message) {
+  const msg = message ? String(message).toLowerCase() : '';
+  const WAIT_HINTS = [
+    'permission', 'approval', 'approve', 'waiting for', 'is waiting',
+    'needs your', 'needs you', 'requires your', 'your input', 'your response',
+    'your attention', 'awaiting', 'idle', 'confirm', 'respond', 'review',
+  ];
+  const INFORMATIONAL_HINTS = ['completed', 'finished', 'succeeded', 'success', ' done', 'all set'];
+  const looksWaiting = WAIT_HINTS.some((h) => msg.includes(h));
+  const looksInformational = INFORMATIONAL_HINTS.some((h) => msg.includes(h));
+  // Skip only when present, clearly informational, and NOT a wait.
+  const skip = !!(msg && looksInformational && !looksWaiting);
+  return { looksWaiting, looksInformational, skip };
 }
 
 function extractPreview(payload) {
@@ -176,24 +198,9 @@ function onNotification() {
   // dropped — the cause of "Claude Code notifications not reflected in the view".
   // Honor the documented intent ("better a false positive than miss the real
   // case"): write the flag unless the message is clearly *informational*.
-  const msg = payload && payload.message ? String(payload.message).toLowerCase() : '';
-  const WAIT_HINTS = [
-    'permission', 'approval', 'approve', 'waiting for', 'is waiting',
-    'needs your', 'needs you', 'requires your', 'your input', 'your response',
-    'your attention', 'awaiting', 'idle', 'confirm', 'respond', 'review',
-  ];
-  const INFORMATIONAL_HINTS = [
-    'completed', 'finished', 'succeeded', 'success', ' done', 'all set',
-  ];
-  const looksWaiting = WAIT_HINTS.some((h) => msg.includes(h));
-  const looksInformational = INFORMATIONAL_HINTS.some((h) => msg.includes(h));
-
-  // Skip only when the message is present, clearly informational, and NOT a wait.
-  // Empty/unrecognized messages fall through to writing the flag — the UI clears
-  // it the moment the user responds (UserPromptSubmit / PostToolUse below), so a
-  // transient false banner is cheap; a missed wait is not.
-  if (msg && looksInformational && !looksWaiting) {
-    debug(`skip informational notification: ${msg.slice(0, 80)}`);
+  // Skip only when the message is clearly informational (see classifyMessage).
+  if (classifyMessage(payload && payload.message).skip) {
+    debug('skip informational notification');
     return;
   }
 
@@ -212,12 +219,15 @@ function onNotification() {
     // via global log, not as a per-run error.
     return;
   }
-  for (const d of dirs) {
-    try { fs.writeFileSync(path.join(d, FLAG_NAME), JSON.stringify(flag, null, 2)); }
-    catch (e) {
-      debug(`write fail ${d}: ${e.message}`);
-      try { recordHookError(e, { stage: 'flag-write', run_dir: d }); } catch (_) {}
-    }
+  // Scope to the single most-recently-active run (dirs are sorted most-recent
+  // first) so a permission prompt doesn't raise a false banner on a *different*
+  // concurrent /deliver run. Single-run (the norm) is identical; clear() still
+  // clears EVERY run dir, so a mis-scoped write can never leave a stuck flag.
+  const target = dirs[0];
+  try { fs.writeFileSync(path.join(target, FLAG_NAME), JSON.stringify(flag, null, 2)); }
+  catch (e) {
+    debug(`write fail ${target}: ${e.message}`);
+    try { recordHookError(e, { stage: 'flag-write', run_dir: target }); } catch (_) {}
   }
 }
 
@@ -233,13 +243,18 @@ function clear() {
   debug(`clear: removed ${cleared} flag(s)`);
 }
 
-try {
-  if (ACTION === 'on-notification') onNotification();
-  else if (ACTION === 'clear') clear();
-  else debug(`unknown action: ${ACTION}`);
-} catch (e) {
-  debug(`unhandled: ${e.message}`);
-  try { recordHookError(e, { action: ACTION }); } catch (_) {}
+if (require.main === module) {
+  try {
+    if (ACTION === 'on-notification') onNotification();
+    else if (ACTION === 'clear') clear();
+    else debug(`unknown action: ${ACTION}`);
+  } catch (e) {
+    debug(`unhandled: ${e.message}`);
+    try { recordHookError(e, { action: ACTION }); } catch (_) {}
+  }
+  // Always exit 0 — don't break Claude Code's flow on hook error.
+  process.exit(0);
+} else {
+  // Exposed for tests.
+  module.exports = { classifyMessage, extractPreview, activeRunDirs };
 }
-// Always exit 0 — don't break Claude Code's flow on hook error.
-process.exit(0);

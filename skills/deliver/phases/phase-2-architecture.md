@@ -57,7 +57,15 @@ CRITICAL FOR THIS DISPATCH:
 Now: design the technical architecture for the feature in {run_dir}/outputs/phase-1-requirements.md and write the full design document.
 ```
 
-**After**: Present to user. Wait for approval.
+**After**: Present to user. Wait for approval. Wrap the wait in a gate so the
+site-view banner lights (CRITICAL RULE 5) — open before you present, close once
+the user answers:
+
+```bash
+node {plugin_dir}/scripts/gate.js open --run-dir={run_dir} --phase=2 --gate=approval --question="Approve the technical architecture to proceed to spec/contract edits?"
+# … present the design, wait for the user's decision …
+node {plugin_dir}/scripts/gate.js close --run-dir={run_dir}
+```
 
 **ADR gate** (after user approves): ask once:
 

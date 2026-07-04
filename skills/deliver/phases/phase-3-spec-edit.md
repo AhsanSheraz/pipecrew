@@ -183,9 +183,19 @@ Render a combined view that shows the user both artifacts:
 - {svc_key}: spec_policy is {policy}, handled by {code-first: "architect's inline endpoint contract in API_DESIGN" | no-api: "event schema in Phase 3a contract repo"}
 ```
 
+Open the approval gate (CRITICAL RULE 5) so the site-view banner lights while
+the user reviews the diffs:
+
+```bash
+node {plugin_dir}/scripts/gate.js open --run-dir={run_dir} --phase=3 --gate=approval --question="Approve these contract + spec changes to proceed?"
+```
+
 Ask the primary approval question:
 
 > "Approve these contract + spec changes? (yes / no — no will revert)"
+
+Close the gate (`node {plugin_dir}/scripts/gate.js close --run-dir={run_dir}`) as
+soon as the user answers — before reverting or proceeding — so the banner clears.
 
 **If approved AND at least one repo has `spec_copies` entries referencing any affected service** (i.e., there are sync targets), ask the follow-up:
 

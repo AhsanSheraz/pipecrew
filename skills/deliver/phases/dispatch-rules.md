@@ -55,8 +55,7 @@ The orchestrator:
 
 The scratchpad tracks duration and token usage at three granularities, all derived from one source: the **Agent Dispatch Log**.
 
-**Per agent dispatch** — every time an Agent tool call returns, the orchestrator:
-- Parses `duration_ms` and `total_tokens` from the `<usage>` block in the agent result
+**Per agent dispatch** — every time an Agent tool call returns, the orchestrator appends a dispatch-log row with what it can see (phase, agent, task, outcome). It does **not** record tokens/duration: those aren't visible to the orchestrator (Claude Code keeps them in `toolUseResult` metadata, not the tool-result content), so the site-view / reporter derive them from the session transcript. Leave token/duration cells as `—`. See `rules/observability.md`.
 - Appends a row to `## Agent Dispatch Log` in the scratchpad: sequence number, phase, agent name, task ID (or `—`), duration (`Xm Ys`), tokens (`XK`), outcome (`COMPLETED`|`FAILED`|`PARTIAL`)
 
 **Per phase** — the `## Phase Status` table rolls up dispatches per phase (sum of duration and tokens). For orchestrator-only phases (spec sync), duration is wall-clock and tokens are `—`.
@@ -70,7 +69,7 @@ The task body has a `## Work Log` section. After every dispatch, append one line
 ```
 
 **Sequence per agent return**:
-1. Parse `duration_ms` and `total_tokens` from `<usage>` block
+1. Append the Agent Dispatch Log row (phase, agent, task, outcome). Do **not** try to read tokens/duration — they aren't visible to the orchestrator; the site-view / reporter derive them from the session transcript (see `rules/observability.md`). Scratchpad token/duration cells stay `—`.
 2. Append row to `## Agent Dispatch Log`
 3. If agent worked on a task: Edit task file (bump frontmatter metrics, append to Work Log)
 4. Edit Implementation Tasks table row (refresh Duration and Tokens)
@@ -123,7 +122,7 @@ All events go to `{run_dir}/checkpoints.jsonl` in the unified schema defined at 
 
 **Agent dispatches** → emit `agent_start` **immediately before** every `Agent` tool call, then `agent_end` after it returns. This applies to **every** dispatch — the parallel background agents (Phase 5a/5c/5d implementers, Phase 5.5 reviewers) *and* the agents the orchestrator runs inline (Phase 1 product-owner, Phase 2 solution-architect, Phase 3 openapi-spec-editor, Phase 5b ux-consultant). Without the leading `agent_start` the live site-view never shows the agent in its "working" state — it appears only after it has already finished, and its tokens attach only at completion.
 - `agent_start`: include `agent_type`, `description`, `phase`, `stage` (and `task` when task-scoped). For per-repo agents the `description` MUST encode the repo (e.g. `Backend implementer — publisher-service`, `Code review — publisher-service`) so the view keys each instance to its repo instead of collapsing them into one "cross-repo" card.
-- `agent_end`: parse the `<usage>` block from the tool result, copy the token (`total_tokens` + the per-type counts) / `tool_uses` / `duration_ms` fields into the event, and reuse the **same** `agent_type` + `description` (+ `task` if the `agent_start` carried one) so the two pair up. Include `status`.
+- `agent_end`: emit the **structure** the orchestrator knows — `agent_type` (never bare `agent`), the **same** repo-encoded `description` as the `agent_start` (+ `task` if it carried one) so consumers can match it, `phase`/`stage`, and `status`. Do **not** include token/duration fields — they aren't visible to the orchestrator; the site-view / reporter derive them from the session transcript, matched by `description` (see `rules/observability.md`).
 
 See `rules/observability.md` for the exact shape of both events.
 
@@ -135,42 +134,14 @@ See `rules/observability.md` for the exact shape of both events.
 
 **Approval gates** → no manual emission needed. `scripts/gate.js open`/`close` (which you already call to drive the site-view banner — CRITICAL RULE 5) now also appends `gate_open` / `gate_close` events to `checkpoints.jsonl`, so every gate the run paused at is in the audit trail and the reporter can show gate wait-times.
 
-**Orchestrator overhead tracking** — the orchestrator itself consumes tokens (loading skills, reading files, approval gates, scratchpad updates). Capture this with the `orch_checkpoint` event at every phase boundary:
+**Orchestrator overhead tracking** — the orchestrator itself consumes tokens (loading skills, reading files, approval gates, scratchpad updates, and reading agent results): 20-40% of total run cost. **You no longer hand-compute this.** Byte-offset diffing was too error-prone and got skipped (empty `orch_checkpoint`s → overhead showed as 0). Instead:
 
-1. **Record the session JSONL byte-offset**:
-   ```bash
-   wc -c < "~/.claude/projects/{project}/{sessionId}.jsonl"
-   ```
-   Store as `jsonl_offset`.
+1. **Record `session_id` on `run_start`** (Pre-flight Step 4) from `$CLAUDE_CODE_SESSION_ID`. That's the only orchestrator responsibility.
+2. Overhead is then **derived deterministically** from the session transcript by `scripts/orch-tokens.js` (sum of the session's own `assistant` `message.usage`; sub-agent tokens are in separate transcripts, so nothing to subtract). The site-view and the Phase-7 `reporter` compute it from `session_id` — no offset math, no per-phase `orch_checkpoint` emission required.
 
-2. **Compute `orch_since_last`** — the orchestrator-only delta since the previous `orch_checkpoint`:
-   - Read the session JSONL from `previous_offset` to `current_offset`.
-   - Sum the per-line `"usage"` fields: `input_tokens`, `output_tokens`, `cache_read_input_tokens`.
-   - Subtract any agent-dispatch tokens that landed in this range (already captured in `agent_end` events for this phase).
-   - The remainder is orchestrator overhead.
-
-3. **Emit the event**:
-   ```json
-   {
-     "ts": "2026-04-15T14:27:44Z",
-     "event": "orch_checkpoint",
-     "skill": "deliver",
-     "run_id": "2026-04-15-142744-book-upload",
-     "phase": "2",
-     "stage": "Architecture",
-     "jsonl_offset": 284500,
-     "orch_since_last": { "input_tokens": 1240, "output_tokens": 3100, "cache_read_tokens": 42000 }
-   }
-   ```
-
-**Finding the session JSONL path**: the current session's JSONL is the most recently modified `.jsonl` under `~/.claude/projects/`:
 ```bash
-ls -t ~/.claude/projects/*/*.jsonl | head -1
+# What consumers run (you don't need to — informational):
+node {plugin_dir}/scripts/orch-tokens.js --run-dir={run_dir}   # or --session=$CLAUDE_CODE_SESSION_ID
 ```
-Cache this path at Pre-flight — it won't change during the run.
 
-**First `orch_checkpoint`** of the run: emit at Pre-flight completion with `previous_offset = 0`. This captures the baseline before any agents run.
-
-**Update the Phase Status table** in the scratchpad alongside each `orch_checkpoint` — include `Orch Tokens` so humans see the overhead too. The `reporter` agent reads both scratchpad and checkpoints.jsonl at Phase 7 but checkpoints is the authoritative source.
-
-**Why this matters**: on a typical pipeline run, the orchestrator consumes 50-100K tokens (reading specs, loading phase files, approval conversations) — 20-40% of the total run cost. Without `orch_checkpoint` events, optimization efforts focus only on agent prompts while the orchestrator's overhead grows silently.
+Emitting `orch_checkpoint` events is now **optional/legacy** (consumers still sum any `orch_since_last` deltas as a fallback for runs lacking `session_id`). See `rules/observability.md` → "Orchestrator overhead".

@@ -16,6 +16,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Or enable hands-off updates once: `/plugin` → **Marketplaces** → `pipecrew` → **Enable auto-update**.
 Watch the [repo Releases](https://github.com/pipecrew-ai/pipecrew/releases) (Watch → Custom → Releases) to be notified of new versions.
 
+## [1.2.1] - 2026-07-04
+
+### Fixed
+- **Per-agent token tracking in the site-view.** A run whose agent events used a
+  bare `agent` / `tokens` field (instead of canonical `agent_type` /
+  `total_tokens`) had its entire per-agent breakdown silently vanish; the view
+  now normalizes both field names. The per-stage / drawer token aggregations also
+  now accept `tokens` and `completed` statuses, so they no longer compute to zero
+  for those runs.
+- **Per-agent tokens under current Claude Code — now consumer-derived.** The
+  orchestrator can no longer read per-agent token counts: they live in
+  `toolUseResult` metadata (and the sub-agent transcript), which is **not** in
+  the tool-result content the orchestrator model receives — so it can't emit
+  them, and new runs recorded 0. The site-view now **derives** per-agent
+  tokens/duration from the session transcript (resolved via `run_start.session_id`)
+  and matches them to `agent_end` events by `description` — covering both
+  synchronous (`toolUseResult`) and async (sub-agent transcript) dispatches. The
+  observability contract + dispatch rules were corrected to reflect this
+  (the orchestrator emits structure only; tokens are filled downstream).
+- **Orchestrator overhead was always 0.** The `orch_checkpoint` mechanism (the
+  orchestrator inline byte-offset-diffing its own session JSONL) was never done
+  in practice — real runs emitted empty checkpoints — so the site-view
+  under-reported total run cost by the orchestrator's 20-40% share. Runs now
+  record `session_id` on `run_start`, and orchestrator overhead is derived
+  deterministically from the session transcript by the new `scripts/orch-tokens.js`
+  (verified end-to-end: 0 → ~19.6M on a real session). The old `orch_checkpoint`
+  offset math is deprecated to an optional fallback.
+- **Approval banners at more gates.** Phases 2 (architecture), 3 (spec/contract),
+  and 5b (UX) now call `gate.js`, so the site-view "awaiting" banner lights at
+  those gates — not only at phases 1 / 4.5 / 5.5.
+- **Stuck-banner guards.** The awaiting-input (24h) and Claude-approval (1h) flags
+  now expire if a `close`/`clear` is missed, so a crashed run or misfired hook
+  can't leave a banner up forever.
+- **Approval-notification scoping + hardening.** `notify-hook.js` writes the
+  Claude-approval flag to the single most-recently-active run (no false banner on
+  a concurrent `/deliver`), fixes a stale doc comment, and gains unit-test
+  coverage.
+
 ## [1.2.0] - 2026-07-01
 
 ### Added
@@ -65,6 +103,7 @@ Initial release — multi-repo agent crew for Claude Code: `/discover`, `/delive
 site-view and support for Spring Boot, React, Next.js, NestJS, FastAPI, Flask,
 Django, Python workers, AWS CDK, Terraform, and Node mock stacks.
 
+[1.2.1]: https://github.com/pipecrew-ai/pipecrew/releases/tag/v1.2.1
 [1.2.0]: https://github.com/pipecrew-ai/pipecrew/releases/tag/v1.2.0
 [1.1.0]: https://github.com/pipecrew-ai/pipecrew/releases/tag/v1.1.0
 [1.0.0]: https://github.com/pipecrew-ai/pipecrew/releases/tag/v1.0.0
