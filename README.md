@@ -88,9 +88,29 @@ Run #2 beats run #1.
 
 ## Install
 
+**Claude Code:**
+
 ```bash
 claude plugin install https://github.com/pipecrew-ai/pipecrew
 ```
+
+**Cursor** (v2.5+): PipeCrew is a dual-target plugin — the same repo installs in Cursor, which
+auto-discovers the shared `skills/` and `agents/`.
+
+```bash
+# Team marketplace / git install (recommended):
+#   Cursor → Customize → Plugins → /add-plugin → paste the repo URL
+#   github.com/pipecrew-ai/pipecrew
+
+# Local dev against a clone:
+cursor-agent --plugin-dir /path/to/pipecrew
+```
+
+> **What ships to Cursor today:** all `/discover`, `/deliver`, `/review`, `/assess`, `/learn`,
+> `/patch` … skills and the full 33-agent crew, dispatched via Cursor's Task-tool subagents.
+> The lifecycle **hooks** (update nudge, `/troubleshoot` read-only guard, `/deliver --auto-approve`,
+> and the site-view "needs approval" banner) are Claude-Code-only for now — a Cursor `hooks.json`
+> port is tracked as a follow-up. Nothing else differs.
 
 ## Updating
 
