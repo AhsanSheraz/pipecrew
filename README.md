@@ -178,11 +178,14 @@ The full pipeline is one command — but **every capability is also a standalone
 | `/assess` | Cross-repo integration check on a branch + live in-browser verification |
 | `/learn` | Feed a merged PR / run / diff back — proposes tier-classified durable-context updates |
 | `/context-refresh` | Audit or refresh a repo's agent-context |
+| `/draw-diagram` | Generate or refresh a workspace's architecture diagrams — canonical Mermaid files, or a focused `--topic` view |
 | `/memory-sync` | Manage the workspace's shared, GitHub-backed memory — status, pull, publish |
 | `/scaffold` | Greenfield project scaffolding from a brainstorm — repos, config, context |
 | `/troubleshoot` | Read-only cross-repo incident triage → root cause at `file:line` |
 | `/site-view` | Live browser dashboard of the crew — queued, building, done, in real time |
 | `/siteview-fleet` | Machine-wide fleet dashboard of **every** Claude Code session at once (via the standalone `pipecrew-siteview`) |
+| `/siteview-list` | List every site-view server running on localhost — port, PID, workspace, run-id, and which are awaiting input |
+| `/siteview-cleanup` | Kill stale site-view servers (`--keep-latest`, `--keep-port`, `--dry-run`; defaults to a safe dry-run) |
 
 ### Fleet view — every session at once
 
