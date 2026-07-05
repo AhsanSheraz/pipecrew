@@ -16,6 +16,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Or enable hands-off updates once: `/plugin` → **Marketplaces** → `pipecrew` → **Enable auto-update**.
 Watch the [repo Releases](https://github.com/pipecrew-ai/pipecrew/releases) (Watch → Custom → Releases) to be notified of new versions.
 
+## [Unreleased]
+
+### Added
+- **Dual-target: PipeCrew now installs in Cursor as well as Claude Code.** Added
+  `.cursor-plugin/plugin.json` + `marketplace.json` so the *same repo* installs in
+  Cursor (v2.5+), which auto-discovers the shared root-level `skills/` and `agents/`
+  and dispatches the crew through its Task-tool subagents. Skills, agents, rules,
+  templates, and scripts are shared verbatim — no per-target forks. A new eval layer
+  (`eval/tests/07-cursor-manifest.js`) keeps the Cursor and Claude manifest versions
+  in lockstep so a release reaches both ecosystems.
+- Cursor install/updating docs in the README; a "Dual-target" section + updated
+  release ritual in `CLAUDE.md`.
+
+### Not yet ported to Cursor
+- The 4 lifecycle **hooks** (update nudge, `/troubleshoot` read-only guard,
+  `/deliver --auto-approve`, site-view "needs approval" banner) remain Claude-Code-only.
+  Cursor's `hooks.json` + permission-output protocol port is a tracked follow-up.
+
 ## [1.3.0] - 2026-07-05
 
 ### Added

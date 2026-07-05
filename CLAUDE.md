@@ -13,7 +13,8 @@ user workspace.
 A git-based Claude Code plugin marketplace. Users install it from GitHub and get slash-skills
 (`/discover`, `/deliver`, `/review`, `/assess`, `/patch`, `/learn`, `/context-refresh`,
 `/memory-sync`, plus the site-view tooling). The plugin manifests live in `.claude-plugin/`
-(`marketplace.json`, `plugin.json`, `hooks/hooks.json`).
+(`marketplace.json`, `plugin.json`, `hooks/hooks.json`) and — for the Cursor target —
+`.cursor-plugin/` (`plugin.json`, `marketplace.json`). See "Dual-target" below.
 
 ## Layout
 
@@ -26,6 +27,23 @@ A git-based Claude Code plugin marketplace. Users install it from GitHub and get
 | `templates/` | JSON Schemas + block templates (e.g. `checkpoints-event.schema.json`) |
 | `eval/` | Layered regression harness (`run.js`) |
 | `docs/` | Deep references (e.g. `docs/site-view.md`) |
+| `.claude-plugin/` | Claude Code manifests (`plugin.json`, `marketplace.json`, `hooks/hooks.json`) |
+| `.cursor-plugin/` | Cursor manifests (`plugin.json`, `marketplace.json`) — thin; Cursor auto-discovers the shared `skills/` + `agents/` |
+
+## Dual-target: Claude Code **and** Cursor
+
+This one repo installs in both harnesses. `skills/`, `agents/`, `rules/`, `templates/`, and
+`scripts/` are shared **verbatim** — Cursor (v2.5+) auto-discovers root-level `skills/` (by
+`SKILL.md`) and `agents/`, and its subagents dispatch through the same Task-tool model, so the
+crew runs unchanged. Only the manifests differ (`.claude-plugin/` vs `.cursor-plugin/`).
+
+- **Don't fork skills or agents per target.** If a change would only work in one harness, that's a
+  smell — keep the shared files harness-agnostic. `SKILL.md` frontmatter (`name` + `description`)
+  is a subset of both harnesses' schemas, so it stays portable.
+- **Hooks are Claude-Code-only today.** Claude's live at `.claude-plugin/hooks/hooks.json`; Cursor
+  auto-discovers a *top-level* `hooks/hooks.json` (which we intentionally don't ship yet), so the
+  two never collide. Porting the 4 hooks to Cursor's `hooks.json` + permission-output protocol is a
+  tracked follow-up — see the PR that introduced `.cursor-plugin/`.
 
 ## Testing — run before every push
 
@@ -72,8 +90,11 @@ user-facing change ships as a version bump + release.
 
 Release ritual (semver — feature → minor, fix → patch):
 
-1. **Bump `version` in `.claude-plugin/plugin.json`.** Keep the version there **only** — never also
-   in `marketplace.json` (if both are set, `plugin.json` silently wins).
+1. **Bump `version` in `.claude-plugin/plugin.json` _and_ `.cursor-plugin/plugin.json` (keep them
+   equal).** Within each ecosystem keep the version in `plugin.json` **only** — never also in that
+   ecosystem's `marketplace.json` (if both are set, `plugin.json` silently wins). The two
+   `plugin.json` versions must match across ecosystems, or Cursor users drift behind Claude Code
+   ones; `eval/tests/07-cursor-manifest.js` fails the build if they diverge.
 2. **Update `CHANGELOG.md`** with the new version's Added/Fixed notes.
 3. **Tag and publish a GitHub Release:**
    ```bash
