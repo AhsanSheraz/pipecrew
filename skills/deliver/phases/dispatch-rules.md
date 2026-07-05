@@ -31,7 +31,7 @@ The `spec_policy` column reflects what each implementer ACCEPTS (and `code-first
 
 When the table above does NOT list a plugin-shipped implementer for a type (e.g., `type: rails`, `type: phoenix`, `type: go`, `type: other`, or any future stack the user declares in their config), resolve the implementer via this chain, in order:
 
-1. **Workspace-local implementer** — check `~/.claude/agents/{workspace_slug}-{type}-implementer.md`. If it exists, dispatch with `subagent_type: {workspace_slug}-{type}-implementer`. These are generated during `/discover` Phase C Step 3.25 by filling `templates/agents/generic-implementer.md.template` with the repo's actual conventions, and they're tailored to the workspace.
+1. **Workspace-local implementer** — check `{agents_dir}/{workspace_slug}-{type}-implementer.md`, where `{agents_dir}` is the harness user-level agents dir (`node {plugin_dir}/scripts/workspace-root.js --agents-dir` → `~/.claude/agents/` under Claude Code, `~/.cursor/agents/` under Cursor). If it exists, dispatch with `subagent_type: {workspace_slug}-{type}-implementer`. These are generated during `/discover` Phase C Step 3.25 by filling `templates/agents/generic-implementer.md.template` with the repo's actual conventions, and they're tailored to the workspace.
 2. **Plugin-shipped implementer** — already resolved via the table above. This step exists in the chain only for completeness.
 3. **Generic fallback** — dispatch `subagent_type: general-purpose` with a preamble that points the agent at:
    - the task file

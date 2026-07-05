@@ -1,17 +1,31 @@
 #!/usr/bin/env node
 /**
- * workspace-root.js — resolver for the PipeCrew workspace root directory.
+ * workspace-root.js — resolver for the PipeCrew workspace root directory and
+ * the harness-specific user-level agents directory.
  *
- * Workspaces live under <workspace_root>/<slug>/. The workspace_root is
- * resolved with this precedence:
+ * PipeCrew is a dual-target plugin: it installs in both Claude Code and Cursor.
+ * Runtime state must land in the *host harness's* home dir, not a hardcoded
+ * `~/.claude` — otherwise a Cursor install writes its config, workspaces, and
+ * published agents into Claude Code's directory.
+ *
+ * Harness detection (see detectHarness): the plugin's own install path is the
+ * signal — a Cursor plugin lives under `.../.cursor/plugins/...`, a Claude one
+ * under `.../.claude/plugins/...`. This is robust because it doesn't depend on
+ * per-call env vars. `PIPECREW_HARNESS=cursor|claude` overrides it (tests / edge
+ * cases); an unknown location falls back to `claude` so legacy behavior is
+ * preserved byte-for-byte for existing Claude Code users.
+ *
+ * The workspace_root is resolved with this precedence:
  *
  *   1. $PIPECREW_WORKSPACE_ROOT env var (escape hatch, never persisted)
- *   2. ~/.claude/pipecrew/config.json → workspace_root (set by /deliver
+ *   2. <harness_home>/pipecrew/config.json → workspace_root (set by /deliver
  *      or /discover pre-flight the first time the user is prompted)
- *   3. Default: ~/.claude/pipecrew/workspaces/
+ *   3. Default: <harness_home>/pipecrew/workspaces/
+ *
+ * where <harness_home> is `~/.claude` (Claude Code) or `~/.cursor` (Cursor).
  *
  * All Node scripts and skills should route through this so a single
- * user preference applies everywhere.
+ * user preference applies everywhere within a harness.
  *
  * Commands:
  *   node workspace-root.js --get        print resolved absolute path, exit 0
@@ -24,8 +38,14 @@
  *                                       config (creates it if absent), print
  *                                       the resolved absolute path, exit 0.
  *                                       Accepts ~-prefixed paths.
- *   node workspace-root.js --config-path print ~/.claude/pipecrew/config.json
+ *   node workspace-root.js --config-path print <harness_home>/pipecrew/config.json
  *                                       absolute path, exit 0.
+ *   node workspace-root.js --agents-dir print the harness user-level agents dir
+ *                                       (~/.claude/agents or ~/.cursor/agents)
+ *                                       that the Agent tool resolves
+ *                                       `subagent_type` against, exit 0.
+ *   node workspace-root.js --harness    print the detected harness
+ *                                       (claude | cursor), exit 0.
  *
  * Zero dependencies — pure Node stdlib.
  */
@@ -35,10 +55,31 @@ const path = require('path');
 const os = require('os');
 
 const HOME = os.homedir();
-const PLUGIN_CONFIG_DIR = path.join(HOME, '.claude', 'pipecrew');
-const PLUGIN_CONFIG_FILE = path.join(PLUGIN_CONFIG_DIR, 'config.json');
-const DEFAULT_WORKSPACE_ROOT = path.join(HOME, '.claude', 'pipecrew', 'workspaces');
 const ENV_VAR = 'PIPECREW_WORKSPACE_ROOT';
+
+// Which harness are we running under? The plugin's install path is the signal:
+// a Cursor plugin lives under `.cursor/`, a Claude Code plugin under `.claude/`.
+// `PIPECREW_HARNESS` overrides. Unknown → `claude` (preserves legacy behavior).
+function detectHarness() {
+  const override = (process.env.PIPECREW_HARNESS || '').trim().toLowerCase();
+  if (override === 'cursor' || override === 'claude') return override;
+
+  const here = __dirname.replace(/\\/g, '/');
+  if (/(^|\/)\.cursor(\/|$)/.test(here)) return 'cursor';
+  if (/(^|\/)\.claude(\/|$)/.test(here)) return 'claude';
+
+  // Not resolvable from the install path (e.g. running from a repo checkout or
+  // a test harness). Fall back to an env hint, else default to claude.
+  if (process.env.CURSOR_PROJECT_DIR || process.env.CURSOR_VERSION) return 'cursor';
+  return 'claude';
+}
+
+const HARNESS = detectHarness();
+const HARNESS_HOME = path.join(HOME, HARNESS === 'cursor' ? '.cursor' : '.claude');
+const PLUGIN_CONFIG_DIR = path.join(HARNESS_HOME, 'pipecrew');
+const PLUGIN_CONFIG_FILE = path.join(PLUGIN_CONFIG_DIR, 'config.json');
+const DEFAULT_WORKSPACE_ROOT = path.join(HARNESS_HOME, 'pipecrew', 'workspaces');
+const USER_AGENTS_DIR = path.join(HARNESS_HOME, 'agents');
 
 function expandTilde(p) {
   if (!p) return p;
@@ -97,6 +138,14 @@ if (require.main === module) {
     process.stdout.write(PLUGIN_CONFIG_FILE + '\n');
     process.exit(0);
   }
+  if (arg === '--agents-dir') {
+    process.stdout.write(USER_AGENTS_DIR + '\n');
+    process.exit(0);
+  }
+  if (arg === '--harness') {
+    process.stdout.write(HARNESS + '\n');
+    process.exit(0);
+  }
   if (arg.startsWith('--set=')) {
     const raw = arg.slice('--set='.length).trim();
     if (!raw) {
@@ -111,8 +160,16 @@ if (require.main === module) {
     process.exit(0);
   }
   process.stderr.write(`Unknown argument: ${arg}\n`);
-  process.stderr.write('Usage: workspace-root.js [--get|--default|--check|--config-path|--set=<path>]\n');
+  process.stderr.write('Usage: workspace-root.js [--get|--default|--check|--config-path|--agents-dir|--harness|--set=<path>]\n');
   process.exit(1);
 }
 
-module.exports = { resolveRoot, isConfigured, DEFAULT_WORKSPACE_ROOT, PLUGIN_CONFIG_FILE };
+module.exports = {
+  resolveRoot,
+  isConfigured,
+  detectHarness,
+  HARNESS,
+  DEFAULT_WORKSPACE_ROOT,
+  PLUGIN_CONFIG_FILE,
+  USER_AGENTS_DIR,
+};

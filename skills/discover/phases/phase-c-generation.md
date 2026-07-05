@@ -206,32 +206,33 @@ Write:
 
 #### Publish to user-level agents directory (B1)
 
-The workspace-local agent files above are the canonical copies — they're version-controlled alongside workspace config and can be hand-edited. But Claude Code's `Agent` tool only resolves `subagent_type` against `~/.claude/agents/` (user-level) and `.claude/agents/` (project-level). So `dal-assessor` (referenced by `phase-6-assess.md`) will not resolve unless we also publish a copy there.
-
-After writing the three workspace-local files, also publish them to `~/.claude/agents/` with the slug-prefixed names that downstream phase files already use:
+The workspace-local agent files above are the canonical copies — they're version-controlled alongside workspace config and can be hand-edited. But the `Agent` tool only resolves `subagent_type` against the **user-level agents directory** (and the project-level `.claude/agents/` / `.cursor/agents/`). That user-level directory is harness-specific — `~/.claude/agents/` under Claude Code, `~/.cursor/agents/` under Cursor — so resolve it once instead of hardcoding, or `dal-assessor` (referenced by `phase-6-assess.md`) won't resolve:
 
 ```bash
-mkdir -p ~/.claude/agents
+AGENTS_DIR=$(node {plugin_dir}/scripts/workspace-root.js --agents-dir)
+mkdir -p "$AGENTS_DIR"
 ```
+
+After writing the three workspace-local files, also publish them to `$AGENTS_DIR` with the slug-prefixed names that downstream phase files already use.
 
 For each of (`product-owner`, `assessor`, `troubleshooter`):
 
-1. **Conflict check (B2)**: before copying, check whether `~/.claude/agents/{slug}-{role}.md` already exists.
+1. **Conflict check (B2)**: before copying, check whether `$AGENTS_DIR/{slug}-{role}.md` already exists.
    - If it does **and** the `name:` frontmatter value already matches `{slug}-{role}`, it's our own file from a prior onboarding — overwrite silently.
    - If it exists with a **different** `name:` value, stop and ask the user:
      ```
-     ~/.claude/agents/{slug}-{role}.md already exists with name: '{other-name}'.
+     $AGENTS_DIR/{slug}-{role}.md already exists with name: '{other-name}'.
      Overwrite? (yes / no / rename-existing-to-{slug}-{role}-backup.md)
      ```
      Act on the user's answer. Do NOT silently clobber.
 2. Copy the workspace-local file to the user-level path:
    ```bash
-   cp {workspace_root}/{slug}/agents/{role}.md ~/.claude/agents/{slug}-{role}.md
+   cp {workspace_root}/{slug}/agents/{role}.md "$AGENTS_DIR/{slug}-{role}.md"
    ```
 
-After all three publish, verify Claude Code can see them:
+After all three publish, verify the harness can see them:
 ```bash
-ls ~/.claude/agents/{slug}-{product-owner,assessor,troubleshooter}.md
+ls "$AGENTS_DIR"/{slug}-{product-owner,assessor,troubleshooter}.md
 ```
 
 Print a one-liner to the user: `Workspace agents published: {slug}-product-owner, {slug}-assessor, {slug}-troubleshooter — downstream pipeline phases will dispatch them by name. (UX consultant uses the base pipecrew:ux-consultant.)`
@@ -324,7 +325,7 @@ Self-check before returning:
 **On agent return**:
 1. Write the returned content to `{workspace_root}/{slug}/agents/{type}-implementer.md`
 2. Verify zero `{{` remain: `grep -c '{{' {workspace_root}/{slug}/agents/{type}-implementer.md` must print `0`. If not, surface the offending lines and re-dispatch.
-3. Publish to `~/.claude/agents/{workspace_slug}-{type}-implementer.md` (same conflict-check pattern as the workspace product-owner/assessor/troubleshooter publish in Step 3 above — if a file with that name already exists under a different `name:` frontmatter value, stop and ask the user before overwriting).
+3. Publish to the harness user-level agents dir as `{workspace_slug}-{type}-implementer.md` — use `$AGENTS_DIR` from Step 3, or re-resolve it with `node {plugin_dir}/scripts/workspace-root.js --agents-dir` (`~/.claude/agents/` under Claude Code, `~/.cursor/agents/` under Cursor). Same conflict-check pattern as the workspace product-owner/assessor/troubleshooter publish in Step 3 above — if a file with that name already exists under a different `name:` frontmatter value, stop and ask the user before overwriting.
 4. Log one line: `Generated workspace implementer: {workspace_slug}-{type}-implementer (for {repo_list})`.
 
 **Idempotency**: if `{workspace_root}/{slug}/agents/{type}-implementer.md` already exists (re-run or hand-edited), show a diff after regeneration and ask the user to keep/overwrite/merge. Default to KEEP — a hand-edited agent is load-bearing and must not be silently clobbered.
