@@ -72,6 +72,16 @@ test('--config-path is harness-specific', () => {
     `claude config path wrong: ${run('--config-path', 'claude').out}`);
 });
 
+test('--context-filename is AGENTS.md on every harness (canonical)', () => {
+  assert(run('--context-filename', 'cursor').out === 'AGENTS.md', 'cursor should be AGENTS.md');
+  assert(run('--context-filename', 'claude').out === 'AGENTS.md', 'claude should be AGENTS.md');
+});
+
+test('--context-shim is CLAUDE.md under Claude, empty otherwise', () => {
+  assert(run('--context-shim', 'claude').out === 'CLAUDE.md', 'claude shim should be CLAUDE.md');
+  assert(run('--context-shim', 'cursor').out === '', `cursor should emit no shim, got '${run('--context-shim', 'cursor').out}'`);
+});
+
 test('claude paths are unchanged from the legacy layout (no regression)', () => {
   // The exact strings existing Claude Code users depend on.
   assert(norm(run('--default', 'claude').out) === `${homeN}/.claude/pipecrew/workspaces`);

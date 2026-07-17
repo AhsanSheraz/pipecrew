@@ -134,7 +134,13 @@ Prefer hands-off updates? Enable auto-update once — `/plugin` → **Marketplac
 
 Scans repos, detects tech stacks, asks a few domain questions, and **writes the durable layer once**
 under `{workspace_root}/{slug}/` — workspace config, a `platform.md` map of your domain and topology,
-per-repo `CLAUDE.md`, and domain-specialized agents. Run it once per project.
+per-repo `AGENTS.md`, and domain-specialized agents. Run it once per project.
+
+> **Context file:** PipeCrew writes a per-repo **`AGENTS.md`** — the tool-agnostic
+> standard read natively by Claude Code, Cursor, Codex, and 30+ agents. Under Claude Code it
+> also drops a one-line `CLAUDE.md` (`@AGENTS.md`) so Claude keeps its richer native loading
+> pointed at the same file. Workspaces onboarded before this convention keep working — the crew
+> reads `AGENTS.md`, falling back to `CLAUDE.md` when only the latter exists.
 
 ### 2. Ship a feature — `/deliver`
 
@@ -267,7 +273,7 @@ stack-specific implementers and reviewers run in parallel, while cross-cutting a
 |-------|------|
 | `repo-discoverer` | Profiles one repo (framework, entities, endpoints) during `/discover` |
 | `architecture-mapper` | Infers cross-repo topology from the code → Mermaid diagrams |
-| `context-manager` | Creates / refreshes agent-facing context (CLAUDE.md, `agent-context/`) |
+| `context-manager` | Creates / refreshes agent-facing context (AGENTS.md, `agent-context/`) |
 | `feedback-learner` | Turns a merged PR / run / diff into durable-context updates |
 
 ### Contracts &amp; specs
@@ -351,7 +357,7 @@ A three-layer design keeps the plugin generic, your platform knowledge durable, 
 
 **Option B — Let `/discover` auto-generate per workspace** (for in-house or unusual stacks):
 
-No plugin change needed. `/discover` detects the stack, reads the repo's `CLAUDE.md` + a few existing
+No plugin change needed. `/discover` detects the stack, reads the repo's `AGENTS.md` + a few existing
 features + build config, and writes a tailored `{workspace}/agents/{type}-implementer.md` that reflects
 *your* repo's conventions, test framework, and gotchas. `/deliver` prefers workspace-local agents over
 plugin defaults automatically.
