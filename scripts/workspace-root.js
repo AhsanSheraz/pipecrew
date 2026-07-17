@@ -46,6 +46,14 @@
  *                                       `subagent_type` against, exit 0.
  *   node workspace-root.js --harness    print the detected harness
  *                                       (claude | cursor), exit 0.
+ *   node workspace-root.js --context-filename
+ *                                       print the canonical per-repo context
+ *                                       filename (AGENTS.md — same on every
+ *                                       harness), exit 0.
+ *   node workspace-root.js --context-shim
+ *                                       print the extra shim file to also write
+ *                                       (CLAUDE.md under Claude Code, nothing
+ *                                       otherwise), exit 0.
  *
  * Zero dependencies — pure Node stdlib.
  */
@@ -80,6 +88,15 @@ const PLUGIN_CONFIG_DIR = path.join(HARNESS_HOME, 'pipecrew');
 const PLUGIN_CONFIG_FILE = path.join(PLUGIN_CONFIG_DIR, 'config.json');
 const DEFAULT_WORKSPACE_ROOT = path.join(HARNESS_HOME, 'pipecrew', 'workspaces');
 const USER_AGENTS_DIR = path.join(HARNESS_HOME, 'agents');
+
+// The per-repo agent-context file. `AGENTS.md` is the canonical, tool-agnostic
+// standard (read natively by Codex, Cursor, and 30+ agents; Claude Code reads it
+// via import). It is the same on every harness. Under Claude Code we ALSO write a
+// thin `CLAUDE.md` shim (`@AGENTS.md`) to keep Claude's richer native loading with
+// one source of content; other harnesses need no shim. CONTEXT_SHIM is the shim
+// filename to also write, or '' when none is needed for this harness.
+const CONTEXT_FILENAME = 'AGENTS.md';
+const CONTEXT_SHIM = HARNESS === 'claude' ? 'CLAUDE.md' : '';
 
 function expandTilde(p) {
   if (!p) return p;
@@ -146,6 +163,16 @@ if (require.main === module) {
     process.stdout.write(HARNESS + '\n');
     process.exit(0);
   }
+  if (arg === '--context-filename') {
+    process.stdout.write(CONTEXT_FILENAME + '\n');
+    process.exit(0);
+  }
+  if (arg === '--context-shim') {
+    // Prints the shim filename to also write (CLAUDE.md under Claude Code),
+    // or nothing when this harness needs no shim.
+    if (CONTEXT_SHIM) process.stdout.write(CONTEXT_SHIM + '\n');
+    process.exit(0);
+  }
   if (arg.startsWith('--set=')) {
     const raw = arg.slice('--set='.length).trim();
     if (!raw) {
@@ -160,7 +187,7 @@ if (require.main === module) {
     process.exit(0);
   }
   process.stderr.write(`Unknown argument: ${arg}\n`);
-  process.stderr.write('Usage: workspace-root.js [--get|--default|--check|--config-path|--agents-dir|--harness|--set=<path>]\n');
+  process.stderr.write('Usage: workspace-root.js [--get|--default|--check|--config-path|--agents-dir|--harness|--context-filename|--context-shim|--set=<path>]\n');
   process.exit(1);
 }
 
@@ -172,4 +199,6 @@ module.exports = {
   DEFAULT_WORKSPACE_ROOT,
   PLUGIN_CONFIG_FILE,
   USER_AGENTS_DIR,
+  CONTEXT_FILENAME,
+  CONTEXT_SHIM,
 };
