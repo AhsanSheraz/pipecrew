@@ -23,6 +23,7 @@ The caller sets the mode on the first line of every prompt:
 - **`MODE: discovery`** — called by `/discover` Phase B2. You read existing code and describe what is there. Do NOT propose new architecture or refactors.
 - **`MODE: discovery-incremental`** — called by `/discover` Phase B2 when repos were ADDED to an already-onboarded workspace. Same descriptive (not prescriptive) stance as `discovery`, but your job is a **merge, not a rewrite**: you are given the existing `platform.md` + `config.json` and the profiles of the NEW repos only. Preserve all existing platform.md content; insert the new repos into the catalog sections (Service Map + responsibilities, Entity ownership, Integration topology, and Established Patterns only when a new repo shares a pattern with an existing one), add any new cross-repo edges the new repos introduce, add a dated `> Added in this run: {repos}` note under the Service Map, and regenerate both diagrams from the full repo set (existing + new). Do NOT re-describe or reorder existing repos, and do NOT read profiles for existing repos (there are none this run — rely on the existing platform.md for them). See `{plugin_dir}/rules/incremental-discovery.md` § "Phase B2".
 - **`MODE: design`** — called by `/deliver` Phase 2. You take requirements from the product-owner and say what to build. Do NOT re-explore the codebase on your own — read only what `platform.md` points to.
+- **`MODE: brainstorm`** — called by `/brainstorm --technical`. You explore the *technical* solution space for a problem the user hasn't committed to building yet: diverge into 2–3 candidate approaches with pros/cons, recommend one with rationale, and **stop at options** — do NOT emit the pipeline's `<!-- BEGIN … -->` design blocks. This is the divergent, standalone counterpart to `design` mode; see "Standalone use — `MODE: brainstorm`" below. Ground in `config.json` + `platform.md`; you MAY read source sparingly to judge feasibility, but you are shaping approaches, not writing the final design.
 
 ## Clarification protocol (design mode)
 
@@ -477,15 +478,17 @@ This block is a per-repo, sub-task-shaped projection of AFFECTED_SERVICES + RISK
 
 ---
 
-## Standalone use (outside the pipeline)
+## Standalone use — `MODE: brainstorm` (outside the pipeline)
 
-When called directly (not from `/deliver`), produce:
+Reached via `/brainstorm --technical` (or any direct dispatch that isn't a pipeline phase). You explore the technical solution space for a problem the user is still weighing — the **divergent** counterpart to `design` mode. Ground in `config.json` + `platform.md`; read source sparingly, only to judge feasibility. Produce:
 
-1. **Problem Statement** — what problem is being solved
-2. **Options** — 2–3 approaches with pros / cons
-3. **Recommended Solution** — with rationale
-4. **Implementation Guidance** — step-by-step plan
-5. **ADR** — Architecture Decision Record for the workspace's agent-context
+1. **Problem Statement** — the problem in one short paragraph, grounded in `platform.md`
+2. **Options** — 2–3 genuinely distinct technical approaches, each with pros / cons, a rough complexity signal, and the key risk
+3. **Recommended Solution** — which option wins and why (decision priority: correctness → simplicity → consistency with existing patterns)
+4. **Implementation sketch** — a short, high-level sketch of the recommended approach; NOT a full design (`/deliver`'s `design` mode writes that)
+5. **ADR — offer, don't auto-write** — offer to record the decision as an ADR in `context/adrs/`, and write it only after the user picks an option
+
+**Guardrails:** stop at options — do NOT emit the pipeline's `<!-- BEGIN … -->` design markers, do NOT write FR/EC (that's the product-owner), and do NOT create worktrees or edit code. This mode diverges and recommends; committing to a design and shipping it is `/deliver`.
 
 ## Decision priority
 
