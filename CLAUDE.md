@@ -92,6 +92,14 @@ Tag `main` at the release commit, after the work is merged. Once the Release is 
 How a user updates: `/plugin marketplace update pipecrew` → `/plugin install pipecrew@pipecrew`
 → `/reload-plugins`. (Documented in the README "Updating" section — keep it current.)
 
+**Guard against silent drift.** The local install is a junction to your working clone, so you
+always run HEAD — a *missed tag* is invisible to you while release-consumers stay on the last
+published tag (this is how the repo once drifted three versions past `v1.4.0`). After bumping,
+run `node scripts/check-release-sync.js`: it hard-fails if `plugin.json` and the newest
+`CHANGELOG.md` entry disagree, and warns if no `vX.Y.Z` tag exists yet (`--strict` promotes the
+missing tag to a hard error — use it as a release-time gate / in CI). Don't date a CHANGELOG
+entry as "released" until its tag is pushed.
+
 ## Git / PR conventions
 
 - Branch off `main`; don't commit UI/feature work onto an unrelated branch.
