@@ -43,6 +43,35 @@ Watch the [repo Releases](https://github.com/pipecrew-ai/pipecrew/releases) (Wat
   `/deliver --auto-approve`, site-view "needs approval" banner) remain Claude-Code-only.
   Cursor's `hooks.json` + permission-output protocol port is a tracked follow-up.
 
+## [1.6.1] - 2026-08-29
+
+### Added
+- **`/brainstorm --technical` — technical-perspective brainstorming.** `/brainstorm`
+  now works at two altitudes. The default **product** perspective dispatches the
+  `product-brainstormer` as before (greenfield / feature); the new **technical**
+  perspective (`--technical`, or `--product` to force the default) dispatches the
+  `solution-architect` in a new **`MODE: brainstorm`** — the divergent, standalone
+  counterpart to design mode. It diverges into 2–3 candidate approaches with
+  pros/cons + complexity + key risk, recommends one, gives a high-level sketch, and
+  offers (does not auto-write) an ADR. It stops at options: no `<!-- BEGIN … -->`
+  design blocks, no FR/EC, no code.
+- **Product-vs-technical disambiguation.** When a request's altitude is unclear
+  (e.g. "restructure the durable memory in the best optimized way" reads as both a
+  product goal and a technical one), `/brainstorm` asks a single
+  `[p]roduct / [t]echnical` question before dispatching (Step 2a / EC-6). Requesting
+  `--technical` with no onboarded workspace is refused with a pointer to `/discover`
+  rather than a silent fallback (EC-5).
+
+### Changed
+- **`product-brainstormer` holds product altitude.** The agent is refocused on
+  product thinking (users, value, problem space, options) and is barred from
+  implementation mechanics — file formats, schemas, data structures, line numbers,
+  code references — which now route to the `solution-architect`. It is encouraged to
+  research prior art via `WebSearch` / `WebFetch`, and `Grep` / `Glob` were removed
+  from its tools (keeping `Read` for `platform.md`) to structurally prevent
+  code-spelunking. The feature-mode "diverge, don't design" guardrail and the option
+  `scope` field now exclude implementation detail explicitly.
+
 ## [1.6.0] - 2026-08-27
 
 ### Added
