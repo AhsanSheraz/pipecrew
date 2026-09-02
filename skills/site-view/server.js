@@ -846,6 +846,7 @@ function readCheckpoints() {
     // still in flight (open → working). Many runs emit ONLY agent_end (no
     // agent_start) — those become already-completed instances. Both supported.
     const openByKey = new Map(); // key → instance ref in result.instances
+    const openByType = new Map(); // agent_type → [open instance refs] (fallback pairing)
     const instKey = (e) => `${e.agent_type || '?'}|${e.task || ''}|${e.description || ''}`;
     for (const line of lines) {
       let evt;
@@ -891,6 +892,8 @@ function readCheckpoints() {
           };
           result.instances.push(inst);
           openByKey.set(instKey(evt), inst);
+          if (!openByType.has(evt.agent_type)) openByType.set(evt.agent_type, []);
+          openByType.get(evt.agent_type).push(inst);
         }
       } else if (evt.event === 'agent_end') {
         // Schema uses `completed` / `completed_with_violation`; treat any
@@ -918,19 +921,38 @@ function readCheckpoints() {
         let inst = openByKey.get(key);
         if (inst) {
           openByKey.delete(key);
+          const pool = openByType.get(evt.agent_type);
+          if (pool) { const i = pool.indexOf(inst); if (i >= 0) pool.splice(i, 1); }
         } else {
-          inst = {
-            agentType: evt.agent_type,
-            phase: evt.phase != null ? String(evt.phase) : '',
-            description: evt.description || '',
-            task: evt.task || '',
-            tokens: 0,
-            durationMs: 0,
-            status: 'done',
-            ended: false,
-            ts: evt.ts || null,
-          };
-          result.instances.push(inst);
+          // Exact (agent_type|task|description) match failed — the orchestrator's
+          // agent_start and agent_end descriptions drifted (e.g. the start omitted
+          // the repo the end encodes, or the task field differs). Fall back to the
+          // oldest still-open dispatch of the SAME agent_type so the pair collapses
+          // into ONE instance instead of leaving a dangling "working" ghost card
+          // (which otherwise both sticks the phase on "working" and spawns a
+          // duplicate repo-less twin in reconciliation). Adopt the end event's
+          // richer description/task/phase so repo-hint resolution keys off it.
+          const pool = openByType.get(evt.agent_type);
+          if (pool && pool.length) {
+            inst = pool.shift();
+            for (const [k, v] of openByKey) { if (v === inst) { openByKey.delete(k); break; } }
+            if (evt.description) inst.description = evt.description;
+            if (evt.task) inst.task = evt.task;
+            if (evt.phase != null) inst.phase = String(evt.phase);
+          } else {
+            inst = {
+              agentType: evt.agent_type,
+              phase: evt.phase != null ? String(evt.phase) : '',
+              description: evt.description || '',
+              task: evt.task || '',
+              tokens: 0,
+              durationMs: 0,
+              status: 'done',
+              ended: false,
+              ts: evt.ts || null,
+            };
+            result.instances.push(inst);
+          }
         }
         inst.ended = true;
         inst.status = ended;
@@ -947,14 +969,36 @@ function readCheckpoints() {
     // a real captured value and can only fill zeros (no regression on old runs).
     if (result.sessionId) {
       const derived = sessionDerived(result.sessionId);
-      if (derived && derived.agentsByDesc && derived.agentsByDesc.size) {
-        const pools = new Map();
-        for (const [k, arr] of derived.agentsByDesc) pools.set(k, arr.slice());
+      const dAgents = derived && derived.agents ? derived.agents : null;
+      if (dAgents && dAgents.length) {
+        // Two lookup pools over the same session-derived agent list, drained by a
+        // shared `used` set so no session agent is counted twice. Description
+        // (precise) is tried first; role (subagentType→role) is the fallback so an
+        // agent whose checkpoint `description` drifted from the `description` param
+        // passed to the Agent tool — the product-owner is the classic case — still
+        // recovers its tokens instead of silently reading 0.
+        const byDesc = new Map();
+        const byRole = new Map();
+        dAgents.forEach((a, i) => {
+          const dk = normDesc(a.description);
+          if (dk) { if (!byDesc.has(dk)) byDesc.set(dk, []); byDesc.get(dk).push(i); }
+          const rk = agentToRole(a.subagentType);
+          if (rk) { if (!byRole.has(rk)) byRole.set(rk, []); byRole.get(rk).push(i); }
+        });
+        const used = new Set();
+        const take = (map, k) => {
+          const arr = k ? map.get(k) : null;
+          if (!arr) return -1;
+          while (arr.length) { const idx = arr.shift(); if (!used.has(idx)) return idx; }
+          return -1;
+        };
         for (const inst of result.instances) {
           if (inst.tokens && inst.tokens > 0) continue;
-          const pool = pools.get(normDesc(inst.description));
-          if (!pool || !pool.length) continue;
-          const a = pool.shift();
+          let idx = take(byDesc, normDesc(inst.description));
+          if (idx < 0) idx = take(byRole, agentToRole(inst.agentType));
+          if (idx < 0) continue;
+          used.add(idx);
+          const a = dAgents[idx];
           if (a.tokens != null) {
             inst.tokens = a.tokens;
             const m = result.agentMetrics[inst.agentType] || (result.agentMetrics[inst.agentType] = { tokens: 0, duration_ms: 0 });
@@ -1061,7 +1105,7 @@ function sessionDerived(sessionId) {
       if (!agentsByDesc.has(k)) agentsByDesc.set(k, []);
       agentsByDesc.get(k).push(a);
     }
-    const entry = { mtime, orchTotal: sum.orch ? sum.orch.total : null, agentsByDesc };
+    const entry = { mtime, orchTotal: sum.orch ? sum.orch.total : null, agentsByDesc, agents: sum.agents || [] };
     _sessionCache.set(sessionId, entry);
     return entry;
   } catch (_) { return null; }
@@ -1654,14 +1698,18 @@ function parseScratchpad(content) {
       const repo = repoHintFromDescription(inst.description, knownRepos);
       const key = role + '::' + (repo || '');
       let g = groups.get(key);
-      if (!g) { g = { role, repo, tokens: 0, durationMs: 0, dispatches: 0, phases: [], anyOpen: false, lastTs: null, lastStatus: 'done' }; groups.set(key, g); }
+      if (!g) { g = { role, repo, tokens: 0, durationMs: 0, dispatches: 0, phases: [], latestTs: -1, latestOpen: false, latestEndedStatus: null }; groups.set(key, g); }
       g.tokens += inst.tokens || 0;
       g.durationMs += inst.durationMs || 0;
       g.dispatches += 1;
-      if (!inst.ended) g.anyOpen = true;
-      else {
-        const t = inst.ts ? new Date(inst.ts).getTime() : 0;
-        if (g.lastTs === null || t >= g.lastTs) { g.lastTs = t; g.lastStatus = inst.status; }
+      // Track the state of the MOST RECENT dispatch (by ts), open or ended, rather
+      // than "any open". This is what lets a completed dispatch's dangling
+      // agent_start stop masquerading as in-flight work (see finalStatus below).
+      const t = inst.ts ? new Date(inst.ts).getTime() : 0;
+      if (!inst.ended) {
+        if (t >= g.latestTs) { g.latestTs = t; g.latestOpen = true; }
+      } else {
+        if (t >= g.latestTs) { g.latestTs = t; g.latestOpen = false; g.latestEndedStatus = inst.status; }
       }
       const mapped = mapPhaseToLabel(inst.phase);
       if (mapped) g.phases.push(mapped);
@@ -1669,7 +1717,12 @@ function parseScratchpad(content) {
 
     const claimed = new Set();
     for (const g of groups.values()) {
-      const finalStatus = g.anyOpen ? 'working' : (g.lastStatus || 'done');
+      // Status = the state of the most-recent dispatch. A dangling agent_start
+      // left over from an already-completed dispatch (whose agent_end carries a
+      // >= ts) therefore no longer downgrades a done card to "working" — the fix
+      // for the architect / "understand" stage stuck perpetually orange. A genuine
+      // fix-round re-dispatch (a NEWER open start) still correctly flips to working.
+      const finalStatus = g.latestOpen ? 'working' : (g.latestEndedStatus || 'done');
       // Resolve the target card: (1) an existing same-role card whose repo
       // matches; (2) an unclaimed repo-less card of the role to repurpose
       // (e.g. the single phase-status `crit` becomes the first per-repo
@@ -1701,7 +1754,9 @@ function parseScratchpad(content) {
       }
       claimed.add(target.id);
       // Lifecycle is checkpoint-authoritative — cp status wins (it is always
-      // working/done/failed, never queued, so this never downgrades a card).
+      // working/done/failed, never queued). finalStatus is now derived from the
+      // most-recent dispatch (not "any open"), so a stale dangling agent_start no
+      // longer downgrades a scratchpad-completed card back to working.
       target.status = finalStatus;
       cpCharMetrics[target.id] = { tokens: g.tokens, durationMs: g.durationMs, dispatches: g.dispatches, status: finalStatus };
       for (const p of g.phases) pushPhaseChip(phasesByCharId, target.id, p.label, p.category);
