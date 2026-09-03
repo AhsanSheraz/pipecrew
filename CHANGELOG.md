@@ -16,6 +16,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Or enable hands-off updates once: `/plugin` → **Marketplaces** → `pipecrew` → **Enable auto-update**.
 Watch the [repo Releases](https://github.com/pipecrew-ai/pipecrew/releases) (Watch → Custom → Releases) to be notified of new versions.
 
+## [1.6.2] - 2026-09-03
+
+### Fixed
+- **Site-view: agent token counts, duplicate cards, and stuck phase status.**
+  Four bugs surfaced from a live `/deliver` run, all rooted in the site-view
+  over-relying on exact `description`-string matching between `checkpoints.jsonl`
+  and the Claude session transcript.
+  - The **product-owner** (and any agent whose checkpoint `description` drifts
+    from the `description` param passed to the Agent tool) showed **0 tokens**.
+    Token derivation now falls back to a `subagentType → role` match after the
+    exact-description match, so tokens are recovered instead of silently dropped.
+  - **Duplicate implementer cards** of the same type: an `agent_start` whose
+    description drifted from its `agent_end` never paired, leaving a dangling
+    instance that reconciliation spawned as a ghost repo-less twin. `agent_end`
+    now falls back to pairing with the oldest open dispatch of the same
+    `agent_type` and adopts the end event's repo-encoded fields.
+  - The **"understand" stage never turned green** / the architect stayed
+    "working" while build agents ran, because the same dangling `agent_start`
+    downgraded a scratchpad-`COMPLETED` card. Group status now reflects the
+    most-recent dispatch by timestamp; a completed dispatch's leftover start no
+    longer masquerades as in-flight, while a genuine fix-round re-dispatch still
+    flips back to working.
+  - Clarified the **ORCHESTRATOR / AGENTS** header counters with tooltips
+    explaining their source (main-loop overhead incl. cache-creation, cache-reads
+    excluded) so the pre-agent, non-zero orchestrator figure reads as intended
+    rather than "caching tokens from somewhere".
+
 ## [1.6.1] - 2026-08-29
 
 ### Added

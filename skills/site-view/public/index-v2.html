@@ -1528,8 +1528,8 @@
 </div>
 
 <div class="token-summary">
-  <span>ORCHESTRATOR <b id="orch-tokens">0</b></span>
-  <span>AGENTS <b id="agent-tokens">0</b></span>
+  <span title="Main-loop (orchestrator) token overhead — loading skills, reading files/specs, scratchpad updates, approval gates, and reading agent results. Derived from this run's Claude session transcript (input + output + cache-creation; cache-reads excluded). It accrues from pre-flight onward, so it is intentionally non-zero before any sub-agent finishes.">ORCHESTRATOR <b id="orch-tokens">0</b></span>
+  <span title="Sum of per-sub-agent token cost across every card, derived from each sub-agent's own transcript. Separate from the orchestrator's own usage above.">AGENTS <b id="agent-tokens">0</b></span>
   <span>TOTAL <b id="total-tokens">0</b>
     <span class="bar"><span class="bar-fill" id="token-bar" style="width: 0%"></span></span>
     <span class="budget-warn" id="token-budget-warn" title="Total tokens exceeded 1M — budget warning">OVER 1M</span>
