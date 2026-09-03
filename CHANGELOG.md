@@ -16,6 +16,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Or enable hands-off updates once: `/plugin` → **Marketplaces** → `pipecrew` → **Enable auto-update**.
 Watch the [repo Releases](https://github.com/pipecrew-ai/pipecrew/releases) (Watch → Custom → Releases) to be notified of new versions.
 
+## [1.7.0] - 2026-09-03
+
+### Changed
+- **`architecture.md` factual sections are now agent-updatable.** In the
+  agent-context templates, the re-derivable sections of `architecture.md` —
+  **Technology Stack**, **Key Directories**, **External Service Dependencies**
+  (backend) and **Directory Structure** (frontend) — moved from `human-owned` to
+  `agent-updatable`, so `/context-refresh` and `/deliver` keep them current
+  automatically. The interpretive sections (System Overview, Architecture Style,
+  Key Boundaries, Feature Decomposition Rules, Routing, What NOT to Do, …) stay
+  `human-owned` and are only ever flagged as findings, never auto-edited.
+
+### Added
+- **Opt-in migration for existing docs (`scripts/migrate-architecture-markers.js`).**
+  A deterministic, marker-only, idempotent codemod that upgrades an existing
+  legacy `architecture.md` (single `human-owned` block) to the new split layout.
+  It inserts marker comments only — section content is left byte-identical — and
+  conservatively skips any hand-restructured or malformed file. `/context-refresh`
+  now auto-detects the legacy layout and **offers** the migration (never runs it
+  without an explicit yes).
+
+### Backward compatibility
+- **No existing file changes on upgrade.** The template edit is forward-only;
+  already-generated `architecture.md` files behave exactly as before until a user
+  opts into the migration. A new HARD RULE in the `context-manager` agent
+  guarantees regeneration **never silently downgrades** a `human-owned` section to
+  `agent-updatable` — the existing file's ownership always wins; the sanctioned
+  downgrade path is the user-invoked codemod alone.
+
 ## [1.6.2] - 2026-09-03
 
 ### Fixed
