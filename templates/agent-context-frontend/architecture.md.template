@@ -10,9 +10,17 @@
 
 {{ARCHITECTURE_STYLE_BULLETS}}
 
+<!-- /human-owned -->
+
+<!-- agent-updatable -->
+
 ## Directory Structure
 
 {{DIRECTORY_TREE}}
+
+<!-- /agent-updatable -->
+
+<!-- human-owned -->
 
 ## Feature Module Decomposition Rules
 
