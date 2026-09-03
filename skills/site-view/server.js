@@ -833,6 +833,7 @@ function readCheckpoints() {
     instances: [],
     firstTs: null,   // earliest checkpoint ts (run start)
     lastTs: null,    // latest checkpoint ts (run end / last activity)
+    runEndStatus: null, // from run_end: completed | failed | aborted | resumed_later
   };
   if (!file || !fs.existsSync(file)) return result;
   try {
@@ -867,6 +868,13 @@ function readCheckpoints() {
       // compute orchestrator overhead accurately from the session transcript.
       if (evt.event === 'run_start' && (evt.session_id || evt.sessionId)) {
         result.sessionId = evt.session_id || evt.sessionId;
+      }
+      // The terminal event — its status is the authoritative "run finished" signal
+      // (completed / failed / aborted / resumed_later). Drives the UI's completion
+      // celebration even when optional roles (ux/security/feedback) were never
+      // dispatched and would otherwise sit forever as queued preseeds.
+      if (evt.event === 'run_end') {
+        result.runEndStatus = evt.status || 'completed';
       }
       if (evt.event === 'orch_checkpoint' && evt.orch_since_last) {
         const o = evt.orch_since_last;
@@ -1662,7 +1670,7 @@ function parseScratchpad(content) {
   }
 
   // Checkpoints enrichment — orchestrator tokens + retry flags + agent metrics + lifecycle instances
-  const { orchestratorTokens: legacyOrchTokens, sessionId, retryingAgents, agentMetrics: cpMetrics, instances, firstTs, lastTs } = readCheckpoints();
+  const { orchestratorTokens: legacyOrchTokens, sessionId, retryingAgents, agentMetrics: cpMetrics, instances, firstTs, lastTs, runEndStatus } = readCheckpoints();
   // Prefer the session-derived orchestrator overhead (accurate); fall back to
   // the legacy orch_checkpoint sum for old runs without a recorded session_id.
   const derived = sessionDerived(sessionId);
@@ -1838,6 +1846,7 @@ function parseScratchpad(content) {
     orchestratorTokens,
     totalAgentTokens: characters.reduce((s, c) => s + (c.tokens || 0), 0),
     runDurationMs: (firstTs && lastTs) ? Math.max(0, new Date(lastTs).getTime() - new Date(firstTs).getTime()) : 0,
+    runEndStatus,
     awaitingInput: readAwaitingInput(),
     claudeApproval: readClaudeApproval(),
     hookErrors: readHookErrors(),

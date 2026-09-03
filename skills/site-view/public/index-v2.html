@@ -1455,6 +1455,40 @@
     100% { transform: translateY(102vh) rotate(540deg);  opacity: 0.3; }
   }
 
+  /* ── completion celebration — the crew jumps and waves. Fired alongside the
+     confetti when the run reaches "complete" (see maybeCelebrate). `body.celebrate`
+     is a stable ancestor class, so it survives card re-renders; a per-card
+     --cdelay staggers the crew so they cheer in a wave, not in lockstep. ── */
+  body.celebrate svg.char .char-body {
+    animation: charCheer 0.9s ease-in-out infinite;
+    animation-delay: var(--cdelay, 0s);
+    transform-box: fill-box;
+    transform-origin: center bottom;
+  }
+  body.celebrate svg.char .arm-l {
+    animation: armCheerL 0.5s ease-in-out infinite;
+    animation-delay: var(--cdelay, 0s);
+  }
+  body.celebrate svg.char .arm-r {
+    animation: armCheerR 0.5s ease-in-out infinite;
+    animation-delay: var(--cdelay, 0s);
+  }
+  @keyframes charCheer {
+    0%, 100% { transform: translateY(0); }
+    25%      { transform: translateY(-16px); }
+    45%      { transform: translateY(0); }
+    65%      { transform: translateY(-9px); }
+    85%      { transform: translateY(0); }
+  }
+  @keyframes armCheerL {
+    0%, 100% { transform: rotate(-8deg); }
+    50%      { transform: rotate(-62deg); }
+  }
+  @keyframes armCheerR {
+    0%, 100% { transform: rotate(8deg); }
+    50%      { transform: rotate(62deg); }
+  }
+
   @media (max-width: 1080px) {
     .stage-rail, .swimlanes { grid-template-columns: repeat(3, 1fr); }
     .stage-station:nth-child(4)::before { display: none; }
@@ -1465,6 +1499,9 @@
     .stage-gate-flag,
     .monument-totem.complete .topper { animation: none; }
     .confetti-bit { animation-duration: 0.01s !important; }
+    body.celebrate svg.char .char-body,
+    body.celebrate svg.char .arm-l,
+    body.celebrate svg.char .arm-r { animation: none !important; }
   }
 </style>
 </head>
@@ -2360,6 +2397,9 @@ function applyState(state) {
   const isPaused = !!(waiting || claudeApproval);
   // v2: remember which phase the gate is on so layout() can flag its station.
   activeGatePhase = waiting ? (waiting.phase != null ? waiting.phase : null) : null;
+  // Terminal run status (from the run_end checkpoint) — layout() treats a
+  // "completed" run as done even when optional roles never dispatched.
+  runEndStatus = state.runEndStatus || null;
   const baseTitle =
     state.workspace && state.featureName ? `${state.workspace} · ${state.featureName}` :
     state.workspace                     ? `${state.workspace} · (waiting for run)` :
@@ -2514,6 +2554,7 @@ function applyState(state) {
 // Phase set to gate-stage that the orchestrator is currently blocked on — set
 // by applyState from awaitingInput, read by layout to flag the right station.
 let activeGatePhase = null;
+let runEndStatus = null;
 
 // In-lane status ordering: working on top, then queued, then finished.
 function statusRank(c) {
@@ -2595,7 +2636,12 @@ function layout(characters) {
   const loopDoneComplete = loopDone;
   const shippedRaw = STAGES.slice(0, 5).every(s => stageState[s.id] === 'done' || stageState[s.id] === 'upcoming') &&
                      stageState['ship'] === 'done';
-  const complete = loopDoneComplete || shippedRaw;
+  // A `run_end: completed` checkpoint is the authoritative "finished" signal — it
+  // makes the run read as complete even when optional roles (ux/security/feedback)
+  // were never dispatched and would otherwise sit as queued preseeds forever.
+  // Only "completed" celebrates; failed/aborted must not.
+  const runShipped = runEndStatus === 'completed';
+  const complete = loopDoneComplete || shippedRaw || runShipped;
   if (complete) {
     STAGES.forEach((s) => { if (stageState[s.id] === 'pending') stageState[s.id] = 'done'; });
   }
@@ -2672,12 +2718,24 @@ function updateBuildingProgress() {}
 // transition into the "complete" state. ──
 let celebrated = false;
 function maybeCelebrate(complete) {
-  if (!complete) { celebrated = false; return; }
+  if (!complete) {
+    celebrated = false;
+    document.body.classList.remove('celebrate');
+    return;
+  }
   if (celebrated) return;
   celebrated = true;
   const layer = document.getElementById('confetti-layer');
   if (!layer) return;
   if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  // The crew cheers — jump + wave — alongside the confetti. Stagger each card so
+  // they cheer in a wave. `body.celebrate` drives the CSS; it's on a stable
+  // ancestor so it survives card re-renders during the burst.
+  document.querySelectorAll('.card').forEach((card, i) => {
+    card.style.setProperty('--cdelay', ((i % 6) * 0.09).toFixed(2) + 's');
+  });
+  document.body.classList.add('celebrate');
+  setTimeout(() => { document.body.classList.remove('celebrate'); }, 6500);
   const colors = ['#f5a623', '#4ade80', '#93c5fd', '#fdba74', '#d8b4fe'];
   layer.innerHTML = '';
   for (let i = 0; i < 80; i++) {

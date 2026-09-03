@@ -16,6 +16,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Or enable hands-off updates once: `/plugin` → **Marketplaces** → `pipecrew` → **Enable auto-update**.
 Watch the [repo Releases](https://github.com/pipecrew-ai/pipecrew/releases) (Watch → Custom → Releases) to be notified of new versions.
 
+## [1.7.1] - 2026-09-03
+
+### Added
+- **Site-view completion celebration.** When a run finishes, the character crew
+  now jumps and waves alongside the confetti — a short, staggered cheer fired
+  once on the transition into the completed state. Respects
+  `prefers-reduced-motion`. Applies to both `/deliver` and `/simulate-run`.
+
+### Fixed
+- **Completion now keys off `run_end`.** The server surfaces the terminal
+  `run_end` status and the site-view treats `run_end: completed` as complete.
+  Previously, optional roles (ux / security / feedback) that were never
+  dispatched sat as queued preseeds, so their stages stayed pending and the run
+  never read as complete — meaning neither the confetti nor the new cheer ever
+  fired (notably in every `/simulate-run` demo). Only `completed` celebrates;
+  `failed` / `aborted` do not.
+
 ## [1.7.0] - 2026-09-03
 
 ### Changed
