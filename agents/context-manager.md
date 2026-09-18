@@ -70,6 +70,28 @@ Therefore, in `full`, `init`, and `refresh` modes — INCLUDING when the user as
 "From scratch" applies to the *structure* (file layout, agent-updatable catalogs,
 templates) — never to human-owned *content*.
 
+### Ownership is never silently downgraded (HARD RULE, every writing mode)
+
+Templates evolve: a section that shipped as `human-owned` in an older template may be
+classified `agent-updatable` in a newer one (e.g. `architecture.md`'s Technology Stack
+/ Key Directories / External Service Dependencies became agent-updatable so refresh can
+keep those facts current). When regenerating an **existing** file, resolve this per
+section **by heading**:
+
+- If the existing file marks a heading `human-owned` but the new template marks the same
+  heading `agent-updatable`, **the existing file's `human-owned` classification wins** —
+  preserve the content AND its `human-owned` marker. An agent NEVER converts a section a
+  human currently owns into an auto-editable one; that would make previously-protected
+  content silently writable.
+- The reverse (existing `agent-updatable` → new `human-owned`) is always safe to apply —
+  it only adds protection.
+
+The one sanctioned path to *downgrade* human-owned → agent-updatable on an existing file
+is the deterministic, marker-only migration in `scripts/migrate-architecture-markers.js`
+(content byte-identical, git-auditable, user-invoked) — never an agent's judgment during
+a regen. A brand-new file (no prior version on disk or in git HEAD) simply uses the new
+template's markers as-is.
+
 ### Factual grounding (HARD RULE, every writing mode)
 
 Never infer enumerative or shape claims from naming patterns — verify against the

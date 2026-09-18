@@ -1,69 +1,54 @@
 #!/usr/bin/env node
 /**
- * workspace-root.js — resolver for the PipeCrew workspace root directory and
- * the harness-specific user-level agents directory.
+ * workspace-root.js — BACKWARD-COMPAT shim over the workspace registry, plus
+ * the harness-specific user-level agents / context helpers.
  *
- * PipeCrew is a dual-target plugin: it installs in both Claude Code and Cursor.
- * Runtime state must land in the *host harness's* home dir, not a hardcoded
- * `~/.claude` — otherwise a Cursor install writes its config, workspaces, and
- * published agents into Claude Code's directory.
+ * The workspace model moved from a single mutable `workspace_root` to a registry
+ * of workspaces that can live anywhere (see scripts/workspace-registry.js and
+ * docs/design/workspace-registry.md). This shim keeps the old CLI working so the
+ * skills that still call it resolve correctly during and after the transition.
  *
- * Harness detection (see detectHarness): the plugin's own install path is the
- * signal — a Cursor plugin lives under `.../.cursor/plugins/...`, a Claude one
- * under `.../.claude/plugins/...`. This is robust because it doesn't depend on
- * per-call env vars. `PIPECREW_HARNESS=cursor|claude` overrides it (tests / edge
- * cases); an unknown location falls back to `claude` so legacy behavior is
- * preserved byte-for-byte for existing Claude Code users.
+ * Because every workspace lives at `<parent>/<slug>`, `--get` returns the PARENT
+ * of the *resolved current* workspace — so a caller that joins `{root}/{slug}`
+ * for the current slug still lands on the right folder. New code should call
+ * `workspace-registry.js --resolve` (path of the chosen workspace directly) or
+ * `--root-for=<slug>` instead.
  *
- * The workspace_root is resolved with this precedence:
+ * Dual-target: PipeCrew installs in both Claude Code and Cursor. The
+ * harness-specific surface below (agents dir, context filename/shim, harness id)
+ * resolves against the *host harness's* home dir via detectHarness(): a Cursor
+ * plugin lives under `.../.cursor/plugins/...`, a Claude one under
+ * `.../.claude/plugins/...`. `PIPECREW_HARNESS=cursor|claude` overrides it;
+ * unknown locations fall back to `claude` so legacy behavior is preserved.
+ * NOTE: workspace root/config resolution routes through workspace-registry.js,
+ * which currently anchors on `~/.claude` regardless of harness.
  *
- *   1. $PIPECREW_WORKSPACE_ROOT env var (escape hatch, never persisted)
- *   2. <harness_home>/pipecrew/config.json → workspace_root (set by /deliver
- *      or /discover pre-flight the first time the user is prompted)
- *   3. Default: <harness_home>/pipecrew/workspaces/
- *
- * where <harness_home> is `~/.claude` (Claude Code) or `~/.cursor` (Cursor).
- *
- * All Node scripts and skills should route through this so a single
- * user preference applies everywhere within a harness.
- *
- * Commands:
- *   node workspace-root.js --get        print resolved absolute path, exit 0
- *   node workspace-root.js --default    print the hardcoded default, exit 0
- *   node workspace-root.js --check      exit 0 if workspace_root is configured
- *                                       in the plugin config, exit 2 if not
- *                                       (so skill pre-flights know to prompt).
- *                                       Env var counts as "configured".
- *   node workspace-root.js --set=<path> persist the given path to the plugin
- *                                       config (creates it if absent), print
- *                                       the resolved absolute path, exit 0.
- *                                       Accepts ~-prefixed paths.
- *   node workspace-root.js --config-path print <harness_home>/pipecrew/config.json
- *                                       absolute path, exit 0.
- *   node workspace-root.js --agents-dir print the harness user-level agents dir
- *                                       (~/.claude/agents or ~/.cursor/agents)
- *                                       that the Agent tool resolves
- *                                       `subagent_type` against, exit 0.
- *   node workspace-root.js --harness    print the detected harness
- *                                       (claude | cursor), exit 0.
- *   node workspace-root.js --context-filename
- *                                       print the canonical per-repo context
- *                                       filename (AGENTS.md — same on every
- *                                       harness), exit 0.
- *   node workspace-root.js --context-shim
- *                                       print the extra shim file to also write
- *                                       (CLAUDE.md under Claude Code, nothing
- *                                       otherwise), exit 0.
+ * Commands (registry-backed, unchanged surface, plus harness helpers):
+ *   --get [--workspace=<slug>]
+ *                 parent dir of the given workspace (or the current one). Because
+ *                 a workspace lives at <parent>/<slug>, `{that}/{slug}` resolves
+ *                 to the workspace regardless of where it sits on disk.
+ *   --default     the hardcoded default creation dir
+ *   --check       exit 0 if any workspace is registered / a root is set, else 2
+ *   --set=<path>  set the default creation dir AND adopt workspaces already under it
+ *   --config-path print the plugin config path
+ *   --agents-dir  print the harness user-level agents dir
+ *                 (~/.claude/agents or ~/.cursor/agents)
+ *   --harness     print the detected harness (claude | cursor)
+ *   --context-filename
+ *                 print the canonical per-repo context filename (AGENTS.md)
+ *   --context-shim
+ *                 print the extra shim file to also write (CLAUDE.md under
+ *                 Claude Code, nothing otherwise)
  *
  * Zero dependencies — pure Node stdlib.
  */
 
-const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const reg = require('./workspace-registry');
 
 const HOME = os.homedir();
-const ENV_VAR = 'PIPECREW_WORKSPACE_ROOT';
 
 // Which harness are we running under? The plugin's install path is the signal:
 // a Cursor plugin lives under `.cursor/`, a Claude Code plugin under `.claude/`.
@@ -100,73 +85,51 @@ const CONTEXT_SHIM = HARNESS === 'claude' ? 'CLAUDE.md' : '';
 
 function expandTilde(p) {
   if (!p) return p;
+  const HOME = require('os').homedir();
   if (p === '~') return HOME;
   if (p.startsWith('~/') || p.startsWith('~\\')) return path.join(HOME, p.slice(2));
   return p;
 }
 
-function readPluginConfig() {
-  if (!fs.existsSync(PLUGIN_CONFIG_FILE)) return null;
-  try {
-    return JSON.parse(fs.readFileSync(PLUGIN_CONFIG_FILE, 'utf8'));
-  } catch (e) {
-    process.stderr.write(`[workspace-root] failed to parse ${PLUGIN_CONFIG_FILE}: ${e.message}\n`);
-    return null;
+// Legacy root: parent of the given (or current) workspace; else a configured
+// default; else the hardcoded default. A slug makes `{root}/{slug}` correct for
+// a workspace that lives outside the current one's parent.
+function resolveRoot(slug) {
+  if (!slug && process.env[reg.ENV_VAR]) {
+    const r = reg.resolve(null);
+    if (!r.error) return r.root; // env override still resolves via the ephemeral scan
+    return reg.norm(expandTilde(process.env[reg.ENV_VAR]));
   }
-}
-
-function writePluginConfig(config) {
-  fs.mkdirSync(PLUGIN_CONFIG_DIR, { recursive: true });
-  fs.writeFileSync(PLUGIN_CONFIG_FILE, JSON.stringify(config, null, 2) + '\n');
-}
-
-function resolveRoot() {
-  if (process.env[ENV_VAR]) {
-    return path.resolve(expandTilde(process.env[ENV_VAR]));
-  }
-  const cfg = readPluginConfig();
-  if (cfg && typeof cfg.workspace_root === 'string' && cfg.workspace_root.trim()) {
-    return path.resolve(expandTilde(cfg.workspace_root.trim()));
-  }
-  return DEFAULT_WORKSPACE_ROOT;
+  const r = reg.resolve(slug || null);
+  if (!r.error) return r.root;
+  const cfg = reg.loadPersisted();
+  if (cfg.default_root) return reg.norm(expandTilde(cfg.default_root));
+  if (cfg.workspace_root) return reg.norm(expandTilde(cfg.workspace_root));
+  return reg.DEFAULT_ROOT;
 }
 
 function isConfigured() {
-  if (process.env[ENV_VAR]) return true;
-  const cfg = readPluginConfig();
-  return !!(cfg && typeof cfg.workspace_root === 'string' && cfg.workspace_root.trim());
+  if (process.env[reg.ENV_VAR]) return true;
+  const cfg = reg.loadPersisted();
+  return (cfg.workspaces && cfg.workspaces.length > 0) || !!cfg.default_root || !!cfg.workspace_root;
 }
 
-// CLI
 if (require.main === module) {
-  const arg = process.argv[2];
-  if (!arg || arg === '--get') {
-    process.stdout.write(resolveRoot() + '\n');
-    process.exit(0);
-  }
-  if (arg === '--default') {
-    process.stdout.write(DEFAULT_WORKSPACE_ROOT + '\n');
-    process.exit(0);
-  }
-  if (arg === '--check') {
-    process.exit(isConfigured() ? 0 : 2);
-  }
-  if (arg === '--config-path') {
-    process.stdout.write(PLUGIN_CONFIG_FILE + '\n');
-    process.exit(0);
-  }
-  if (arg === '--agents-dir') {
-    process.stdout.write(USER_AGENTS_DIR + '\n');
-    process.exit(0);
-  }
-  if (arg === '--harness') {
-    process.stdout.write(HARNESS + '\n');
-    process.exit(0);
-  }
-  if (arg === '--context-filename') {
-    process.stdout.write(CONTEXT_FILENAME + '\n');
-    process.exit(0);
-  }
+  const argv = process.argv.slice(2);
+  const arg = argv[0];
+  const wsFlag = (() => {
+    const eq = argv.find((a) => a.startsWith('--workspace='));
+    return eq ? eq.slice('--workspace='.length) : null;
+  })();
+  if (!arg || arg === '--get') { process.stdout.write(resolveRoot(wsFlag) + '\n'); process.exit(0); }
+  if (arg === '--default')     { process.stdout.write(reg.DEFAULT_ROOT + '\n'); process.exit(0); }
+  if (arg === '--check')       { process.exit(isConfigured() ? 0 : 2); }
+  if (arg === '--config-path') { process.stdout.write(reg.CONFIG_FILE + '\n'); process.exit(0); }
+  // Harness-specific helpers (dual-target). These resolve against the host
+  // harness home, independent of the registry's root resolution.
+  if (arg === '--agents-dir') { process.stdout.write(USER_AGENTS_DIR + '\n'); process.exit(0); }
+  if (arg === '--harness')    { process.stdout.write(HARNESS + '\n'); process.exit(0); }
+  if (arg === '--context-filename') { process.stdout.write(CONTEXT_FILENAME + '\n'); process.exit(0); }
   if (arg === '--context-shim') {
     // Prints the shim filename to also write (CLAUDE.md under Claude Code),
     // or nothing when this harness needs no shim.
@@ -175,14 +138,13 @@ if (require.main === module) {
   }
   if (arg.startsWith('--set=')) {
     const raw = arg.slice('--set='.length).trim();
-    if (!raw) {
-      process.stderr.write('[workspace-root] --set= requires a path\n');
-      process.exit(1);
-    }
-    const resolved = path.resolve(expandTilde(raw));
-    const cfg = readPluginConfig() || {};
-    cfg.workspace_root = raw; // preserve user's ~-form if they used it
-    writePluginConfig(cfg);
+    if (!raw) { process.stderr.write('[workspace-root] --set= requires a path\n'); process.exit(1); }
+    const resolved = reg.norm(path.resolve(expandTilde(raw)));
+    const cfg = reg.loadPersisted();
+    cfg.default_root = raw;           // preserve the user's ~-form as the creation dir
+    for (const ws of reg.scanRoot(resolved)) reg.upsert(cfg, ws.path, false); // adopt existing
+    if (!cfg.current && cfg.workspaces.length === 1) cfg.current = cfg.workspaces[0].slug;
+    reg.writeConfig(cfg);
     process.stdout.write(resolved + '\n');
     process.exit(0);
   }
@@ -196,8 +158,8 @@ module.exports = {
   isConfigured,
   detectHarness,
   HARNESS,
-  DEFAULT_WORKSPACE_ROOT,
-  PLUGIN_CONFIG_FILE,
+  DEFAULT_WORKSPACE_ROOT: reg.DEFAULT_ROOT,
+  PLUGIN_CONFIG_FILE: reg.CONFIG_FILE,
   USER_AGENTS_DIR,
   CONTEXT_FILENAME,
   CONTEXT_SHIM,

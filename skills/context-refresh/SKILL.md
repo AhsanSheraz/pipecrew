@@ -53,7 +53,7 @@ description: "Audit or refresh PipeCrew context docs at three scopes: a single r
 
 ### Step 1: Resolve scope + workspace
 
-**Step 1.0 — resolve `{workspace_root}`**: run `node {plugin_dir}/scripts/workspace-root.js --get` to capture the user's configured workspaces root. Use `{workspace_root}` everywhere paths below reference workspace dirs. If the script exits non-zero (root never configured), tell the user to run `/discover` first — context-refresh has nothing to refresh against without an onboarded workspace.
+**Step 1.0 — resolve the workspace**: once you know the target slug (from `--workspace=<slug>` or auto-detected in Step 1.1), resolve it from the registry with `node {plugin_dir}/scripts/workspace-registry.js --resolve --workspace=<slug> --json` → `{slug, path, root}`; set `{workspace_root}` = `.root`. If the slug isn't known yet, `node {plugin_dir}/scripts/workspace-registry.js --list --json` enumerates the registered workspaces (each with its absolute `path`) to match against a repo path. If nothing is registered, tell the user to run `/discover` first — context-refresh has nothing to refresh against without an onboarded workspace. Use `{workspace_root}` everywhere paths below reference workspace dirs.
 
 **Step 1.1 — pick scope from args**:
 - If first positional arg is present and not a flag → **single-repo scope**. Resolve repo-key-or-path the same way `/review` does. Auto-detect workspace from repo path if `--workspace` omitted.
@@ -296,6 +296,47 @@ For the chosen file:
 
 Report what you changed.
 ```
+
+---
+
+### Step 3.6: Legacy architecture-marker offer (opt-in, deterministic)
+
+Older workspaces generated `architecture.md` as a single `<!-- human-owned -->`
+block, so its re-derivable factual sections (Technology Stack, Key Directories,
+External Service Dependencies — or, for frontend, Directory Structure) can't be
+kept current by refresh; drift there only ever surfaces as a finding. Newer
+templates classify those sections `agent-updatable`. This step **offers** — never
+forces — the one-time upgrade.
+
+For each repo in scope (the single repo in Step 3, or every repo in Step 4), run:
+
+```bash
+node {plugin_dir}/scripts/migrate-architecture-markers.js detect --repo={repo_path}
+```
+
+- Output `legacy` → add a one-line offer to the report:
+  ```
+  {repo-name}: architecture.md uses the legacy all-human-owned layout. Its
+  Technology Stack / Key Directories / External Dependencies can be made
+  agent-updatable so future refreshes keep them current (a marker-only change —
+  content is untouched). Apply? (yes / no)
+  ```
+- Output `migrated` / `non-canonical` / `malformed` / `missing` → do nothing (no
+  offer). `non-canonical` means the file was hand-restructured — leave it to the
+  user; `malformed` means unbalanced markers the user should fix by hand first.
+
+**Only on an explicit `yes`** run the transform and commit it with the refresh:
+
+```bash
+node {plugin_dir}/scripts/migrate-architecture-markers.js migrate --repo={repo_path}
+```
+
+The script is idempotent and marker-only — it inserts marker comments and never
+edits section content, so the diff is auditable and reversible. It does **not**
+run in `--mode=audit` unless the user says yes to the offer (the detect probe is
+read-only; the migrate step is the only write and is user-gated). After migrating,
+the newly `agent-updatable` sections become eligible for auto-refresh on the
+**next** run — this run does not retro-edit them.
 
 ---
 
