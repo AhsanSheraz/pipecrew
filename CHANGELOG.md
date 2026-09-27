@@ -31,8 +31,9 @@ Watch the [repo Releases](https://github.com/pipecrew-ai/pipecrew/releases) (Wat
 
 - **Repo-context file converged on `AGENTS.md`** (the Linux-Foundation-governed, tool-agnostic
   standard read natively by Claude Code, Cursor, Codex, and 30+ agents). `/discover` now generates
-  a per-repo `AGENTS.md`; under Claude Code it also writes a one-line `CLAUDE.md` (`@AGENTS.md`)
-  import shim so Claude keeps its richer native loading pointed at the one canonical file. The crew
+  a per-repo `AGENTS.md` plus a one-line `CLAUDE.md` (`@AGENTS.md`) import shim — written on
+  **every** harness (not just Claude Code), so a workspace onboarded under Cursor still auto-loads
+  in a teammate's Claude Code session. Content lives only in `AGENTS.md`. The crew
   reads with fallback (`AGENTS.md`, else `CLAUDE.md`), so **existing workspaces keep working with no
   forced migration** — legacy `CLAUDE.md` is picked up and converted lazily on the next
   `/discover --resume` or `/context-refresh`. Templates renamed `repo-CLAUDE*` → `repo-AGENTS*`;

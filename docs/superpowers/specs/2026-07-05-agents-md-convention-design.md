@@ -19,13 +19,16 @@ Gemini CLI, Aider, Zed, Windsurf, Devin, …). Claude Code also reads it (via im
 Rules:
 
 1. **Canonical content lives in `{repo}/AGENTS.md`.** The crew generates it and reads it.
-2. **Under Claude Code only, also emit a thin `{repo}/CLAUDE.md` shim** whose entire body is an
+2. **Always also emit a thin `{repo}/CLAUDE.md` shim — on every harness** — whose entire body is an
    import of the canonical file:
    ```
    @AGENTS.md
    ```
    This preserves Claude Code's richer native loading with **one source of content** (no drift).
-   Under Cursor/Codex/others, no `CLAUDE.md` is written — those tools read `AGENTS.md` natively.
+   *(Amended 2026-09-27 — originally "under Claude Code only". Unconditional because the shim
+   decision was made by whichever harness ran generation: a workspace onboarded under Cursor got no
+   `CLAUDE.md`, so a teammate opening the same repos in Claude Code silently loaded no context.
+   The shim is a harmless one-liner for Cursor/Codex/others, which read `AGENTS.md` natively.)*
 3. **No per-tool naming matrix.** New tools cost zero naming work. Only a tool that *demands* its
    own filename ever gets a 1-line import shim, added then.
 
@@ -43,8 +46,8 @@ no `AGENTS.md`, so the fallback picks up `CLAUDE.md`. Nothing breaks on upgrade.
 No forced migration. On the next `/discover --resume` or `/context-refresh` for a repo:
 
 - If `AGENTS.md` is **absent** but `CLAUDE.md` **exists** (legacy): create `AGENTS.md` from the
-  current `CLAUDE.md` content (rename/rewrite), and — under Claude Code — replace `CLAUDE.md` with
-  the `@AGENTS.md` shim. Show a diff / one-line notice; never silently clobber a hand-edited file.
+  current `CLAUDE.md` content (rename/rewrite), and replace `CLAUDE.md` with the `@AGENTS.md`
+  shim. Show a diff / one-line notice; never silently clobber a hand-edited file.
 - If `AGENTS.md` already exists: it's canonical; leave it.
 
 Because reads fall back to `CLAUDE.md`, migration can happen lazily whenever a repo is next
@@ -55,8 +58,8 @@ refreshed — there is no big-bang conversion.
 Extend `scripts/workspace-root.js` (already harness-aware) with:
 
 - `--context-filename` → prints `AGENTS.md` (canonical; same on all harnesses).
-- `--context-shim` → prints `CLAUDE.md` under Claude Code, empty under others (tells generation
-  whether to also write the import shim).
+- `--context-shim` → prints `CLAUDE.md` on every harness (amended 2026-09-27; kept as a flag so a
+  future harness that needs a different shim has one hook).
 
 Skills/agents resolve these instead of hardcoding, mirroring the existing `--agents-dir` pattern.
 
@@ -92,7 +95,7 @@ Skills/agents resolve these instead of hardcoding, mirroring the existing `--age
 
 - `node eval/run.js` green at every step.
 - `workspace-root.test.js` covers `--context-filename` (= `AGENTS.md`) and `--context-shim`
-  (`CLAUDE.md` under claude, empty under cursor).
+  (`CLAUDE.md` on both claude and cursor — amended 2026-09-27).
 - A structural eval check: generation templates exist under the new names; no consumer references
   `CLAUDE.md` without an `AGENTS.md`-first fallback (except the plugin's own dev-guide `CLAUDE.md`).
 

@@ -23,7 +23,7 @@ On completion, update the task file per `{plugin_dir}/skills/deliver/phases/disp
 
 Before any code change, read `{repo_path}/AGENTS.md` and the agent-context docs it points to (typically `{repo_path}/agent-context/`). These are the authoritative repo-specific conventions: how this repo handles auth, persistence, tests, config, routing, error mapping, naming. AGENTS.md is the per-repo source of truth.
 
-> **Context-file resolution (applies wherever this doc says "AGENTS.md"):** `AGENTS.md` is the canonical, tool-agnostic context file. Prefer it. A workspace onboarded before this convention may have only `{repo_path}/CLAUDE.md` — if `AGENTS.md` is absent, read `CLAUDE.md` instead. (Under Claude Code, `CLAUDE.md` may also exist as a one-line `@AGENTS.md` import shim; reading `AGENTS.md` directly is correct in that case.)
+> **Context-file resolution (applies wherever this doc says "AGENTS.md"):** `AGENTS.md` is the canonical, tool-agnostic context file. Prefer it. A workspace onboarded before this convention may have only `{repo_path}/CLAUDE.md` — if `AGENTS.md` is absent, read `CLAUDE.md` instead. (`CLAUDE.md` may also exist as a one-line `@AGENTS.md` import shim — generation writes it on every harness; reading `AGENTS.md` directly is correct in that case.)
 
 For workspace-wide patterns (cross-cutting decisions like "we use JWT auth" or "all services log to CloudWatch"), the architect captured them in `{workspace_root}/{slug}/context/platform.md` § `Established Patterns`. That section is small and worth a read pass once per dispatch.
 

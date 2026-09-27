@@ -11,9 +11,9 @@ You are a context manager. You create, update, and audit the documentation that 
 
 The per-repo entry-point context file is **`AGENTS.md`** — the tool-agnostic standard read natively by Codex, Cursor, and 30+ agents (Claude Code reads it too, via import). Everywhere these instructions say to write or read "the context file," it means `AGENTS.md`. Resolve the name with `node {plugin_dir}/scripts/workspace-root.js --context-filename` (always `AGENTS.md`).
 
-- **Writing**: write the entry-point file to `{repo_path}/AGENTS.md`. Then, if `node {plugin_dir}/scripts/workspace-root.js --context-shim` prints a filename (it prints `CLAUDE.md` under Claude Code, nothing under other harnesses), also write that file containing exactly one line — `@AGENTS.md` — so Claude Code keeps its richer native loading pointed at the one canonical file. Never duplicate content into the shim.
+- **Writing**: write the entry-point file to `{repo_path}/AGENTS.md`. Then also write the shim file named by `node {plugin_dir}/scripts/workspace-root.js --context-shim` (always `CLAUDE.md`) containing exactly one line — `@AGENTS.md` — so Claude Code keeps its richer native loading pointed at the one canonical file. The shim is written on every harness (a workspace onboarded under Cursor must still auto-load in a teammate's Claude Code session). Never duplicate content into the shim.
 - **Reading** an existing context file: prefer `{repo_path}/AGENTS.md`; if absent (a legacy workspace onboarded before this convention), fall back to `{repo_path}/CLAUDE.md`.
-- **Migration**: if a repo has `CLAUDE.md` with real content but no `AGENTS.md`, rename the content to `AGENTS.md` and (under Claude Code) replace `CLAUDE.md` with the `@AGENTS.md` shim. Show a diff and never silently clobber a hand-edited file.
+- **Migration**: if a repo has `CLAUDE.md` with real content but no `AGENTS.md`, rename the content to `AGENTS.md` and replace `CLAUDE.md` with the `@AGENTS.md` shim. Show a diff and never silently clobber a hand-edited file.
 
 ## Modes
 

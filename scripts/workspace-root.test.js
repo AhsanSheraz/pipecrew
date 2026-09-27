@@ -77,9 +77,11 @@ test('--context-filename is AGENTS.md on every harness (canonical)', () => {
   assert(run('--context-filename', 'claude').out === 'AGENTS.md', 'claude should be AGENTS.md');
 });
 
-test('--context-shim is CLAUDE.md under Claude, empty otherwise', () => {
+test('--context-shim is CLAUDE.md on every harness (mixed-harness teams)', () => {
+  // The shim is written unconditionally so a workspace onboarded under Cursor
+  // still auto-loads in a teammate's Claude Code session.
   assert(run('--context-shim', 'claude').out === 'CLAUDE.md', 'claude shim should be CLAUDE.md');
-  assert(run('--context-shim', 'cursor').out === '', `cursor should emit no shim, got '${run('--context-shim', 'cursor').out}'`);
+  assert(run('--context-shim', 'cursor').out === 'CLAUDE.md', `cursor shim should also be CLAUDE.md, got '${run('--context-shim', 'cursor').out}'`);
 });
 
 test('claude paths are unchanged from the legacy layout (no regression)', () => {

@@ -5,8 +5,8 @@ plugin (and its marketplace). Editing files here changes the shipped plugin — 
 user workspace.
 
 > Don't confuse this file with the per-repo **`AGENTS.md`** files PipeCrew *generates* for user
-> repos during `/discover` (canonical, tool-agnostic; under Claude Code a one-line `CLAUDE.md`
-> `@AGENTS.md` shim sits beside it). Those are agent-context for someone else's codebase; this
+> repos during `/discover` (canonical, tool-agnostic; a one-line `CLAUDE.md` `@AGENTS.md` shim
+> sits beside it on every harness). Those are agent-context for someone else's codebase; this
 > `CLAUDE.md` is the dev guide for the plugin itself and stays as-is.
 
 ## What this repo is
@@ -47,8 +47,9 @@ crew runs unchanged. Only the manifests differ (`.claude-plugin/` vs `.cursor-pl
   tracked follow-up — see the PR that introduced `.cursor-plugin/`.
 - **Generated repo-context file is `AGENTS.md` (canonical), not `CLAUDE.md`.** It's the
   tool-agnostic standard read by Claude Code, Cursor, Codex, and 30+ agents. Generation writes
-  `{repo}/AGENTS.md`; under Claude Code it also writes a one-line `CLAUDE.md` = `@AGENTS.md` import
-  shim. **Consumers must read with fallback: prefer `AGENTS.md`, else `CLAUDE.md`** (defined once in
+  `{repo}/AGENTS.md` plus a one-line `CLAUDE.md` = `@AGENTS.md` import shim — on **every** harness,
+  so a Cursor-onboarded workspace still auto-loads in a teammate's Claude Code session.
+  **Consumers must read with fallback: prefer `AGENTS.md`, else `CLAUDE.md`** (defined once in
   `rules/implementer-common.md` / `reviewer-common.md`; resolve names via
   `scripts/workspace-root.js --context-filename` / `--context-shim`). The `templates/repo-AGENTS*.md.template`
   files render it. This repo's *own* root `CLAUDE.md` (this dev guide) is unrelated — leave it.

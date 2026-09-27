@@ -98,7 +98,7 @@ Repo: {repo_path}
 Repo type: {type}
 Repo role: {role}
 
-Read the existing context file if present — prefer {repo_path}/AGENTS.md, else {repo_path}/CLAUDE.md (a legacy workspace) — and any existing agent-context/ directory (non-empty → use refresh semantics for that directory; do not destroy-and-rewrite). If only a legacy CLAUDE.md exists, migrate: write its content to AGENTS.md and (under Claude Code) replace CLAUDE.md with a one-line `@AGENTS.md` shim — show a diff, never silently clobber hand edits. Then follow the `full` mode instructions in your system prompt.
+Read the existing context file if present — prefer {repo_path}/AGENTS.md, else {repo_path}/CLAUDE.md (a legacy workspace) — and any existing agent-context/ directory (non-empty → use refresh semantics for that directory; do not destroy-and-rewrite). If only a legacy CLAUDE.md exists, migrate: write its content to AGENTS.md and replace CLAUDE.md with a one-line `@AGENTS.md` shim — show a diff, never silently clobber hand edits. Then follow the `full` mode instructions in your system prompt.
 
 Template dispatch (per your system prompt):
 - role = api-service OR worker → use templates/agent-context-backend/ + templates/repo-AGENTS-backend.md.template
@@ -111,7 +111,7 @@ Output order:
 2. For each bounded context (backend) or feature module (frontend) that warrants its own file (see triggers in the bundle's domains/_template.md or features/_template.md), copy the template, rename, and fill.
 3. For each external system the repo integrates with (backend) or backend service the repo consumes (frontend), copy the matching _template.md and fill.
 4. AGENTS.md second, using the role-specific template, referencing agent-context.
-5. Context shim: run `node {plugin_dir}/scripts/workspace-root.js --context-shim` — if it prints a filename (`CLAUDE.md` under Claude Code; nothing under Cursor/others), write that file containing exactly one line: `@AGENTS.md`. This keeps Claude Code's native loading pointed at the one canonical AGENTS.md. Never duplicate content into the shim.
+5. Context shim: write the file named by `node {plugin_dir}/scripts/workspace-root.js --context-shim` (always `CLAUDE.md`) containing exactly one line: `@AGENTS.md`. Written on every harness — a workspace onboarded under Cursor must still auto-load in a teammate's Claude Code session. Never duplicate content into the shim.
 
 Validate AGENTS.md with: node {plugin_dir}/scripts/validate-claude-md.js {repo_path}/AGENTS.md
 On exit 1, fix the flagged issues and re-validate. On exit 2, record warnings but continue.
@@ -126,7 +126,7 @@ Repo: {repo_path}
 Repo type: {type}
 Repo role: {role}
 
-Read the existing context file if present — prefer {repo_path}/AGENTS.md, else {repo_path}/CLAUDE.md (legacy). Then follow the `claude-only` mode instructions in your system prompt to produce a self-contained AGENTS.md at {repo_path}/AGENTS.md, using the template at {plugin_dir}/templates/repo-AGENTS.md.template. Include the `<!-- claude-only-mode -->` sentinel at the top so the validator skips the mandatory-bullet check. Then write the context shim if `node {plugin_dir}/scripts/workspace-root.js --context-shim` prints one (`CLAUDE.md` = one line `@AGENTS.md`, under Claude Code only).
+Read the existing context file if present — prefer {repo_path}/AGENTS.md, else {repo_path}/CLAUDE.md (legacy). Then follow the `claude-only` mode instructions in your system prompt to produce a self-contained AGENTS.md at {repo_path}/AGENTS.md, using the template at {plugin_dir}/templates/repo-AGENTS.md.template. Include the `<!-- claude-only-mode -->` sentinel at the top so the validator skips the mandatory-bullet check. Then write the context shim named by `node {plugin_dir}/scripts/workspace-root.js --context-shim` (always `CLAUDE.md` = one line `@AGENTS.md`, on every harness).
 
 Validate with: node {plugin_dir}/scripts/validate-claude-md.js {repo_path}/AGENTS.md
 On exit 1, fix the flagged issues and re-validate. On exit 2, record warnings but continue.

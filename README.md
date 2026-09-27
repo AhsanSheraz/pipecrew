@@ -137,10 +137,11 @@ under `{workspace_root}/{slug}/` — workspace config, a `platform.md` map of yo
 per-repo `AGENTS.md`, and domain-specialized agents. Run it once per project.
 
 > **Context file:** PipeCrew writes a per-repo **`AGENTS.md`** — the tool-agnostic
-> standard read natively by Claude Code, Cursor, Codex, and 30+ agents. Under Claude Code it
-> also drops a one-line `CLAUDE.md` (`@AGENTS.md`) so Claude keeps its richer native loading
-> pointed at the same file. Workspaces onboarded before this convention keep working — the crew
-> reads `AGENTS.md`, falling back to `CLAUDE.md` when only the latter exists.
+> standard read natively by Claude Code, Cursor, Codex, and 30+ agents. It also drops a
+> one-line `CLAUDE.md` (`@AGENTS.md`) beside it — on every harness, so a workspace onboarded
+> under Cursor still auto-loads in a teammate's Claude Code session. Workspaces onboarded
+> before this convention keep working — the crew reads `AGENTS.md`, falling back to
+> `CLAUDE.md` when only the latter exists.
 
 ### 2. Ship a feature — `/deliver`
 

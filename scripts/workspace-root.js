@@ -37,8 +37,9 @@
  *                 print the canonical per-repo context filename (AGENTS.md — same
  *                 on every harness)
  *   --context-shim
- *                 print the extra shim file to also write (CLAUDE.md under Claude
- *                 Code, nothing otherwise)
+ *                 print the extra shim file to also write (always CLAUDE.md — a
+ *                 one-line `@AGENTS.md` import written on every harness so the
+ *                 workspace also auto-loads in Claude Code sessions)
  *
  * Zero dependencies — pure Node stdlib.
  */
@@ -62,12 +63,13 @@ const USER_AGENTS_DIR = path.join(HARNESS_HOME, 'agents');
 
 // The per-repo agent-context file. `AGENTS.md` is the canonical, tool-agnostic
 // standard (read natively by Codex, Cursor, and 30+ agents; Claude Code reads it
-// via import). It is the same on every harness. Under Claude Code we ALSO write a
-// thin `CLAUDE.md` shim (`@AGENTS.md`) to keep Claude's richer native loading with
-// one source of content; other harnesses need no shim. CONTEXT_SHIM is the shim
-// filename to also write, or '' when none is needed for this harness.
+// via import). It is the same on every harness. We ALSO always write a thin
+// `CLAUDE.md` shim (`@AGENTS.md`) — regardless of the generating harness — so a
+// workspace onboarded under Cursor still auto-loads in a teammate's Claude Code
+// session. The shim is a harmless one-liner for non-Claude harnesses; content
+// lives only in AGENTS.md. CONTEXT_SHIM is the shim filename to also write.
 const CONTEXT_FILENAME = 'AGENTS.md';
-const CONTEXT_SHIM = HARNESS === 'claude' ? 'CLAUDE.md' : '';
+const CONTEXT_SHIM = 'CLAUDE.md';
 
 function expandTilde(p) {
   if (!p) return p;
@@ -114,8 +116,8 @@ if (require.main === module) {
   if (arg === '--harness')     { process.stdout.write(HARNESS + '\n'); process.exit(0); }
   if (arg === '--context-filename') { process.stdout.write(CONTEXT_FILENAME + '\n'); process.exit(0); }
   if (arg === '--context-shim') {
-    // Prints the shim filename to also write (CLAUDE.md under Claude Code),
-    // or nothing when this harness needs no shim.
+    // Prints the shim filename to also write (always CLAUDE.md — kept as a
+    // flag so a future harness that needs a different shim has one hook).
     if (CONTEXT_SHIM) process.stdout.write(CONTEXT_SHIM + '\n');
     process.exit(0);
   }
