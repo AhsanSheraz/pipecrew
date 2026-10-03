@@ -16,7 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Or enable hands-off updates once: `/plugin` → **Marketplaces** → `pipecrew` → **Enable auto-update**.
 Watch the [repo Releases](https://github.com/pipecrew-ai/pipecrew/releases) (Watch → Custom → Releases) to be notified of new versions.
 
-## [Unreleased]
+## [1.14.0] - 2026-10-03
 
 ### Added
 - **Routing CLAUDE.md at the repos' parent** (`templates/root-CLAUDE.md.template`
