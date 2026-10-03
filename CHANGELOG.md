@@ -16,6 +16,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Or enable hands-off updates once: `/plugin` → **Marketplaces** → `pipecrew` → **Enable auto-update**.
 Watch the [repo Releases](https://github.com/pipecrew-ai/pipecrew/releases) (Watch → Custom → Releases) to be notified of new versions.
 
+## [Unreleased]
+
+### Added
+- **Routing CLAUDE.md at the repos' parent** (`templates/root-CLAUDE.md.template`
+  + `scripts/sync-root-claude.js`). Each workspace now places a CLAUDE.md at the
+  parent directory(ies) of its repos — the placement that actually loads, since
+  Claude Code walks UP from the session's launch dir and sessions run inside
+  repos (same anchor rule as `setup-workspace-permissions.js`). The file routes
+  user asks to PipeCrew skills (`/deliver`, `/patch`, `/troubleshoot`,
+  `/review`, `/learn`, …) AND maps needs to directly-dispatchable agents
+  (`pipecrew:solution-architect`, `<slug>-troubleshooter`,
+  `pipecrew:security-consultant`, …) so a plain session can consult a single
+  agent without a full pipeline. The body is a static template shipped with the
+  plugin (always version-matched to the running plugin); the only dynamic
+  content is the per-workspace block between `<!-- pipecrew:workspaces -->`
+  markers — absolute pointers to that workspace's `context/platform.md` +
+  `config.json` and its concrete agent names. Workspaces don't know about each
+  other: a normal (disjoint-parent) layout gets a clean single-workspace file;
+  only when two workspaces share a repo parent does the file carry one block
+  per workspace, each owning its own. Removed workspaces self-prune; a
+  hand-authored CLAUDE.md is preserved verbatim (only the small managed section
+  is appended); a monorepo parent that sits inside a git repo is hoisted to
+  just above the repo top (the routing file must never land in a committed
+  repo CLAUDE.md); parents at a filesystem root, the home dir, or inside
+  `~/.claude` are skipped. Wired into `/discover` Phase C (new Step 5) and
+  `/join` Step 6, so both the workspace owner and every joined teammate get the
+  routing guide automatically. 17 unit tests (`scripts/sync-root-claude.test.js`).
+- **Opt-in user-level breadcrumb** (`sync-root-claude.js --user`). Strictly
+  consent-gated (it edits the user's personal `~/.claude/CLAUDE.md`): maintains
+  a tiny `<!-- pipecrew:machine -->` marker block — "PipeCrew runs on this
+  machine" plus the registered workspaces from `workspace-registry.js` (across
+  all roots) with their `platform.md` paths — so sessions launched OUTSIDE any
+  repo parent still learn the toolbox exists. Never carries the routing tables
+  (those stay in the repos-parent files); user content outside the markers is
+  never touched; dead registry entries are excluded on each run. Offered with
+  yes/no/show-me-first prompts in `/discover` Phase C Step 5 and `/join` Step 6.
+
 ## [1.13.0] - 2026-10-02
 
 ### Added
