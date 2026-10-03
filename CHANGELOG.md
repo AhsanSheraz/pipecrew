@@ -53,6 +53,31 @@ Watch the [repo Releases](https://github.com/pipecrew-ai/pipecrew/releases) (Wat
   never touched; dead registry entries are excluded on each run. Offered with
   yes/no/show-me-first prompts in `/discover` Phase C Step 5 and `/join` Step 6.
 
+### Changed
+- **Routing file converged on `AGENTS.md`** (parity with the v1.13.0 per-repo
+  convention). `sync-root-claude.js` now writes the routing content to
+  `AGENTS.md` at the repos' parent (read natively by Cursor, Codex, and other
+  agents) plus a one-line `CLAUDE.md` shim (`@AGENTS.md`) for Claude Code —
+  both on every harness, so the routing guide loads in Cursor sessions too.
+  Template renamed `root-CLAUDE.md.template` → `root-AGENTS.md.template`;
+  filenames come from `workspace-root.js` (`CONTEXT_FILENAME`/`CONTEXT_SHIM`),
+  the same source of truth the per-repo generation uses. Lazy migration, no
+  forced rewrite: a pre-parity plugin-owned `CLAUDE.md` (carries the
+  `pipecrew:root-dispatcher` sentinel) migrates on the next run — content →
+  `AGENTS.md`, blocks carried over, `CLAUDE.md` becomes the shim; a
+  hand-authored `CLAUDE.md` holding our managed container keeps being
+  maintained in place; a hand-authored `CLAUDE.md` without markers gets only
+  the one-line `@AGENTS.md` import appended.
+- **Routing-file opt-out + uninstall.** `"root_context": false` under
+  `workspace` in `config.json` disables generation for that workspace —
+  persisted, so /discover re-runs, /join, and refreshes all honor it (the
+  routing file costs ~1k static cached tokens per session; the opt-out exists
+  for zero-footprint preference, not economics). `sync-root-claude.js --remove`
+  uninstalls an existing footprint: the workspace's block is dropped; a
+  plugin-owned file left empty is deleted along with its one-liner shim; a
+  hand-authored file keeps everything else. `--remove` works while the flag is
+  off — that's the cleanup path. 26 unit tests.
+
 ## [1.13.0] - 2026-10-02
 
 ### Added
