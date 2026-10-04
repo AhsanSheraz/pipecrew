@@ -58,6 +58,22 @@ Watch the [repo Releases](https://github.com/pipecrew-ai/pipecrew/releases) (Wat
 - Deferred by design (recorded in `docs/design/test-cases.md`): wiring either
   skill into /deliver and /discover, and synthetic-tenant support for mutating
   cases in production.
+- **Provenance trailers on every pipeline-created commit.** `/deliver` commits
+  (Phase 5 task commits, Phase 5.5 fix rounds, the Phase 8 catch-all) and
+  `/patch --commit` commits now end with a trailer paragraph:
+  `PipeCrew-Run-Id: {run_id}` + `PipeCrew-Version: {plugin_version}` (resolved
+  once in pre-flight from `.claude-plugin/plugin.json`). Memory-repo commits via
+  `sync-memory.js` are stamped with `PipeCrew-Version:` automatically (BOM-safe
+  manifest read; a failed read never blocks a sync). Any commit in any repo now
+  answers "which run produced this, on which plugin version" with one
+  `git log --format=%(trailers)`.
+
+### Changed
+- **/learn's plugin-vs-human commit partition now leads with the
+  `PipeCrew-Run-Id:` trailer** (definitive) and demotes `Co-Authored-By: Claude`
+  to a pre-trailer-history fallback — that generic trailer rides on ANY
+  Claude-Code-assisted commit, including the user's own post-merge fixes, so it
+  could misclassify exactly the human-fix signal /learn mines for learnings.
 
 ## [1.14.0] - 2026-10-03
 
