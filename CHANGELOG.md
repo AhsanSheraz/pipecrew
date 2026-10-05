@@ -16,7 +16,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Or enable hands-off updates once: `/plugin` → **Marketplaces** → `pipecrew` → **Enable auto-update**.
 Watch the [repo Releases](https://github.com/pipecrew-ai/pipecrew/releases) (Watch → Custom → Releases) to be notified of new versions.
 
-## [Unreleased]
+## [1.16.1] - 2026-10-06
+
+### Fixed
+- **Plugin hooks never loaded — `plugin.json` now declares the hooks path.** Claude
+  Code only auto-discovers a *top-level* `hooks/hooks.json`; it never read
+  `.claude-plugin/hooks/hooks.json`, so every plugin hook (update-available nudge,
+  `/troubleshoot` read-only bash guard, `/deliver --auto-approve` helper, site-view
+  "needs approval" banner) silently never fired on any install since v1.1.0. The
+  top-level location is deliberately avoided (Cursor auto-discovers that path in an
+  incompatible format), so the file stays put and `plugin.json` gains
+  `"hooks": "./.claude-plugin/hooks/hooks.json"`. New eval guard
+  (`eval/tests/08-claude-hooks-manifest.js`) pins the wiring. (#73)
 
 ### Changed
 - **cwd-anchored placement — new workspaces are created in the project directory.**
@@ -32,7 +43,7 @@ Watch the [repo Releases](https://github.com/pipecrew-ai/pipecrew/releases) (Wat
   repo sitting beside the code). Existing workspaces are untouched (registry-tracked
   by absolute path); `/deliver` with nothing registered now says "run /discover or
   /join" instead of asking for a storage root. Design:
-  `docs/design/workspace-registry.md` § cwd-anchored placement.
+  `docs/design/workspace-registry.md` § cwd-anchored placement. (#75)
 - **Session-scoped workspace resolution — `current` renamed `default_workspace`.**
   The registry's `current` key was machine-global mutable state: with two parallel
   sessions on different workspaces, a bare skill invocation targeted whatever was
@@ -48,7 +59,11 @@ Watch the [repo Releases](https://github.com/pipecrew-ai/pipecrew/releases) (Wat
   deprecated aliases; `--list --json` mirrors the value under `current` for one
   release. `workspace-root.js --get` inherits cwd inference, so legacy callers
   become session-scoped too. New `--resolve` flags: `--cwd=<path>`, `--no-cwd`.
-  See `docs/design/workspace-registry.md` § Follow-up.
+  See `docs/design/workspace-registry.md` § Follow-up. (#71)
+- **Skill instructions no longer reference design docs.** All "see `docs/design/…`"
+  pointers were removed from `skills/` — skills are operating procedure read by the
+  executing agent; the inline rules are complete and the rationale stays in
+  `docs/design/`. (#74)
 
 ## [1.16.0] - 2026-10-05
 
