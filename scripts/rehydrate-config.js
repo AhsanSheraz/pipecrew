@@ -91,13 +91,16 @@ function rehydrate(portable, opts = {}) {
   }
 
   // Drop services whose repo was skipped, so the result stays validator-clean.
+  // Report them: a silently vanished service is a surprise a /deliver run only
+  // discovers later when the service it expected isn't in the config.
+  const droppedServices = [];
   if (cfg.services && skip.size) {
     for (const [svc, s] of Object.entries(cfg.services)) {
-      if (s && skip.has(s.repo)) delete cfg.services[svc];
+      if (s && skip.has(s.repo)) { droppedServices.push(svc); delete cfg.services[svc]; }
     }
   }
 
-  return { config: cfg, unresolved };
+  return { config: cfg, unresolved, droppedServices };
 }
 
 // ---- CLI ----
@@ -120,7 +123,7 @@ if (require.main === module) {
   }
 
   const skipRaw = flag('--skip', argv);
-  const { config, unresolved } = rehydrate(portable, {
+  const { config, unresolved, droppedServices } = rehydrate(portable, {
     reposRoot: flag('--repos-root', argv),
     map: parseMap(flag('--map', argv)),
     skip: new Set(skipRaw && skipRaw !== true ? skipRaw.split(',').map((s) => s.trim()).filter(Boolean) : []),
@@ -129,6 +132,10 @@ if (require.main === module) {
   if (unresolved.length) {
     console.error(`rehydrate-config: no local path for repo(s): ${unresolved.join(', ')} — pass --repos-root or --map for each (or --skip to drop).`);
     process.exit(2);
+  }
+
+  if (droppedServices.length) {
+    console.error(`rehydrate-config: dropped ${droppedServices.length} service(s) whose repo was skipped: ${droppedServices.join(', ')} — re-run /join without --skip for that repo to restore them.`);
   }
 
   const out = JSON.stringify(config, null, 2) + '\n';
