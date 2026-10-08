@@ -16,6 +16,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Or enable hands-off updates once: `/plugin` → **Marketplaces** → `pipecrew` → **Enable auto-update**.
 Watch the [repo Releases](https://github.com/pipecrew-ai/pipecrew/releases) (Watch → Custom → Releases) to be notified of new versions.
 
+## [1.16.2] - 2026-10-08
+
+### Fixed
+- **`/join` can finally clone missing repos — `repo_url` is now backfilled from git
+  remotes at sync time.** `repo_url` (the machine-independent clone URL that lets a
+  teammate's `/join` clone a repo instead of hand-pointing to a local copy) was only
+  ever captured opportunistically by `/discover`'s LLM step, so every workspace
+  onboarded before that — including real ones — shipped with **zero** clone URLs,
+  forcing every join into fully manual point-to-local (missing repos were silently
+  skipped). New `scripts/backfill-repo-urls.js` derives each repo's `repo_url` from its
+  local `git remote get-url origin` (stripping any `user:token@` credentials before it
+  is written), and `sync-memory.js` runs it just before regenerating
+  `config.portable.json`. Running `/memory-sync sync` on an existing workspace now
+  publishes clone URLs to shared memory with **no `/discover` re-run**. Best-effort: a
+  repo with no resolvable origin is reported, never fatal; a hand-curated `repo_url` is
+  preserved unless `--force`. (#79)
+
+### Changed
+- **`/join` Step 4 is now per-repo and clone-first.** Previously a single global
+  "clone vs point-to-local" choice meant a repo that wasn't present locally and had no
+  `repo_url` was silently skipped. Now each repo is resolved independently: present on
+  disk → point at it; missing with a `repo_url` → clone it; missing without one → ask
+  the user to paste a clone URL (or point at a local copy). Skipping is an explicit,
+  surfaced choice — never the default for a repo that simply hasn't been fetched. (#79)
+- **`rehydrate-config.js` reports dropped services.** When `/join --skip` drops a repo,
+  any service referencing it is dropped too; the CLI now names those services
+  (previously silent) so a later `/deliver` doesn't hit a surprise missing service. (#79)
+
 ## [1.16.1] - 2026-10-06
 
 ### Fixed

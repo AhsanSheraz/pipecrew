@@ -263,9 +263,12 @@ single command — no re-onboarding, no code analysis:
 ```
 
 Run `/join` **from the directory the project should live in**: it clones the memory repo
-there, then either clones each code repo beside it (from the `repo_url` recorded at
-onboarding) or points at copies the teammate already has, and rebuilds their machine-local
-`config.json` — ending with the same repos-plus-workspace layout the owner has. They
+there, then resolves each code repo independently — cloning it beside the workspace (from
+the `repo_url` recorded at onboarding or backfilled from the owner's git remotes on
+`/memory-sync sync`), pointing at a copy the teammate already has, or, when no URL is
+known, prompting for one to clone — and rebuilds their machine-local `config.json`, ending
+with the same repos-plus-workspace layout the owner has. A repo is left out only by an
+explicit skip, never silently. They
 immediately run `/deliver` against the same shared platform context. Day-to-day,
 `/memory-sync status | pull | sync` keeps everyone level. See
 [`design/github-memory.md`](design/github-memory.md).

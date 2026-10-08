@@ -110,6 +110,12 @@ for (const sub of ['context', 'agents', 'history', 'testcases']) {
   if (r.stdout) process.stdout.write(r.stdout);
 }
 
+// --- 1.5 backfill repo_url from git remotes (owner-side, best-effort) ---
+// Derive each repo's clone URL from its local `git origin` BEFORE the portable
+// config is regenerated, so the shared memory ships clone-capable URLs for
+// /join. Never blocks the sync — a missing/urlless repo is reported, not fatal.
+backfillRepoUrls();
+
 // --- 2. regenerate config.portable.json (machine-independent) ---
 regeneratePortableConfig();
 
@@ -245,6 +251,30 @@ function stagedTouchesCanon(stagedList) {
     const n = f.replace(/\\/g, '/');
     return n === 'context/platform.md' || n.startsWith('context/adrs/');
   });
+}
+
+// Owner-side enrichment: fill repos.{key}.repo_url from each repo's git origin
+// so /join on a teammate's machine can clone instead of hand-pointing. Only
+// fills absent URLs (a hand-curated repo_url is never clobbered); warns about
+// repos with no resolvable origin. Warn-only — a failure here must not fail the
+// sync, so running on an older urlless workspace just upgrades it opportunistically.
+function backfillRepoUrls() {
+  const cfgPath = path.join(wsDir, 'config.json');
+  if (!fs.existsSync(cfgPath)) return;
+  try {
+    const { backfill, gitOriginUrl } = require('./backfill-repo-urls');
+    const cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+    const { filled, unresolved } = backfill(cfg, { resolveUrl: (_k, p) => gitOriginUrl(p) });
+    if (filled.length) {
+      fs.writeFileSync(cfgPath, JSON.stringify(cfg, null, 2) + '\n');
+      console.log(`sync-memory: backfilled repo_url for ${filled.length} repo(s): ${filled.map((f) => f.key).join(', ')}`);
+    }
+    if (unresolved.length) {
+      warn(`no git origin for ${unresolved.length} repo(s): ${unresolved.join(', ')} — they stay point-to-local on /join (set repo_url by hand to enable cloning)`);
+    }
+  } catch (e) {
+    warn(`repo_url backfill skipped (${e.message})`);
+  }
 }
 
 function regeneratePortableConfig() {

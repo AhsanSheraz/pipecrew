@@ -23,7 +23,7 @@ This skill is the teammate counterpart to `/pipecrew:memory-sync`: memory-sync
 
 ### CRITICAL RULES
 - **The memory remote MUST be private.** After cloning, verify visibility (`gh repo view <url> --json visibility`). If it is public, STOP and warn the user — a public memory repo is a privacy defect on the owner's side; do not continue wiring it up as if trusted.
-- **Never clone code repos without confirmation.** Cloning is a network fetch. List every repo + its `repo_url` and get a single explicit yes before cloning (Step 4). Repos with no `repo_url` can only be pointed-to-local — never guess a URL.
+- **Never clone code repos without confirmation.** Cloning is a network fetch. List every repo + its `repo_url` and get a single explicit yes before cloning (Step 4). A repo with no `repo_url` is resolved by asking the user — either a clone URL they paste, or a path to a local copy. Never guess, fabricate, or infer a URL; never silently skip a missing repo.
 - **Do not run redaction or push anything.** `join` is read-mostly on the memory side: it clones and reads. It writes only local, gitignored files (`config.json`, `config.local.json`). It never commits to or pushes the memory repo — the owner's syncs and the teammate's later runs do that.
 - **This is not `/discover`.** Never re-analyze the code or regenerate `platform.md`/agents — the shared memory is authoritative. If the teammate wants a fresh analysis, that's `/discover`, not `join`.
 
@@ -63,23 +63,56 @@ Read `{workspace_root}/{slug}/config.portable.json`. Each `repos.{key}` entry ca
 
 Present the roster to the user: which repos have a `repo_url` (cloneable) and which don't.
 
-### Step 4: Resolve each repo to a local path
+### Step 4: Resolve each repo
 
-Ask the user once: **clone the repos, or point at copies you already have?** (`--mode` skips the ask.)
+**Goal: every repo in the roster ends up with a local path on this machine.** A repo
+that isn't present yet is **cloned**, not skipped — skipping is a deliberate choice the
+user makes, never the default for a repo that merely hasn't been fetched. Resolve each
+repo **independently**; the old global "clone vs local" question is now just a default for
+the per-repo decision (and `--mode` still forces one for a non-interactive run).
 
-**Clone mode** (`--mode=clone`):
-- Default clone root is `{workspace_root}` itself — each repo lands as a **direct sibling** of the memory clone (`{workspace_root}/{key}`), never inside it (the memory repo is itself a git repo). This gives the teammate the same project-directory layout the owner has: repos + workspace side by side. Override with `--repos-root=<dir>`; confirm the target with the user. If a destination `{clone_root}/{key}` already exists, STOP for that repo and ask — point at it with `--map`, or `--skip` it; never clone over it.
-- List every repo with a `repo_url` + its destination `{clone_root}/{key}`, then — after one explicit confirmation — clone each:
-  ```bash
-  git clone <repo_url> {clone_root}/{key}
-  ```
-- Any repo **without** a `repo_url` cannot be cloned — fall back to asking the user for a local path for it, or `--skip` it.
+First decide the **clone root** (where fresh clones land): `{workspace_root}` itself by
+default, so each clone is a **direct sibling** of the memory clone (`{workspace_root}/{key}`),
+never inside it (the memory repo is itself a git repo) — the same repos-plus-workspace
+layout the owner has. Override with `--repos-root=<dir>`; confirm it with the user.
 
-**Local mode** (`--mode=local`):
-- Ask for the `repos_root` the teammate already uses. For each repo, the local path is `{repos_root}/{key}` by default; if their layout differs, collect an explicit path per repo.
-- **Keep the workspace with the code**: if `{repos_root}` differs from `{workspace_root}`, offer to move the memory clone there — `{workspace_root}/{slug}` → `{repos_root}/{slug}` (a plain directory move; nothing references the path yet — `config.json`, registration, and the root routing context all happen in Steps 5–6). On yes, move it and set `{workspace_root} = {repos_root}` for the remaining steps, so the joiner still ends up with the owner's repos-plus-workspace layout. On no, continue as-is — cwd inference resolves the workspace from both locations either way.
+Then classify each repo:
 
-Either way you end up with, per repo, one of: an absolute local path, or a decision to skip. Build a `--map=key=path,...` for explicit paths and a `--skip=key,...` for any the teammate opts out of. Use a single `--repos-root` when every path is just `{root}/{key}`.
+1. **Already on disk** → point at it. A copy exists at `{clone_root}/{key}`, at a
+   `--map=key=path` the user gave, or (local mode) under the teammate's `repos_root`.
+   No network fetch. (If a destination path exists but is *not* this repo, STOP and
+   ask — `--map` it elsewhere or `--skip`; never clone over it.)
+2. **Missing but has `repo_url`** → **clone it** (this is the case backfill + the owner's
+   last `/memory-sync sync` exists to enable):
+   ```bash
+   git clone <repo_url> {clone_root}/{key}
+   ```
+3. **Missing and no `repo_url`** → **ask the user for a clone URL to paste.** If they give
+   one, clone it (into `{clone_root}/{key}`). If they'd rather point at a copy they already
+   have, take a path and `--map` it. **Only if they decline both** do you `--skip` it —
+   and say so explicitly in the Step 6 summary, naming the services that drops (Step 5's
+   rehydrate prints them). Never fabricate a URL.
+
+**Confirm once, then act.** Present the full resolved plan — already-local repos, repos to
+clone (URL → destination), and any repo still needing a URL from the user — and get a
+single explicit yes before the first `git clone`. If a workspace's portable config has no
+`repo_url` anywhere (an older workspace, every repo falling to case 3), tell the user the
+one-command owner-side fix: the workspace owner runs `/pipecrew:memory-sync sync`, which
+backfills `repo_url` from their local git remotes into the shared memory — after that a
+re-join clones automatically.
+
+**Keep the workspace with the code** (mainly local mode): if the resolved `repos_root`
+differs from `{workspace_root}`, offer to move the memory clone there —
+`{workspace_root}/{slug}` → `{repos_root}/{slug}` (a plain directory move; nothing
+references the path yet — `config.json`, registration, and the root routing context all
+happen in Steps 5–6). On yes, move it and set `{workspace_root} = {repos_root}` for the
+remaining steps. On no, continue as-is — cwd inference resolves the workspace from both
+locations either way.
+
+You end up with, per repo, one of: an absolute local path (pointed-at or freshly cloned),
+or a deliberate skip. Build a `--map=key=path,...` for explicit paths and a
+`--skip=key,...` for any the user opted out of. Use a single `--repos-root` when every
+remaining path is just `{root}/{key}`.
 
 ### Step 5: Rebuild config.json
 

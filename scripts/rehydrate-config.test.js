@@ -84,11 +84,18 @@ test('drive-root repos_root survives (C: -> C:/key, not the drive-relative C:key
   eq(config.repos['acme-backend'].path, 'C:/acme-backend', 'drive-root joined correctly');
 });
 
-test('--skip drops the repo AND any service referencing it', () => {
-  const { config } = rehydrate(portable(), { reposRoot: '/root', skip: new Set(['acme-backend']) });
+test('--skip drops the repo AND any service referencing it, and reports the drop', () => {
+  const { config, droppedServices } = rehydrate(portable(), { reposRoot: '/root', skip: new Set(['acme-backend']) });
   assert(!('acme-backend' in config.repos), 'repo dropped');
   assert(!('acme-backend' in config.services), 'orphaned service dropped');
   assert('acme-frontend' in config.repos, 'other repo kept');
+  assert(droppedServices.includes('acme-backend'), 'dropped service reported');
+  eq(droppedServices.length, 1, 'exactly one service dropped');
+});
+
+test('no --skip -> droppedServices is empty', () => {
+  const { droppedServices } = rehydrate(portable(), { reposRoot: '/root' });
+  eq(droppedServices.length, 0, 'nothing dropped when nothing skipped');
 });
 
 test('unresolved: no map and no repos-root -> reported, not thrown', () => {
