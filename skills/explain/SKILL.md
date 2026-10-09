@@ -1,6 +1,6 @@
 ---
 name: explain
-description: "Explain anything about a workspace — a domain concept, entity, user flow, service, repo, or piece of code — grounded in the curated PipeCrew context (platform docs, ADRs, repo AGENTS.md / agent-context) and the source when needed. Two perspectives: product (what / who / why, plain language) and technical (how, architect depth, cross-repo, file:line). Every answer cites its sources and states confidence; anything the context couldn't answer is reported as a context gap with a ready-to-run /learn hand-off. READ-ONLY — dispatches the `explainer` agent, whose tool list has no write or shell access."
+description: "Explain anything about a workspace — a domain concept, entity, user flow, service, repo, or piece of code — grounded in the curated PipeCrew context (platform docs, ADRs, repo AGENTS.md / agent-context) and the source when needed. Two perspectives: product (what / who / why, plain language) and technical (how, architect depth, cross-repo, file:line). Quick by default (code only where the docs fall short); --deep verifies every claim in code. Terse sections with a concrete example; every answer cites inline and states confidence; anything the context couldn't answer is reported as a context gap with a ready-to-run /learn hand-off. READ-ONLY — dispatches the `explainer` agent, whose tool list has no write or shell access."
 ---
 
 # /explain
@@ -10,7 +10,7 @@ Ask a question, get an answer grounded in what PipeCrew already knows about your
 - **Product** (`--product`) — *what it is, who uses it, who owns it, why it exists*. Plain language, domain vocabulary, no code in the body. For PMs, newcomers, stakeholders.
 - **Technical** (`--technical`) — *how it works*. Which repos/services are involved, how they connect, the data and status lifecycle, the decisions behind it, and `file:line` references. For engineers and architects.
 
-The agent reads the cheapest, most curated context first (platform docs → topology / decisions / ADRs → repo `AGENTS.md` + `agent-context/` → source) and stops when it has enough. When the curated context can't answer — or the code contradicts it — that's reported as a **context gap**, and the skill offers to hand it to `/learn` so the next answer doesn't have to dig.
+The agent reads the cheapest, most curated context first (platform docs → topology / decisions / ADRs → repo `AGENTS.md` + `agent-context/` → source) and stops when it has enough. By default it opens source code only where the docs fall short; `--deep` verifies every load-bearing claim in code instead. Answers come as terse, scannable sections — flow, a concrete example, interfaces, failure handling, watch-outs — with inline citations. When the curated context can't answer — or the code contradicts it — that's reported as a **context gap**, and the skill offers to hand it to `/learn` so the next answer doesn't have to dig.
 
 This skill only **explains**. It does not diagnose incidents (`/troubleshoot`), change code (`/deliver`, `/patch`), refresh context (`/context-refresh`), or draw full diagrams (`/draw-diagram`).
 
@@ -19,7 +19,7 @@ This skill only **explains**. It does not diagnose incidents (`/troubleshoot`), 
 ```
 /explain <question>
 /explain --product <question>
-/explain --technical <question> [--repo=<name>]
+/explain --technical <question> [--deep] [--repo=<name>]
 /explain <question> [--workspace=<slug>] [--save]
 ```
 
@@ -29,6 +29,7 @@ This skill only **explains**. It does not diagnose incidents (`/troubleshoot`), 
 |------|--------|
 | `--product` | Product perspective — what / who / why, plain language. |
 | `--technical` | Technical perspective — how, architect depth, cross-repo, `file:line`. |
+| `--deep` | Verify every load-bearing claim in source code. Slower and costlier (often 2–3× the tokens), but surfaces doc-vs-code drift and earns `high` confidence. Default is quick: answer from the curated docs and open code only where they fall short. |
 | `--repo=<name>` | Narrow the answer to one repo (a `config.json` repo key). The agent still notes cross-repo hops but doesn't trace them. |
 | `--workspace=<slug>` | Target a specific onboarded workspace. Required when more than one exists (otherwise the skill asks). |
 | `--save` | Also write the answer to `{workspace_root}/{slug}/runs/explain/{run_id}/answer.md`. Off by default — answers are printed, not persisted. |
@@ -36,11 +37,12 @@ This skill only **explains**. It does not diagnose incidents (`/troubleshoot`), 
 ### Examples
 
 ```
-/explain what is a reach campaign and who owns it?
-/explain --product how does a store go live?
-/explain --technical how does a campaign change reach Google and Meta?
-/explain --technical what happens when a task-status message arrives? --repo=reach-management-api
-/explain why do we sync campaigns asynchronously instead of calling the APIs directly?
+/explain what is a contract and who owns it?
+/explain --product how does a publisher go live?
+/explain --technical how does a contract change reach the billing service?
+/explain --technical what happens when a payment-status event arrives? --repo=billing-service
+/explain --technical --deep how does the upload listener work end-to-end?
+/explain why do we sync contracts asynchronously instead of calling the API directly?
 ```
 
 ## Instructions
@@ -88,6 +90,7 @@ Ask at most this one question to disambiguate perspective.
 
 ```
 PERSPECTIVE: {product | technical}
+DEPTH: {deep if --deep, else quick}
 
 Answer this question about the {workspace.name} platform, following your
 tiered context loading and output format. Read-only. Cite every claim.
@@ -104,6 +107,7 @@ repo: {--repo value, or "any"}
 
 ```
 PERSPECTIVE: {product | technical}
+DEPTH: {deep if --deep, else quick}
 
 Answer this question about the repo below, in repo-only mode (no onboarded
 workspace — no cross-repo map). Follow your tiered context loading and output
@@ -120,7 +124,8 @@ If the agent comes back with a clarifying question, relay it to the user and pas
 Show the agent's answer as returned. Then:
 
 - **`--save`** (workspace mode only) → write the answer to `{workspace_root}/{slug}/runs/explain/{YYYY-MM-DD-HHMMSS}-{question-slug}/answer.md` (`{question-slug}` = the first 6–8 words of the question kebab-cased, max 40 chars) and print the path. In repo-only mode, say `--save` needs an onboarded workspace and skip it.
-- **Context gaps** (the `### Context gaps` section is not `None.`, workspace mode) → offer the hand-off:
+- **Unverified gaps only** (a quick-depth answer whose gaps are all "not verified") → suggest re-running with `--deep` instead of `/learn` — there's nothing confirmed to teach yet.
+- **Confirmed context gaps** (the answer has a `### Context gaps` section with missing or code-contradicted docs, workspace mode) → offer the hand-off for those gaps only:
 
   ```
   The curated context couldn't fully answer this. To teach the crew:

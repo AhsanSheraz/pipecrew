@@ -28,11 +28,19 @@ Watch the [repo Releases](https://github.com/pipecrew-ai/pipecrew/releases) (Wat
   a single `p / t` question when unclear. `--repo=` narrows to one repo, `--save`
   persists the answer under `runs/explain/`. The workspace is resolved via the registry
   like every other skill.
+- **Quick by default, `--deep` on demand.** Reading source to verify claims is the main
+  cost of an answer, so the default depth answers from the curated docs and opens code
+  only where they fall short (uncovered hops, `<!-- verify -->` markers, exact-behavior
+  questions, real examples). `--deep` verifies every load-bearing claim in code — slower
+  and costlier, but it surfaces doc-vs-code drift and earns `high` confidence.
 - **`explainer` agent.** Loads context in tiers — `platform.md` → topology / runtime /
   decisions / ADRs → repo `AGENTS.md` (legacy `CLAUDE.md`) + `agent-context/` → source —
-  and stops when it has enough. Every claim is cited; every answer states its
-  confidence. Read-only by tool list (`Read`, `Glob`, `Grep` — no shell, no writes).
-  Mapped to the site-view's `sage` character.
+  reading matching sections rather than whole docs, and stops when it has enough.
+  Answers are terse, scannable sections (flow from origin to final effect, a concrete
+  example taken from checked-in samples or the code, interfaces, failure & retries,
+  config, watch-outs) with inline citations and a confidence line. Read-only by tool
+  list (`Read`, `Glob`, `Grep` — no shell, no writes). Mapped to the site-view's `sage`
+  character.
 - **Context-gap hand-off.** When the curated context can't answer — or the code
   contradicts it — the answer lists the gaps and `/explain` offers a ready-to-run
   `/learn "…"` command, so the next answer doesn't have to dig.
