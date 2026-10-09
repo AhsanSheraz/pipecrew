@@ -16,6 +16,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Or enable hands-off updates once: `/plugin` → **Marketplaces** → `pipecrew` → **Enable auto-update**.
 Watch the [repo Releases](https://github.com/pipecrew-ai/pipecrew/releases) (Watch → Custom → Releases) to be notified of new versions.
 
+## [1.17.0] - Unreleased
+
+### Added
+- **`/explain` — read-only, cited answers from the curated context.** Ask about any
+  domain concept, entity, user flow, service, repo, or piece of code and get an answer
+  grounded in what PipeCrew already knows about the platform. Two perspectives:
+  **product** (`--product` — what it is, who uses it, who owns it, why; plain language)
+  and **technical** (`--technical` — how it works across services, data and status
+  lifecycle, decisions, `file:line`). Without a flag the perspective is inferred, with
+  a single `p / t` question when unclear. `--repo=` narrows to one repo, `--save`
+  persists the answer under `runs/explain/`. The workspace is resolved via the registry
+  like every other skill.
+- **`explainer` agent.** Loads context in tiers — `platform.md` → topology / runtime /
+  decisions / ADRs → repo `AGENTS.md` (legacy `CLAUDE.md`) + `agent-context/` → source —
+  and stops when it has enough. Every claim is cited; every answer states its
+  confidence. Read-only by tool list (`Read`, `Glob`, `Grep` — no shell, no writes).
+  Mapped to the site-view's `sage` character.
+- **Context-gap hand-off.** When the curated context can't answer — or the code
+  contradicts it — the answer lists the gaps and `/explain` offers a ready-to-run
+  `/learn "…"` command, so the next answer doesn't have to dig.
+- **Repo-only fallback.** With no onboarded workspace, `/explain` answers from the
+  current repo's context file, `agent-context/`, and code, clearly labeled as
+  repo-only. Incident reports are routed to `/troubleshoot`; change requests to
+  `/deliver` / `/patch`.
+
 ## [1.16.2] - 2026-10-08
 
 ### Fixed
