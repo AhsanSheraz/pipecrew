@@ -25,9 +25,20 @@ Watch the [repo Releases](https://github.com/pipecrew-ai/pipecrew/releases) (Wat
   **product** (`--product` — what it is, who uses it, who owns it, why; plain language)
   and **technical** (`--technical` — how it works across services, data and status
   lifecycle, decisions, `file:line`). Without a flag the perspective is inferred, with
-  a single `p / t` question when unclear. `--repo=` narrows to one repo, `--save`
-  persists the answer under `runs/explain/`. The workspace is resolved via the registry
-  like every other skill.
+  a single `p / t` question when unclear. `--repo=` narrows to one repo. The workspace
+  is resolved via the registry like every other skill.
+- **Answer cache (`scripts/explain-cache.js`).** Every answer records a sha256 of each
+  file it was built from — context docs and code — plus the HEAD of each repo involved.
+  A repeat question is decided like `/context-refresh`'s baseline: **skip** (nothing
+  changed → the saved answer, instantly, no agent dispatch), **fast** (a minority of
+  sources changed → the explainer refreshes only the affected lines from only the
+  changed files and notes what changed), or **full** (no entry, `--fresh`, most sources
+  changed, a 7-day safety ceiling, or anything unreadable). Time alone never
+  invalidates an answer. Cached answers carry a status line and flag repos with new
+  commits the answer never read. Near-identical questions are shortlisted by word
+  overlap and confirmed by the model (or the user when unsure) before reuse. The cache
+  lives under `runs/explain/cache/` (local; `/memory-sync` never publishes it) and keeps
+  the last 3 versions of each answer.
 - **Quick by default, `--deep` on demand.** Reading source to verify claims is the main
   cost of an answer, so the default depth answers from the curated docs and opens code
   only where they fall short (uncovered hops, `<!-- verify -->` markers, exact-behavior
@@ -36,9 +47,11 @@ Watch the [repo Releases](https://github.com/pipecrew-ai/pipecrew/releases) (Wat
 - **`explainer` agent.** Loads context in tiers — `platform.md` → topology / runtime /
   decisions / ADRs → repo `AGENTS.md` (legacy `CLAUDE.md`) + `agent-context/` → source —
   reading matching sections rather than whole docs, and stops when it has enough.
-  Answers are terse, scannable sections (flow from origin to final effect, a concrete
-  example taken from checked-in samples or the code, interfaces, failure & retries,
-  config, watch-outs) with inline citations and a confidence line. Read-only by tool
+  Answers are caveman-dense labeled sections — a one-line "X = …" summary, What,
+  Trigger, Flow (origin to final effect, across repos), External deps, Output (with a
+  concrete example taken from checked-in samples or the code), Config / deploy, Errors,
+  Hazards — with inline citations and a confidence line, ending in an
+  `EXPLAIN_SOURCES` block the cache fingerprints. Read-only by tool
   list (`Read`, `Glob`, `Grep` — no shell, no writes). Mapped to the site-view's `sage`
   character.
 - **Context-gap hand-off.** When the curated context can't answer — or the code

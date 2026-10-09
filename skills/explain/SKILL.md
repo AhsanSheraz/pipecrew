@@ -1,6 +1,6 @@
 ---
 name: explain
-description: "Explain anything about a workspace — a domain concept, entity, user flow, service, repo, or piece of code — grounded in the curated PipeCrew context (platform docs, ADRs, repo AGENTS.md / agent-context) and the source when needed. Two perspectives: product (what / who / why, plain language) and technical (how, architect depth, cross-repo, file:line). Quick by default (code only where the docs fall short); --deep verifies every claim in code. Terse sections with a concrete example; every answer cites inline and states confidence; anything the context couldn't answer is reported as a context gap with a ready-to-run /learn hand-off. READ-ONLY — dispatches the `explainer` agent, whose tool list has no write or shell access."
+description: "Explain anything about a workspace — a domain concept, entity, user flow, service, repo, or piece of code — grounded in the curated PipeCrew context (platform docs, ADRs, repo AGENTS.md / agent-context) and the source when needed. Two perspectives: product (what / who / why, plain language) and technical (how, architect depth, cross-repo, file:line). Quick by default (code only where the docs fall short); --deep verifies every claim in code. Caveman-dense sections with a concrete example and inline citations. Answers are cached: a repeat question returns instantly while the files it was built from are unchanged, and is refreshed from only the changed files when they're not; --fresh forces a rerun. Context gaps get a ready-to-run /learn hand-off. READ-ONLY — dispatches the `explainer` agent, whose tool list has no write or shell access."
 ---
 
 # /explain
@@ -10,7 +10,11 @@ Ask a question, get an answer grounded in what PipeCrew already knows about your
 - **Product** (`--product`) — *what it is, who uses it, who owns it, why it exists*. Plain language, domain vocabulary, no code in the body. For PMs, newcomers, stakeholders.
 - **Technical** (`--technical`) — *how it works*. Which repos/services are involved, how they connect, the data and status lifecycle, the decisions behind it, and `file:line` references. For engineers and architects.
 
-The agent reads the cheapest, most curated context first (platform docs → topology / decisions / ADRs → repo `AGENTS.md` + `agent-context/` → source) and stops when it has enough. By default it opens source code only where the docs fall short; `--deep` verifies every load-bearing claim in code instead. Answers come as terse, scannable sections — flow, a concrete example, interfaces, failure handling, watch-outs — with inline citations. When the curated context can't answer — or the code contradicts it — that's reported as a **context gap**, and the skill offers to hand it to `/learn` so the next answer doesn't have to dig.
+The agent reads the cheapest, most curated context first (platform docs → topology / decisions / ADRs → repo `AGENTS.md` + `agent-context/` → source) and stops when it has enough. By default it opens source code only where the docs fall short; `--deep` verifies every load-bearing claim in code instead. Answers come as caveman-dense labeled sections — What, Trigger, Flow, External deps, Output (with a concrete example), Config / deploy, Errors, Hazards — with inline citations.
+
+**Answers are cached.** Each answer records a fingerprint of every file it was built from — context docs and code. Ask again and, if none of those files changed, you get the saved answer instantly; if some changed, the agent refreshes only the affected lines from only the changed files. Time alone never invalidates an answer; changed sources do (plus a 7-day safety ceiling). `--fresh` always reruns.
+
+When the curated context can't answer — or the code contradicts it — that's reported as a **context gap**, and the skill offers to hand it to `/learn` so the next answer doesn't have to dig.
 
 This skill only **explains**. It does not diagnose incidents (`/troubleshoot`), change code (`/deliver`, `/patch`), refresh context (`/context-refresh`), or draw full diagrams (`/draw-diagram`).
 
@@ -20,7 +24,7 @@ This skill only **explains**. It does not diagnose incidents (`/troubleshoot`), 
 /explain <question>
 /explain --product <question>
 /explain --technical <question> [--deep] [--repo=<name>]
-/explain <question> [--workspace=<slug>] [--save]
+/explain <question> [--fresh] [--workspace=<slug>]
 ```
 
 ### Flags
@@ -30,9 +34,9 @@ This skill only **explains**. It does not diagnose incidents (`/troubleshoot`), 
 | `--product` | Product perspective — what / who / why, plain language. |
 | `--technical` | Technical perspective — how, architect depth, cross-repo, `file:line`. |
 | `--deep` | Verify every load-bearing claim in source code. Slower and costlier (often 2–3× the tokens), but surfaces doc-vs-code drift and earns `high` confidence. Default is quick: answer from the curated docs and open code only where they fall short. |
+| `--fresh` | Ignore the cache: rerun from scratch and replace the saved answer (the previous version is kept in history). Also triggered by "refresh", "redo", or "ignore the cache" in the question. |
 | `--repo=<name>` | Narrow the answer to one repo (a `config.json` repo key). The agent still notes cross-repo hops but doesn't trace them. |
 | `--workspace=<slug>` | Target a specific onboarded workspace. Required when more than one exists (otherwise the skill asks). |
-| `--save` | Also write the answer to `{workspace_root}/{slug}/runs/explain/{run_id}/answer.md`. Off by default — answers are printed, not persisted. |
 
 ### Examples
 
@@ -42,7 +46,7 @@ This skill only **explains**. It does not diagnose incidents (`/troubleshoot`), 
 /explain --technical how does a contract change reach the billing service?
 /explain --technical what happens when a payment-status event arrives? --repo=billing-service
 /explain --technical --deep how does the upload listener work end-to-end?
-/explain why do we sync contracts asynchronously instead of calling the API directly?
+/explain --fresh how does the upload listener work end-to-end?
 ```
 
 ## Instructions
@@ -56,6 +60,10 @@ Resolve the workspace from the registry: `node {plugin_dir}/scripts/workspace-re
 - **Exit 3 with none registered** → **repo-only mode** if the current directory is a git repo (`git rev-parse --show-toplevel` → `{repo_path}`). Tell the user once: `No onboarded workspace — answering from this repo only (no cross-repo map). Run /discover for platform-wide answers.` If the current directory isn't a git repo, stop and point at `/discover`.
 
 `--repo=<name>` must match a `config.json` repo key in workspace mode; if it doesn't, list the valid keys and stop. In repo-only mode it is ignored.
+
+Set the cache directory:
+- workspace mode → `{cache_dir}` = `{workspace_root}/{slug}/runs/explain/cache` (local only — `/memory-sync` never publishes `runs/`)
+- repo-only mode → `{cache_dir}` = `{dirname of node {plugin_dir}/scripts/workspace-root.js --config-path}/explain-cache/{repo-name}` (never inside the repo)
 
 ### Step 2: Resolve the perspective
 
@@ -81,7 +89,26 @@ Ask at most this one question to disambiguate perspective.
 - It describes a live malfunction ("X is failing", "why does Y return 500 today") → suggest `/troubleshoot <symptom>` and ask whether to explain how X is *meant* to work instead.
 - It asks for a change ("add…", "make X do Y") → suggest `/deliver` or `/patch`; offer to explain the current behavior first.
 
-### Step 3: Dispatch the explainer
+### Step 3: Check the cache
+
+Strip any refresh wording ("refresh", "redo", "ignore the cache") from the question and treat it as `--fresh`. Then:
+
+```bash
+node {plugin_dir}/scripts/explain-cache.js lookup --cache-dir={cache_dir} \
+  --question="{question}" --perspective={perspective} --depth={deep|quick} \
+  [--repo={repo}] [--fresh]
+```
+
+Act on `.decision`:
+
+| Decision | Do |
+|----------|----|
+| `skip` | Read `.answer_file` and present it (Step 5) with status `cached · {updated_at, local time} · sources unchanged · --fresh to rerun`. If `.new_commits` is non-empty, add one line per repo: `{repo-name} has {count} new commits since this answer — --fresh to recheck`. **No agent dispatch.** |
+| `fast` | Dispatch in update mode (Step 4) with `.answer_file` and `.changed_files`. Status: `updated · {now} · {n} sources changed ({basenames})`. |
+| `full` | Dispatch normally (Step 4). Status: `fresh · {now}` (append `· {reason}` when the reason is age, depth, or --fresh). |
+| `confirm` | Similar questions were answered before. Compare `.candidates[].question` with the user's question yourself: if one clearly asks the same thing (same subject, same aspect — "how X works" ≠ "how X fails"), rerun `lookup` with `--key={that key}` and act on the new decision. If unsure, ask once: `Answered something similar {age} ago: "{candidate question}". Reuse it? (y / n)`. If none match, treat as `full`. |
+
+### Step 4: Dispatch the explainer
 
 **subagent_type**: `pipecrew:explainer`
 **description**: `"Explain — {perspective} — {question, truncated to ~40 chars}"`
@@ -94,6 +121,7 @@ DEPTH: {deep if --deep, else quick}
 
 Answer this question about the {workspace.name} platform, following your
 tiered context loading and output format. Read-only. Cite every claim.
+End with the EXPLAIN_SOURCES block listing every file you read.
 
 question: {the user's question, verbatim}
 workspace_root: {workspace_root}
@@ -111,46 +139,69 @@ DEPTH: {deep if --deep, else quick}
 
 Answer this question about the repo below, in repo-only mode (no onboarded
 workspace — no cross-repo map). Follow your tiered context loading and output
-format. Read-only. Cite every claim.
+format. Read-only. Cite every claim. End with the EXPLAIN_SOURCES block
+listing every file you read.
 
 question: {the user's question, verbatim}
 repo_path: {repo_path}
 ```
 
+**Update mode** (cache decision `fast`) — the same prompt for the active mode, with these lines inserted after `DEPTH:`:
+
+```
+UPDATE: refresh a cached answer — read the previous answer and only the changed files
+previous_answer: {answer_file}
+changed_files: {changed_files as a JSON array}
+```
+
 If the agent comes back with a clarifying question, relay it to the user and pass the answer back with **SendMessage to continue the SAME agent** — do not spawn a new one.
 
-### Step 4: Present the answer + hand off gaps
+### Step 5: Store, present, hand off gaps
 
-Show the agent's answer as returned. Then:
+1. **Store** (after a `fast` or `full` dispatch): write the agent's full answer to `{cache_dir}/.pending.md`, then
 
-- **`--save`** (workspace mode only) → write the answer to `{workspace_root}/{slug}/runs/explain/{YYYY-MM-DD-HHMMSS}-{question-slug}/answer.md` (`{question-slug}` = the first 6–8 words of the question kebab-cased, max 40 chars) and print the path. In repo-only mode, say `--save` needs an onboarded workspace and skip it.
-- **Unverified gaps only** (a quick-depth answer whose gaps are all "not verified") → suggest re-running with `--deep` instead of `/learn` — there's nothing confirmed to teach yet.
-- **Confirmed context gaps** (the answer has a `### Context gaps` section with missing or code-contradicted docs, workspace mode) → offer the hand-off for those gaps only:
+   ```bash
+   node {plugin_dir}/scripts/explain-cache.js store --cache-dir={cache_dir} \
+     --question="{question}" --perspective={perspective} --depth={deep|quick} \
+     --answer-file={cache_dir}/.pending.md [--repo={repo}] [--key={confirmed key}]
+   ```
 
-  ```
-  The curated context couldn't fully answer this. To teach the crew:
+   Pass `--key` when the answer refreshed a confirmed similar entry, so it's updated in place instead of duplicated. If the result says `stored: false` (the agent omitted the sources block), present the answer anyway and note `not cached — answer listed no sources`.
 
-    /learn "{one-paragraph summary of the gaps, naming the doc each belongs in}" --workspace={slug}
+2. **Present**: the status line first, then the answer **without** the `EXPLAIN_SOURCES` block (it's for the cache, not the reader).
 
-  Run it now? (y / n)
-  ```
+3. **Gaps**:
+   - **Unverified gaps only** (a quick-depth answer whose gaps are all "not verified") → suggest re-running with `--deep` instead of `/learn` — there's nothing confirmed to teach yet.
+   - **Confirmed context gaps** (missing or code-contradicted docs, workspace mode) → offer the hand-off for those gaps only:
 
-  On `y`, invoke `/learn` with exactly that free-form text — `/learn` does its own tier-classification and per-finding approval, so nothing is written without the user's sign-off. On `n`, stop. In repo-only mode, suggest `/discover` instead (there's no workspace context to update).
+     ```
+     The curated context couldn't fully answer this. To teach the crew:
 
-Nothing else is written. Presenting the answer and naming the next step is where `/explain` ends.
+       /learn "{one-paragraph summary of the gaps, naming the doc each belongs in}" --workspace={slug}
+
+     Run it now? (y / n)
+     ```
+
+     On `y`, invoke `/learn` with exactly that free-form text — `/learn` does its own tier-classification and per-finding approval, so nothing is written without the user's sign-off. Once `/learn` edits a doc the answer read, the next lookup sees the change and refreshes the answer. On `n`, stop. In repo-only mode, suggest `/discover` instead (there's no workspace context to update).
+   - A `skip` (cached) answer repeats its gaps but doesn't re-offer `/learn` if nothing changed since it was offered.
+
+Nothing else is written — the cache entry is the only write. Presenting the answer and naming the next step is where `/explain` ends.
 
 ## Edge cases
 
 - **EC-1 — no question given** → ask once: `What do you want explained? A concept, a flow, a service, or a piece of code.`
 - **EC-2 — multiple onboarded workspaces** → the registry infers from the current directory / default; if still ambiguous, ask (Step 1).
-- **EC-3 — no onboarded workspace** → repo-only mode, clearly labeled; the agent's Confidence line says `repo-only mode`. No `/learn` hand-off.
+- **EC-3 — no onboarded workspace** → repo-only mode, clearly labeled; the agent's Confidence line says `repo-only mode`. Cached outside the repo. No `/learn` hand-off.
 - **EC-4 — ambiguous perspective** → the single `p / t` question (Step 2).
 - **EC-5 — incident or change request** → route to `/troubleshoot` / `/deliver` / `/patch` before dispatching (Step 2).
 - **EC-6 — context contradicts code** → the agent trusts the code, says so, and lists the stale doc under Context gaps, which feeds the `/learn` hand-off.
+- **EC-7 — new code the cached answer never read** (e.g. a new handler) → can't be fingerprinted; the `new_commits` notice on a cached answer is the prompt to `--fresh`.
+- **EC-8 — unreadable cache entry** → treated as no entry → `full` ("when in doubt, full").
 
 ## See also
 
-- [`agents/explainer.md`](../../agents/explainer.md) — the read-only agent this skill dispatches (perspectives, tiered context loading, output format)
+- [`agents/explainer.md`](../../agents/explainer.md) — the read-only agent this skill dispatches (perspectives, depth, tiered context loading, output format, update mode)
+- [`scripts/explain-cache.js`](../../scripts/explain-cache.js) — the answer cache (fingerprints, skip / fast / full / confirm decision)
 - [`skills/brainstorm/SKILL.md`](../brainstorm/SKILL.md) — same workspace + perspective resolution, for *what to build* instead of *how it works*
 - [`skills/learn/SKILL.md`](../learn/SKILL.md) — where context gaps go to become durable docs
 - [`skills/troubleshoot/SKILL.md`](../troubleshoot/SKILL.md) — read-only incident triage (symptom → root cause)
