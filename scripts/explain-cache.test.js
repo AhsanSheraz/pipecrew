@@ -166,6 +166,27 @@ test('store then lookup: skip, then fast after a source edit, history kept on re
   }
 });
 
+test('store reads the answer from stdin with --answer-file=-', () => {
+  const { spawnSync } = require('child_process');
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'explain-cache-'));
+  try {
+    const src = path.join(tmp, 'doc.md');
+    fs.writeFileSync(src, 'v1');
+    const answer = `## answer\n<!-- BEGIN EXPLAIN_SOURCES -->\n${JSON.stringify([src])}\n<!-- END EXPLAIN_SOURCES -->\n`;
+    const cacheDir = path.join(tmp, 'cache');
+    const r = spawnSync(process.execPath, [
+      path.join(__dirname, 'explain-cache.js'), 'store', `--cache-dir=${cacheDir}`,
+      '--question=what is a contract', '--perspective=product', '--answer-file=-',
+    ], { input: answer, encoding: 'utf8' });
+    assert.strictEqual(r.status, 0, r.stderr);
+    const out = JSON.parse(r.stdout);
+    assert.strictEqual(out.stored, true);
+    assert.strictEqual(fs.readFileSync(out.answer_file, 'utf8'), answer);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
 test('store refuses an answer without a sources block', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'explain-cache-'));
   try {

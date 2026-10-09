@@ -25,6 +25,7 @@
  *   explain-cache.js store  --cache-dir=<dir> --question="…" --perspective=<p>
  *                           --answer-file=<path> [--depth=quick|deep] [--repo=<name>]
  *                           [--key=<key>]   (update a confirmed similar entry in place)
+ *   --answer-file=- reads the answer from stdin, so the caller needs no temp file.
  *
  * Both print one JSON object on stdout. The answer file must contain the
  * explainer's sources block:
@@ -251,7 +252,7 @@ function store(args) {
   const perspective = args.perspective || 'technical';
   const repo = args.repo || 'any';
   const key = args.key || cacheKey(args.question, perspective, repo);
-  const answer = fs.readFileSync(args['answer-file'], 'utf8');
+  const answer = args['answer-file'] === '-' ? fs.readFileSync(0, 'utf8') : fs.readFileSync(args['answer-file'], 'utf8');
   const paths = extractSources(answer);
   if (!paths || paths.length === 0) {
     return { stored: false, key, reason: 'answer has no EXPLAIN_SOURCES block — not cached' };

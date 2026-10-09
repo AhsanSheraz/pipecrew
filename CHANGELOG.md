@@ -22,8 +22,10 @@ Watch the [repo Releases](https://github.com/pipecrew-ai/pipecrew/releases) (Wat
 - **`/explain` — read-only, cited answers from the curated context.** Ask about any
   domain concept, entity, user flow, service, repo, or piece of code and get an answer
   grounded in what PipeCrew already knows about the platform. Two perspectives:
-  **product** (`--product` — what it is, who uses it, who owns it, why; plain language)
-  and **technical** (`--technical` — how it works across services, data and status
+  **product** (`--product` — what it is, why it matters (value, revenue, customers),
+  who uses and owns it, how it differs from related offerings; business language from
+  the workspace docs only, never source code or system names — a "how" question gets
+  the business journey plus a pointer to `--technical`) and **technical** (`--technical` — how it works across services, data and status
   lifecycle, decisions, `file:line`). Without a flag the perspective is inferred, with
   a single `p / t` question when unclear. `--repo=` narrows to one repo. The workspace
   is resolved via the registry like every other skill.

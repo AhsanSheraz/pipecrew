@@ -7,7 +7,7 @@ description: "Explain anything about a workspace — a domain concept, entity, u
 
 Ask a question, get an answer grounded in what PipeCrew already knows about your platform. It dispatches the read-only `explainer` agent at one of **two perspectives**:
 
-- **Product** (`--product`) — *what it is, who uses it, who owns it, why it exists*. Plain language, domain vocabulary, no code in the body. For PMs, newcomers, stakeholders.
+- **Product** (`--product`) — *what it is, why it matters (value, revenue, key customers), who uses and owns it, how it differs from related offerings*. Business language from the workspace docs only — no system, file, or framework names, and no source code read. A "how" question gets the business journey, plus a pointer to `--technical` for the mechanism. For PMs, newcomers, stakeholders.
 - **Technical** (`--technical`) — *how it works*. Which repos/services are involved, how they connect, the data and status lifecycle, the decisions behind it, and `file:line` references. For engineers and architects.
 
 The agent reads the cheapest, most curated context first (platform docs → topology / decisions / ADRs → repo `AGENTS.md` + `agent-context/` → source) and stops when it has enough. By default it opens source code only where the docs fall short; `--deep` verifies every load-bearing claim in code instead. Answers come as caveman-dense labeled sections — What, Trigger, Flow, External deps, Output (with a concrete example), Config / deploy, Errors, Hazards — with inline citations.
@@ -31,7 +31,7 @@ This skill only **explains**. It does not diagnose incidents (`/troubleshoot`), 
 
 | Flag | Effect |
 |------|--------|
-| `--product` | Product perspective — what / who / why, plain language. |
+| `--product` | Product perspective — what / why it matters / who, in business language; reads workspace docs only. |
 | `--technical` | Technical perspective — how, architect depth, cross-repo, `file:line`. |
 | `--deep` | Verify every load-bearing claim in source code. Slower and costlier (often 2–3× the tokens), but surfaces doc-vs-code drift and earns `high` confidence. Default is quick: answer from the curated docs and open code only where they fall short. |
 | `--fresh` | Ignore the cache: rerun from scratch and replace the saved answer (the previous version is kept in history). Also triggered by "refresh", "redo", or "ignore the cache" in the question. |
@@ -158,12 +158,14 @@ If the agent comes back with a clarifying question, relay it to the user and pas
 
 ### Step 5: Store, present, hand off gaps
 
-1. **Store** (after a `fast` or `full` dispatch): write the agent's full answer to `{cache_dir}/.pending.md`, then
+1. **Store** (after a `fast` or `full` dispatch): pipe the agent's full answer to the script on stdin — one shell call, no temp file, no file-write prompt:
 
    ```bash
    node {plugin_dir}/scripts/explain-cache.js store --cache-dir={cache_dir} \
      --question="{question}" --perspective={perspective} --depth={deep|quick} \
-     --answer-file={cache_dir}/.pending.md [--repo={repo}] [--key={confirmed key}]
+     --answer-file=- [--repo={repo}] [--key={confirmed key}] <<'PIPECREW_EXPLAIN_EOF'
+   {the agent's full answer, verbatim}
+   PIPECREW_EXPLAIN_EOF
    ```
 
    Pass `--key` when the answer refreshed a confirmed similar entry, so it's updated in place instead of duplicated. If the result says `stored: false` (the agent omitted the sources block), present the answer anyway and note `not cached — answer listed no sources`.
