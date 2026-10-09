@@ -40,7 +40,10 @@ Watch the [repo Releases](https://github.com/pipecrew-ai/pipecrew/releases) (Wat
   commits the answer never read. Near-identical questions are shortlisted by word
   overlap and confirmed by the model (or the user when unsure) before reuse. The cache
   lives under `runs/explain/cache/` (local; `/memory-sync` never publishes it) and keeps
-  the last 3 versions of each answer.
+  the last 3 versions of each answer. Answers are saved by piping them to the script
+  (no temp file), and in Claude Code the PreToolUse hook approves the cache calls
+  without a prompt (`scripts/explain-cache-autoapprove.js`) — only PipeCrew's own
+  script, an explain cache dir, and no shell chaining; anything else still prompts.
 - **Quick by default, `--deep` on demand.** Reading source to verify claims is the main
   cost of an answer, so the default depth answers from the curated docs and opens code
   only where they fall short (uncovered hops, `<!-- verify -->` markers, exact-behavior

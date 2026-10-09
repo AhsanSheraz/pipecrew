@@ -99,6 +99,8 @@ node {plugin_dir}/scripts/explain-cache.js lookup --cache-dir={cache_dir} \
   [--repo={repo}] [--fresh]
 ```
 
+In every `explain-cache.js` call, `{question}` is the question with `"`, `$`, `` ` `` and `\` removed (the cache ignores punctuation anyway), and the command stays exactly this shape — no `&&`, pipes, or redirects. In Claude Code, PipeCrew's hook then approves these calls without a prompt; anything else falls back to the normal prompt.
+
 Act on `.decision`:
 
 | Decision | Do |
@@ -168,7 +170,7 @@ If the agent comes back with a clarifying question, relay it to the user and pas
    PIPECREW_EXPLAIN_EOF
    ```
 
-   Pass `--key` when the answer refreshed a confirmed similar entry, so it's updated in place instead of duplicated. If the result says `stored: false` (the agent omitted the sources block), present the answer anyway and note `not cached — answer listed no sources`.
+   Pass `--key` when the answer refreshed a confirmed similar entry, so it's updated in place instead of duplicated. If the result says `stored: false` (the agent omitted the sources block), present the answer anyway and note `not cached — answer listed no sources`. If the user declines the store call, present the answer anyway and note `not cached`; in Cursor (no PipeCrew hooks yet) add once: `To skip this prompt, approve explain-cache.js runs in Settings › Agents › Approvals & Execution.`
 
 2. **Present**: the status line first, then the answer **without** the `EXPLAIN_SOURCES` block (it's for the cache, not the reader).
 

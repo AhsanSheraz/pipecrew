@@ -306,6 +306,10 @@ function main() {
     process.stderr.write('Usage: explain-cache.js lookup|store --cache-dir=<dir> --question="…" --perspective=<p> [--depth=quick|deep] [--repo=<name>] [--key=<k>] [--fresh] [--max-age-days=7] [--answer-file=<path>]\n');
     process.exit(2);
   }
+  if (args.key !== undefined && !/^[0-9a-f]{16}$/.test(String(args.key))) {
+    process.stderr.write('--key must be a 16-char hex key from a previous lookup\n');
+    process.exit(2);
+  }
   if (cmd === 'store' && !args['answer-file']) {
     process.stderr.write('store requires --answer-file=<path>\n');
     process.exit(2);
