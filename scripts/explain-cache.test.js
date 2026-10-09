@@ -10,7 +10,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const {
-  tokens, normalize, cacheKey, jaccard, similar, extractSources, decide, lookup, store,
+  tokens, normalize, cacheKey, overlap, similar, extractSources, decide, lookup, store,
 } = require('./explain-cache.js');
 
 let n = 0;
@@ -49,9 +49,9 @@ test('cacheKey is stable across phrasing noise but scoped by perspective + repo'
 });
 
 // ── similarity ──────────────────────────────────────────────────────────
-test('jaccard scores overlap; disjoint questions score 0', () => {
-  assert.strictEqual(jaccard('upload listener flow', 'upload listener flow'), 1);
-  assert.strictEqual(jaccard('upload listener', 'billing cron'), 0);
+test('overlap scores shared words vs the shorter question; disjoint questions score 0', () => {
+  assert.strictEqual(overlap('upload listener flow', 'upload listener flow'), 1);
+  assert.strictEqual(overlap('upload listener', 'billing cron'), 0);
 });
 
 test('similar shortlists close matches in the same scope only', () => {
@@ -62,6 +62,17 @@ test('similar shortlists close matches in the same scope only', () => {
   ];
   const c = similar('upload listener end to end flow', 'technical', 'any', entries);
   assert.deepStrictEqual(c.map(x => x.key), ['k1']);
+});
+
+test('similar: a shorter rewording of a cached question is shortlisted (works vs work)', () => {
+  const entries = [entry({ key: 'k1', question: 'how does digital-ad-template-sync-listener work end-to-end across all components?' })];
+  const c = similar('how digital-ad-template-sync-listener works?', 'technical', 'any', entries);
+  assert.deepStrictEqual(c.map(x => x.key), ['k1']);
+});
+
+test('similar: unrelated questions sharing one word are not shortlisted', () => {
+  const entries = [entry({ key: 'k1', question: 'how does the upload listener work end to end' })];
+  assert.deepStrictEqual(similar('how does billing work', 'technical', 'any', entries), []);
 });
 
 // ── sources block ───────────────────────────────────────────────────────

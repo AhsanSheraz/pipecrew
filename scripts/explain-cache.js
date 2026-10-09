@@ -41,7 +41,7 @@ const { execFileSync } = require('child_process');
 
 const SCHEMA = 1;
 const HISTORY_KEEP = 3;
-const SIMILAR_THRESHOLD = 0.6;
+const SIMILAR_THRESHOLD = 0.75;
 const SIMILAR_MAX = 3;
 const FULL_IF_CHANGED_RATIO = 0.5;
 const DEFAULT_MAX_AGE_DAYS = 7;
@@ -61,7 +61,17 @@ function tokens(question) {
     .replace(/[^a-z0-9_.]+/g, ' ')
     .split(/\s+/)
     .map(t => t.replace(/^\.+|\.+$/g, ''))
-    .filter(t => t && !STOPWORDS.has(t));
+    .filter(t => t && !STOPWORDS.has(t))
+    .map(stem);
+}
+
+function stem(t) {
+  if (t.includes('.') || t.length <= 3) return t;
+  if (t.endsWith('ing') && t.length > 5) return t.slice(0, -3);
+  if (t.endsWith('ies') && t.length > 4) return `${t.slice(0, -3)}y`;
+  if (t.endsWith('es') && /(ch|sh|x|ss)es$/.test(t)) return t.slice(0, -2);
+  if (t.endsWith('s') && !t.endsWith('ss')) return t.slice(0, -1);
+  return t;
 }
 
 function normalize(question) {
@@ -73,19 +83,22 @@ function cacheKey(question, perspective, repo) {
   return crypto.createHash('sha256').update(basis).digest('hex').slice(0, 16);
 }
 
-function jaccard(a, b) {
+// Overlap relative to the SHORTER question, so "how X works" still matches a cached
+// "how X works end-to-end across all components". This is only a shortlist — the
+// skill's model (or the user) confirms the candidate really asks the same thing.
+function overlap(a, b) {
   const A = new Set(tokens(a));
   const B = new Set(tokens(b));
   if (A.size === 0 || B.size === 0) return 0;
   let inter = 0;
   for (const t of A) if (B.has(t)) inter++;
-  return inter / (A.size + B.size - inter);
+  return inter / Math.min(A.size, B.size);
 }
 
 function similar(question, perspective, repo, entries) {
   return entries
     .filter(e => e.perspective === perspective && (e.repo || 'any') === (repo || 'any'))
-    .map(e => ({ key: e.key, question: e.question, updated_at: e.updated_at, score: jaccard(question, e.question) }))
+    .map(e => ({ key: e.key, question: e.question, updated_at: e.updated_at, score: overlap(question, e.question) }))
     .filter(c => c.score >= SIMILAR_THRESHOLD)
     .sort((x, y) => y.score - x.score)
     .slice(0, SIMILAR_MAX)
@@ -302,4 +315,4 @@ function main() {
 
 if (require.main === module) main();
 
-module.exports = { tokens, normalize, cacheKey, jaccard, similar, extractSources, decide, lookup, store };
+module.exports = { tokens, normalize, cacheKey, overlap, similar, extractSources, decide, lookup, store };
